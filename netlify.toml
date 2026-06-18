@@ -1,0 +1,15 @@
+# Netlify configuration for the eBookMine Next.js app.
+# The official Next.js runtime (@netlify/plugin-nextjs) is installed automatically
+# when this plugin is listed below; it handles SSR routes, API routes and image
+# optimization as serverless functions.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Next.js 16 requires Node 20.9+.
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
