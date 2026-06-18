@@ -17,13 +17,32 @@ export default function Reader({ id }: { id: string }) {
   const [book, setBook] = useState<BookMeta | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [page, setPage] = useState(1);
-  const [scale, setScale] = useState(1.2);
+  // scale is relative to fit-to-width: 1 = fit the screen, >1 zooms in.
+  const [scale, setScale] = useState(1);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [pageInput, setPageInput] = useState("1");
   const [loadError, setLoadError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [fitWidth, setFitWidth] = useState(0);
   const savedRef = useRef(false);
+
+  // Track the available width of the PDF viewport so pages render fit-to-width
+  // (the page never overflows the screen; zoom scales relative to this).
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const update = () => setFitWidth(el.clientWidth);
+    update();
+    const obs = new ResizeObserver(update);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  // 12px of breathing room each side; capped so pages stay readable on desktop.
+  const baseWidth =
+    fitWidth > 0 ? Math.min(fitWidth - 24, 1000) : undefined;
 
   const fileUrl = useMemo(() => `${apiBase}/${id}/file`, [apiBase, id]);
   const downloadUrl = useMemo(
@@ -141,7 +160,7 @@ export default function Reader({ id }: { id: string }) {
         <button onClick={() => setScale((s) => Math.max(0.5, +(s - 0.2).toFixed(1)))} className="btnIcon">
           −
         </button>
-        <span className="w-12 text-center text-xs tabular-nums">{Math.round(scale * 100)}%</span>
+        <span className="hidden w-12 text-center text-xs tabular-nums sm:inline">{Math.round(scale * 100)}%</span>
         <button onClick={() => setScale((s) => Math.min(3, +(s + 0.2).toFixed(1)))} className="btnIcon">
           +
         </button>
@@ -197,7 +216,10 @@ export default function Reader({ id }: { id: string }) {
         )}
 
         {/* PDF viewport */}
-        <div className="flex flex-1 flex-col items-center overflow-auto py-6">
+        <div
+          ref={viewportRef}
+          className="flex min-w-0 flex-1 flex-col items-center overflow-auto py-6"
+        >
           {loadError ? (
             <div className="mt-20 text-center text-slate-500">
               <p className="text-3xl">⚠️</p>
@@ -217,7 +239,8 @@ export default function Reader({ id }: { id: string }) {
             >
               <Page
                 pageNumber={page}
-                scale={scale}
+                width={baseWidth ? baseWidth * scale : undefined}
+                scale={baseWidth ? undefined : scale}
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
                 className="shadow-lg"

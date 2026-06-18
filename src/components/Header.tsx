@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Header() {
   const { data: session } = useSession();
+  const isOwner = (session as any)?.isOwner === true;
   const [folderLink, setFolderLink] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session) return;
+    if (!isOwner) return;
     fetch("/api/folder")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d?.webViewLink && setFolderLink(d.webViewLink))
       .catch(() => {});
-  }, [session]);
+  }, [isOwner]);
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
@@ -36,7 +37,9 @@ export default function Header() {
             </a>
           )}
           <ThemeToggle />
-          {session?.user ? (
+          {/* Sign-in is owner-only and intentionally not advertised to the
+              public — the owner signs in directly via /api/auth/signin. */}
+          {session?.user && (
             <div className="flex items-center gap-2">
               {session.user.image && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -53,14 +56,6 @@ export default function Header() {
                 Sign out
               </button>
             </div>
-          ) : (
-            <button
-              onClick={() => signIn("google")}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-              title="Owner sign-in to manage the library"
-            >
-              Manage
-            </button>
           )}
         </div>
       </div>

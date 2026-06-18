@@ -6,7 +6,7 @@ import PublicLibrary from "@/components/PublicLibrary";
 import Header from "@/components/Header";
 
 export default function Home() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
 
   if (status === "loading") {
     return (
@@ -16,12 +16,15 @@ export default function Home() {
     );
   }
 
-  // Signed-in owner manages their own Drive; everyone else gets the public,
-  // read-only library served from the owner's account.
+  // Only the owner manages their own Drive; everyone else — including a
+  // signed-in non-owner — gets the public, read-only library.
+  const isOwner =
+    status === "authenticated" && (session as any)?.isOwner === true;
+
   return (
     <div className="min-h-screen">
       <Header />
-      {status === "authenticated" ? <Library /> : <PublicLibrary />}
+      {isOwner ? <Library /> : <PublicLibrary />}
     </div>
   );
 }

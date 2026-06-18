@@ -83,6 +83,13 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       (session as any).accessToken = token.accessToken;
       (session as any).error = token.error;
+      // Only the configured owner account may manage the library. If OWNER_EMAIL
+      // is unset, fall back to treating any signed-in user as the owner (handy
+      // for local single-user development).
+      const ownerEmail = process.env.OWNER_EMAIL;
+      (session as any).isOwner = ownerEmail
+        ? token.email === ownerEmail
+        : true;
       return session;
     },
   },
