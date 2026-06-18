@@ -93,17 +93,6 @@ export default function BookCard({
   );
 
   const downloadHref = `/api/public/books/${book.id}/file?download=1&name=${encodeURIComponent(book.title)}`;
-  const DownloadButton = (
-    <a
-      href={downloadHref}
-      onClick={(e) => e.stopPropagation()}
-      className="rounded-full bg-black/40 p-1.5 text-sm leading-none text-white transition hover:bg-black/60"
-      title="Download PDF"
-      aria-label="Download PDF"
-    >
-      ⬇
-    </a>
-  );
 
   if (view === "list") {
     return (
@@ -147,13 +136,21 @@ export default function BookCard({
           <span className="text-xs text-slate-400">{pct}%</span>
         )}
         {readOnly ? (
-          <a
-            href={downloadHref}
-            className="rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-            title="Download PDF"
-          >
-            ⬇ Download
-          </a>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href={`/read/${book.id}`}
+              className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              📖 Read
+            </Link>
+            <a
+              href={downloadHref}
+              className="rounded-lg px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              title="Download PDF"
+            >
+              ⬇ Download
+            </a>
+          </div>
         ) : (
           <>
             {FavoriteButton}
@@ -187,12 +184,8 @@ export default function BookCard({
           </div>
         )}
       </Link>
-      {readOnly ? (
-        <div className="absolute right-1.5 top-1.5 opacity-0 transition group-hover:opacity-100">
-          {DownloadButton}
-        </div>
-      ) : (
-        !selectable && <div className="absolute right-1.5 top-1.5">{FavoriteButton}</div>
+      {!readOnly && !selectable && (
+        <div className="absolute right-1.5 top-1.5">{FavoriteButton}</div>
       )}
       <div className="flex flex-1 flex-col p-3">
         <Link href={`/book/${book.id}`} {...wrapProps}>
@@ -224,6 +217,23 @@ export default function BookCard({
           >
             Edit details
           </button>
+        )}
+        {readOnly && (
+          <div className="mt-auto flex gap-2 pt-3">
+            <Link
+              href={`/read/${book.id}`}
+              className="flex-1 rounded-lg bg-brand-600 px-2 py-1.5 text-center text-xs font-semibold text-white hover:bg-brand-700"
+            >
+              📖 Read
+            </Link>
+            <a
+              href={downloadHref}
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              title="Download PDF"
+            >
+              ⬇
+            </a>
+          </div>
         )}
       </div>
     </div>
