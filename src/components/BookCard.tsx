@@ -116,11 +116,11 @@ export default function BookCard({
         }`}
       >
         {SelectBadge}
-        <Link href={`/read/${book.id}`} className="shrink-0" {...wrapProps}>
+        <Link href={`/book/${book.id}`} className="shrink-0" {...wrapProps}>
           <Cover book={book} className="h-20 w-14" readOnly={readOnly} />
         </Link>
         <div className="min-w-0 flex-1">
-          <Link href={`/read/${book.id}`} {...wrapProps}>
+          <Link href={`/book/${book.id}`} {...wrapProps}>
             <h3 className="truncate font-semibold hover:text-brand-600">
               {book.title}
             </h3>
@@ -179,7 +179,7 @@ export default function BookCard({
       }`}
     >
       {SelectBadge}
-      <Link href={`/read/${book.id}`} className="relative block" {...wrapProps}>
+      <Link href={`/book/${book.id}`} className="relative block" {...wrapProps}>
         <Cover book={book} className="aspect-[3/4] w-full" readOnly={readOnly} />
         {pct > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-slate-200/70 dark:bg-slate-700/70">
@@ -195,7 +195,7 @@ export default function BookCard({
         !selectable && <div className="absolute right-1.5 top-1.5">{FavoriteButton}</div>
       )}
       <div className="flex flex-1 flex-col p-3">
-        <Link href={`/read/${book.id}`} {...wrapProps}>
+        <Link href={`/book/${book.id}`} {...wrapProps}>
           <h3 className="line-clamp-2 text-sm font-semibold hover:text-brand-600">
             {book.title}
           </h3>
