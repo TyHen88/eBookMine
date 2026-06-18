@@ -21,10 +21,15 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2" title="eBookMine — read and explore eBooks online">
           <span className="text-2xl">📚</span>
-          <span className="text-lg font-bold tracking-tight">eBookMine</span>
-        </div>
+          <span className="leading-tight">
+            <span className="block text-lg font-bold tracking-tight">eBookMine</span>
+            <span className="hidden text-xs font-normal text-slate-500 dark:text-slate-400 sm:block">
+              Read and explore eBooks online, anytime
+            </span>
+          </span>
+        </Link>
         <div className="flex items-center gap-3">
           {folderLink && (
             <a
