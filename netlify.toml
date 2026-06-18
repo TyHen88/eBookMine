@@ -4,7 +4,10 @@
 # optimization as serverless functions.
 
 [build]
-  command = "npm run build"
+  # Build with the webpack engine: Netlify's Next.js runtime does not yet fully
+  # support Turbopack production builds (the Next 16 default). copy-worker stages
+  # the pdf.js worker into /public before the build.
+  command = "npm run copy-worker && next build --webpack"
   publish = ".next"
 
 [build.environment]
