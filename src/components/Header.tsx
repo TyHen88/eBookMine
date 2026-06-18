@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import ThemeToggle from "./ThemeToggle";
 
@@ -36,9 +37,17 @@ export default function Header() {
               📁 Drive folder
             </a>
           )}
+          {/* Manage link is shown only to the signed-in owner; never to the
+              public. Anonymous owners reach management via /admin directly. */}
+          {isOwner && (
+            <Link
+              href="/admin"
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              ⚙️ Manage
+            </Link>
+          )}
           <ThemeToggle />
-          {/* Sign-in is owner-only and intentionally not advertised to the
-              public — the owner signs in directly via /api/auth/signin. */}
           {session?.user && (
             <div className="flex items-center gap-2">
               {session.user.image && (
