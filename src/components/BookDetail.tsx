@@ -177,8 +177,12 @@ export default function BookDetail({ id }: { id: string }) {
 
                 {/* Detail table */}
                 <dl className="mt-8 grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
-                  <Detail label="Pages" value={book.pageCount ? String(book.pageCount) : "—"} />
-                  <Detail label="File size" value={formatBytes(book.sizeBytes)} />
+                  {book.pageCount > 0 && (
+                    <Detail label="Pages" value={String(book.pageCount)} />
+                  )}
+                  {book.sizeBytes > 0 && (
+                    <Detail label="File size" value={formatBytes(book.sizeBytes)} />
+                  )}
                   <Detail label="Date added" value={formatDate(book.addedAt)} />
                   <Detail label="Uploaded by" value={UPLOADER} />
                   {book.category && <Detail label="Category" value={book.category} />}

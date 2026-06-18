@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 /**
- * Info icon (next to the theme toggle) that opens an "About" popup with a short
- * app description and the developer credit. Replaces the footer, which was
+ * Info icon (next to the theme toggle) that opens an "About" popup describing
+ * the app's purpose and the developer credit. Replaces the footer, which was
  * unreachable on long, infinitely-scrolling library pages.
  */
 export default function AboutButton() {
@@ -34,37 +34,56 @@ export default function AboutButton() {
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl dark:bg-slate-900"
+            className="relative w-full max-w-md rounded-2xl bg-white p-7 shadow-xl dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-5xl">📚</div>
-            <h2 className="mt-3 text-xl font-bold tracking-tight">eBookMine</h2>
-            <p className="mx-auto mt-2 max-w-xs text-sm text-slate-500 dark:text-slate-400">
-              A free online eBook library — read, search, and explore books
-              anytime, anywhere. Open to everyone. 📖
-            </p>
+            {/* Close (X) */}
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            >
+              ✕
+            </button>
+
+            <div className="text-center">
+              <div className="text-5xl">📚</div>
+              <h2 className="mt-3 text-xl font-bold tracking-tight">eBookMine</h2>
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              <p>
+                eBookMine is a <span className="font-semibold">free, open digital
+                library</span> built to make knowledge reachable for everyone —
+                no sign-up, no paywalls, no limits.
+              </p>
+              <p>
+                Our goal is simple: bring study guides, exam preparation, and
+                great books to every learner, anywhere. Browse by category,
+                search what you need, then read it online or download it to keep.
+              </p>
+              <p className="text-slate-500 dark:text-slate-400">
+                Built for students and curious minds — because learning should be
+                accessible to all. 📖✨
+              </p>
+            </div>
 
             <div className="my-5 border-t border-slate-200 dark:border-slate-800" />
 
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Developed by{" "}
-              <span className="font-semibold text-slate-700 dark:text-slate-200">
-                Hen Ty
-              </span>
-            </p>
-            <a
-              href="tel:010297859"
-              className="mt-1 inline-block font-medium text-brand-600 hover:underline dark:text-brand-400"
-            >
-              📞 010 297 859
-            </a>
-
-            <button
-              onClick={() => setOpen(false)}
-              className="mt-6 w-full rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              Close
-            </button>
+            <div className="text-center">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Developed by{" "}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  Hen Ty
+                </span>
+              </p>
+              <a
+                href="tel:010297859"
+                className="mt-1 inline-block font-medium text-brand-600 hover:underline dark:text-brand-400"
+              >
+                📞 010 297 859
+              </a>
+            </div>
           </div>
         </div>
       )}
