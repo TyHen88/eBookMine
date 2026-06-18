@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import ThemeToggle from "./ThemeToggle";
+import AboutButton from "./AboutButton";
 
 export default function Header() {
   const { data: session } = useSession();
@@ -52,6 +53,7 @@ export default function Header() {
               ⚙️ Manage
             </Link>
           )}
+          <AboutButton />
           <ThemeToggle />
           {session?.user && (
             <div className="flex items-center gap-2">

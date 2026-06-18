@@ -5,7 +5,6 @@ import { signOut, useSession } from "next-auth/react";
 import SignIn from "@/components/SignIn";
 import Library from "@/components/Library";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 
 /**
  * /admin — owner login & management.
@@ -59,12 +58,9 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="min-h-screen">
       <Header />
-      <div className="flex-1">
-        <Library />
-      </div>
-      <Footer />
+      <Library />
     </div>
   );
 }

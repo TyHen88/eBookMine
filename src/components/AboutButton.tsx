@@ -1,0 +1,73 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+/**
+ * Info icon (next to the theme toggle) that opens an "About" popup with a short
+ * app description and the developer credit. Replaces the footer, which was
+ * unreachable on long, infinitely-scrolling library pages.
+ */
+export default function AboutButton() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="About eBookMine"
+        title="About"
+        className="rounded-lg px-2 py-1.5 text-lg leading-none text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+      >
+        ℹ️
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-5xl">📚</div>
+            <h2 className="mt-3 text-xl font-bold tracking-tight">eBookMine</h2>
+            <p className="mx-auto mt-2 max-w-xs text-sm text-slate-500 dark:text-slate-400">
+              A free online eBook library — read, search, and explore books
+              anytime, anywhere. Open to everyone. 📖
+            </p>
+
+            <div className="my-5 border-t border-slate-200 dark:border-slate-800" />
+
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Developed by{" "}
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
+                Hen Ty
+              </span>
+            </p>
+            <a
+              href="tel:010297859"
+              className="mt-1 inline-block font-medium text-brand-600 hover:underline dark:text-brand-400"
+            >
+              📞 010 297 859
+            </a>
+
+            <button
+              onClick={() => setOpen(false)}
+              className="mt-6 w-full rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { BookMeta } from "@/lib/types";
 import Header from "./Header";
-import Footer from "./Footer";
 import BookCard from "./BookCard";
 
 const UPLOADER = "Hen Ty";
@@ -79,7 +78,7 @@ export default function BookDetail({ id }: { id: string }) {
       : 0;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="min-h-screen">
       <Header />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <Link
@@ -209,7 +208,6 @@ export default function BookDetail({ id }: { id: string }) {
           </>
         )}
       </main>
-      <Footer />
     </div>
   );
 }
