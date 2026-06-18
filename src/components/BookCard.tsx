@@ -138,10 +138,10 @@ export default function BookCard({
         {readOnly ? (
           <div className="flex shrink-0 items-center gap-2">
             <Link
-              href={`/read/${book.id}`}
+              href={`/book/${book.id}`}
               className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
             >
-              📖 Read
+              View details
             </Link>
             <a
               href={downloadHref}
