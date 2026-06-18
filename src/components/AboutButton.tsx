@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * Info icon (next to the theme toggle) that opens an "About" popup describing
@@ -28,7 +29,8 @@ export default function AboutButton() {
         ℹ️
       </button>
 
-      {open && (
+      {open &&
+        createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => setOpen(false)}
@@ -85,8 +87,9 @@ export default function AboutButton() {
               </a>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </>
   );
 }
