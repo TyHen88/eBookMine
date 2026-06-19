@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
@@ -10,6 +10,18 @@ export const metadata: Metadata = {
   title: "eBookMine — Your PDF library in Google Drive",
   description:
     "A personal eBook library. Sign in with Google and keep your PDFs in your own Drive.",
+  appleWebApp: {
+    capable: true,
+    title: "eBookMine",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/apple-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1d57f5",
 };
 
 export default function RootLayout({
