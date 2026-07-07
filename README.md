@@ -68,24 +68,32 @@ everything else (upload, library, reader) still works.
 
 ## 1c. (Optional) Make the library public
 
-Let anyone view and read your books (and download the PDFs) without signing in.
-Visitors are served from **your** Drive using a stored owner token; only you can
-manage (upload/edit/delete) after signing in.
+Let anyone view and read your books (and download the PDFs) without signing in —
+**no stored token, nothing that expires.** Instead, the app shares your
+`eBookMine` folder as *"anyone with the link → viewer"* and the public pages read
+it with the API key you already configured for the Picker.
 
-1. Start the app and **sign in as the owner**.
-2. Open <http://localhost:3000/api/owner/token> and copy the `refreshToken` value.
-3. Put it in `.env.local` as `OWNER_REFRESH_TOKEN=...` and restart the server.
-4. **Important:** in Google Cloud Console → OAuth consent screen, set the app to
-   **"In production"** (Publish). Refresh tokens for apps left in *Testing* mode
-   expire after 7 days, which would break the public library. Publishing works
-   even while unverified (only *your* sign-in shows an extra warning; visitors
-   never sign in).
+1. **Sign in as the owner at <http://localhost:3000/henty>.** Just loading it
+   shares your `eBookMine` folder publicly (done automatically).
+2. Open <http://localhost:3000/api/folder> and copy the `id` value.
+3. Put it in `.env.local` as `EBOOKMINE_FOLDER_ID=...`.
+4. Create a **server-side API key** for the reads and set `DRIVE_API_KEY=...`,
+   then restart. Cloud Console → Credentials → *Create API key* →
+   **Application restrictions: None**, **API restrictions: Google Drive API**.
+   (The browser `NEXT_PUBLIC_GOOGLE_API_KEY` is usually restricted to HTTP
+   referrers for the Picker — and referrer restrictions block the server's
+   token-free calls, which have no referrer. Hence a separate, unrestricted key
+   for server reads. You can reuse the public key only if it has no referrer
+   restriction.)
 
-Now the home page shows a public, read-only library to everyone; the **Manage**
-button (top-right) is your owner sign-in.
+A folder id is **not a secret** and never expires, so there's nothing to rotate
+or re-publish. The home page (`/`) now shows a public, read-only library to
+everyone; owner management lives at **`/henty`** (open it manually, or use the
+**Manage** button that appears top-right once you're signed in).
 
-> ⚠️ Only publish books you have the right to share. Many commercial textbooks
-> are copyrighted; redistributing them publicly may be unlawful.
+> ⚠️ This makes the book files genuinely public on Drive — anyone with a file's
+> link can open it, even outside the app. Only publish books you have the right
+> to share; redistributing copyrighted textbooks publicly may be unlawful.
 
 ## 2. Configure environment
 

@@ -1,26 +1,29 @@
-import { getOrCreateAppFolder, listPdfFiles } from "./drive";
-import { loadLibrary, saveLibrary, BookMeta } from "./metadata";
+import {
+  getOrCreateAppFolder,
+  listPdfFiles,
+  listPublicPdfFiles,
+  DriveFile,
+} from "./drive";
+import {
+  loadLibrary,
+  loadPublicLibrary,
+  saveLibrary,
+  BookMeta,
+  Library,
+} from "./metadata";
 import { cleanTitle } from "./title";
 import { categorize } from "./categorize";
 
 /**
- * Build the merged book list for a given Google account: reconcile the Drive
- * folder against library.json (add new files, drop deleted ones, tidy titles,
- * backfill categories). When `persist` is true, changes are written back.
- *
- * Used by both the owner's authenticated route (persist) and the public
- * read-only route (no persist).
+ * Reconcile a Drive PDF listing against library.json in place: add entries for
+ * new files, drop entries for deleted ones, tidy titles, backfill categories.
+ * Returns the sorted book list and whether anything changed (so callers can
+ * decide whether to persist). Pure — no network, no token.
  */
-export async function getMergedBooks(
-  token: string,
-  opts: { persist?: boolean } = {}
-): Promise<BookMeta[]> {
-  const folderId = await getOrCreateAppFolder(token);
-  const [files, library] = await Promise.all([
-    listPdfFiles(token, folderId),
-    loadLibrary(token, folderId),
-  ]);
-
+function reconcile(
+  files: DriveFile[],
+  library: Library
+): { books: BookMeta[]; changed: boolean } {
   let changed = false;
 
   // Surface PDFs present in Drive that aren't yet in metadata.
@@ -67,9 +70,39 @@ export async function getMergedBooks(
     }
   }
 
-  if (changed && opts.persist) await saveLibrary(token, folderId, library);
-
-  return Object.values(library.books).sort(
+  const books = Object.values(library.books).sort(
     (a, b) => +new Date(b.addedAt) - +new Date(a.addedAt)
   );
+  return { books, changed };
+}
+
+/**
+ * Build the merged book list for a signed-in owner and (optionally) persist any
+ * reconciliation changes back to their Drive.
+ */
+export async function getMergedBooks(
+  token: string,
+  opts: { persist?: boolean } = {}
+): Promise<BookMeta[]> {
+  const folderId = await getOrCreateAppFolder(token);
+  const [files, library] = await Promise.all([
+    listPdfFiles(token, folderId),
+    loadLibrary(token, folderId),
+  ]);
+
+  const { books, changed } = reconcile(files, library);
+  if (changed && opts.persist) await saveLibrary(token, folderId, library);
+  return books;
+}
+
+/**
+ * Build the read-only book list from a publicly-shared folder using only the
+ * API key (no OAuth token). Never persists.
+ */
+export async function getPublicBooks(folderId: string): Promise<BookMeta[]> {
+  const [files, library] = await Promise.all([
+    listPublicPdfFiles(folderId),
+    loadPublicLibrary(folderId),
+  ]);
+  return reconcile(files, library).books;
 }

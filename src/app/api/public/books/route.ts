@@ -1,24 +1,21 @@
 import { NextResponse } from "next/server";
-import { getOwnerAccessToken } from "@/lib/owner";
-import { getMergedBooks } from "@/lib/booksService";
+import { getPublicFolderId } from "@/lib/owner";
+import { getPublicBooks } from "@/lib/booksService";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/public/books — the owner's library, served read-only to anyone.
- * Uses the owner's stored token; never writes back to library.json.
+ * Reads the publicly-shared eBookMine folder with the API key (no token).
  */
 export async function GET() {
-  const token = await getOwnerAccessToken();
-  if (!token) {
-    return NextResponse.json(
-      { books: [], configured: false },
-      { status: 200 }
-    );
+  const folderId = getPublicFolderId();
+  if (!folderId) {
+    return NextResponse.json({ books: [], configured: false }, { status: 200 });
   }
 
   try {
-    const books = await getMergedBooks(token, { persist: false });
+    const books = await getPublicBooks(folderId);
     return NextResponse.json({ books, configured: true });
   } catch (err: any) {
     return NextResponse.json(

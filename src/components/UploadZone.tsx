@@ -3,6 +3,12 @@
 import { useCallback, useRef, useState } from "react";
 import { extractPdfInfo } from "@/lib/pdf";
 import { BookMeta } from "@/lib/types";
+import { Spinner } from "./ui";
+import {
+  AlertTriangleIcon,
+  CheckIcon,
+  UploadCloudIcon,
+} from "./ui/icons";
 
 interface UploadItem {
   name: string;
@@ -82,14 +88,18 @@ export default function UploadZone({
           handleFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center transition ${
+        className={`group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center transition-all duration-300 ${
           dragOver
-            ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20"
-            : "border-slate-300 hover:border-brand-400 dark:border-slate-700"
+            ? "scale-[1.01] border-brand-500 bg-brand-50 shadow-lg shadow-brand-500/10 dark:bg-brand-900/20"
+            : "border-slate-300 hover:border-brand-400 hover:bg-brand-50/40 dark:border-slate-700 dark:hover:bg-brand-900/10"
         }`}
       >
-        <div className="text-3xl">⬆️</div>
-        <p className="mt-2 font-medium">Drop PDFs here or click to upload</p>
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 transition-transform duration-300 group-hover:-translate-y-1 dark:bg-brand-900/40 dark:text-brand-300 ${dragOver ? "animate-float" : ""}`}
+        >
+          <UploadCloudIcon size={26} />
+        </div>
+        <p className="mt-3 font-medium">Drop PDFs here or click to upload</p>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Covers &amp; metadata are extracted automatically
         </p>
@@ -108,16 +118,33 @@ export default function UploadZone({
           {items.map((it) => (
             <li
               key={it.name}
-              className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800"
+              className="flex animate-fade-in-up items-center justify-between rounded-lg bg-slate-100 px-3 py-1.5 dark:bg-slate-800"
             >
               <span className="truncate">{it.name}</span>
-              <span className="ml-2 shrink-0 text-xs">
-                {it.status === "parsing" && "📖 reading…"}
-                {it.status === "uploading" && "☁️ uploading…"}
-                {it.status === "done" && "✅ done"}
+              <span className="ml-2 flex shrink-0 items-center gap-1.5 text-xs font-medium">
+                {it.status === "parsing" && (
+                  <>
+                    <Spinner size="sm" />
+                    <span className="text-slate-500">reading…</span>
+                  </>
+                )}
+                {it.status === "uploading" && (
+                  <>
+                    <Spinner size="sm" />
+                    <span className="text-slate-500">uploading…</span>
+                  </>
+                )}
+                {it.status === "done" && (
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <CheckIcon size={15} /> done
+                  </span>
+                )}
                 {it.status === "error" && (
-                  <span className="text-red-500" title={it.error}>
-                    ⚠️ failed
+                  <span
+                    className="flex items-center gap-1 text-red-500"
+                    title={it.error}
+                  >
+                    <AlertTriangleIcon size={15} /> failed
                   </span>
                 )}
               </span>

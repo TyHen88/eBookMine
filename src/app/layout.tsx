@@ -15,13 +15,12 @@ export const metadata: Metadata = {
     title: "eBookMine",
     statusBarStyle: "default",
   },
-  icons: {
-    apple: "/apple-icon.png",
-  },
+  // Favicon (src/app/icon.svg) and the Apple touch icon (src/app/apple-icon.tsx)
+  // are picked up automatically via the App Router file conventions.
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1d57f5",
+  themeColor: "#4f46e5",
 };
 
 export default function RootLayout({

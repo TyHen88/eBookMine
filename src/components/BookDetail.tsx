@@ -6,6 +6,13 @@ import { useSession } from "next-auth/react";
 import { BookMeta } from "@/lib/types";
 import Header from "./Header";
 import BookCard from "./BookCard";
+import { buttonClass, Chip, Spinner } from "./ui";
+import {
+  ArrowLeftIcon,
+  BookOpenIcon,
+  DownloadIcon,
+  SearchIcon,
+} from "./ui/icons";
 
 const UPLOADER = "Hen Ty";
 
@@ -83,32 +90,36 @@ export default function BookDetail({ id }: { id: string }) {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         <Link
           href="/"
-          className="mb-6 inline-block text-sm font-medium text-slate-500 hover:text-brand-600 dark:text-slate-400"
+          className="group mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-brand-600 dark:text-slate-400"
         >
-          ← Back to library
+          <ArrowLeftIcon
+            size={17}
+            className="transition-transform duration-300 group-hover:-translate-x-1"
+          />
+          Back to library
         </Link>
 
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          <div className="flex justify-center py-24">
+            <Spinner size="lg" />
           </div>
         ) : !book ? (
-          <div className="py-20 text-center text-slate-500">
-            <div className="text-5xl">🔍</div>
+          <div className="flex flex-col items-center py-24 text-center text-slate-500">
+            <SearchIcon size={44} className="text-slate-400" />
             <p className="mt-4">Book not found.</p>
           </div>
         ) : (
           <>
             <div className="flex flex-col gap-8 sm:flex-row">
               {/* Cover */}
-              <div className="mx-auto w-48 shrink-0 sm:mx-0">
+              <div className="mx-auto w-48 shrink-0 animate-fade-in-up sm:mx-0">
                 {coverSrc && !coverFailed ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={coverSrc}
                     alt={book.title}
                     onError={() => setCoverFailed(true)}
-                    className="aspect-[3/4] w-full rounded-xl object-cover shadow-md"
+                    className="aspect-[3/4] w-full rounded-xl object-cover shadow-lg shadow-brand-500/20 transition-transform duration-500 hover:scale-[1.03]"
                   />
                 ) : (
                   <div className="flex aspect-[3/4] w-full items-center justify-center rounded-xl bg-gradient-to-br from-brand-100 to-brand-300 p-3 text-center dark:from-brand-900 dark:to-brand-700">
@@ -121,7 +132,7 @@ export default function BookDetail({ id }: { id: string }) {
                   <div className="mt-2">
                     <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700">
                       <div
-                        className="h-full rounded-full bg-brand-500"
+                        className="h-full origin-left animate-bar-grow rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -133,7 +144,10 @@ export default function BookDetail({ id }: { id: string }) {
               </div>
 
               {/* Info */}
-              <div className="min-w-0 flex-1">
+              <div
+                className="min-w-0 flex-1 animate-fade-in-up"
+                style={{ animationDelay: "80ms" }}
+              >
                 <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                   {book.title}
                 </h1>
@@ -145,17 +159,14 @@ export default function BookDetail({ id }: { id: string }) {
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   {book.category && book.category !== "Other" && (
-                    <span className="rounded-full bg-slate-200 px-3 py-1 text-sm text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                    <Chip tone="neutral" className="px-3 py-1 text-sm">
                       {book.category}
-                    </span>
+                    </Chip>
                   )}
                   {book.tags.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-700 dark:bg-brand-900/40 dark:text-brand-200"
-                    >
+                    <Chip key={t} className="px-3 py-1 text-sm">
                       {t}
-                    </span>
+                    </Chip>
                   ))}
                 </div>
 
@@ -163,15 +174,17 @@ export default function BookDetail({ id }: { id: string }) {
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link
                     href={`/read/${book.id}`}
-                    className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+                    className={buttonClass({ variant: "primary", size: "lg" })}
                   >
+                    <BookOpenIcon size={18} />
                     {pct > 0 ? "Continue reading" : "Read now"}
                   </Link>
                   <a
                     href={downloadHref}
-                    className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                    className={buttonClass({ variant: "secondary", size: "lg" })}
                   >
-                    ⬇ Download
+                    <DownloadIcon size={18} />
+                    Download
                   </a>
                 </div>
 
@@ -194,13 +207,17 @@ export default function BookDetail({ id }: { id: string }) {
             {/* Related books */}
             {related.length > 0 && (
               <section className="mt-12">
-                <h2 className="mb-4 text-lg font-semibold">Related books</h2>
+                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                  <span className="inline-block h-5 w-1 rounded-full bg-gradient-to-b from-brand-500 to-brand-400" />
+                  Related books
+                </h2>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                  {related.map((b) => (
+                  {related.map((b, i) => (
                     <BookCard
                       key={b.id}
                       book={b}
                       view="grid"
+                      index={i}
                       readOnly
                       onToggleFavorite={() => {}}
                       onEdit={() => {}}

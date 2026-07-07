@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronUpIcon } from "./ui/icons";
 
 /**
  * Floating "back to top" button. Appears after the page is scrolled down past
@@ -23,9 +24,9 @@ export default function ScrollToTop() {
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       aria-label="Scroll to top"
       title="Back to top"
-      className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-brand-600 text-lg text-white shadow-lg transition hover:bg-brand-700"
+      className="fixed bottom-6 right-6 z-40 flex h-11 w-11 animate-pop-in items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-500 text-white shadow-lg shadow-brand-500/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-500/50"
     >
-      ↑
+      <ChevronUpIcon size={22} />
     </button>
   );
 }

@@ -1,44 +1,28 @@
-// Owner-token helper for the public library.
-// The site owner authorizes once; their refresh token is stored as
-// OWNER_REFRESH_TOKEN so the server can read the owner's eBookMine folder and
-// serve books to anonymous visitors. Access tokens are cached in memory.
-
-let cached: { token: string; expires: number } | null = null;
+// Public-library configuration.
+//
+// The public library needs NO stored credential and nothing that expires. The
+// owner's `eBookMine` folder is shared "anyone with the link" (done
+// automatically by the app whenever the owner is signed in — see
+// ensureFolderPublic in drive.ts), and the public routes read it with the
+// already-public Google API key.
+//
+// The only thing the server must know is *which* folder to read — its Drive id.
+// A folder id is not a secret and never expires; set it as EBOOKMINE_FOLDER_ID.
 
 /**
- * Returns an access token for the owner's Google account, or null if the
- * public library hasn't been configured (no OWNER_REFRESH_TOKEN set).
+ * The owner's eBookMine folder id, or null if the public library isn't set up.
  */
-export async function getOwnerAccessToken(): Promise<string | null> {
-  const refreshToken = process.env.OWNER_REFRESH_TOKEN;
-  if (!refreshToken) return null;
-
-  if (cached && Date.now() < cached.expires - 60_000) return cached.token;
-
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID!,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-    }),
-  });
-
-  if (!res.ok) {
-    console.error("Owner token refresh failed:", await res.text());
-    return null;
-  }
-
-  const data = await res.json();
-  cached = {
-    token: data.access_token,
-    expires: Date.now() + data.expires_in * 1000,
-  };
-  return cached.token;
+export function getPublicFolderId(): string | null {
+  return process.env.EBOOKMINE_FOLDER_ID || null;
 }
 
+/**
+ * True once the public library can be served: a folder id plus a server-usable
+ * API key (a dedicated DRIVE_API_KEY, or the public key as a fallback).
+ */
 export function isPublicLibraryConfigured(): boolean {
-  return Boolean(process.env.OWNER_REFRESH_TOKEN);
+  return Boolean(
+    process.env.EBOOKMINE_FOLDER_ID &&
+      (process.env.DRIVE_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_API_KEY)
+  );
 }

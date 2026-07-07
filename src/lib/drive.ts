@@ -14,6 +14,28 @@ function authHeaders(token: Token, extra: Record<string, string> = {}) {
   return { Authorization: `Bearer ${token}`, ...extra };
 }
 
+// Server-side API key for reading files shared "anyone with the link" — no
+// OAuth token, nothing that expires. Prefer a dedicated server key (DRIVE_API_KEY)
+// because the NEXT_PUBLIC key is usually HTTP-referrer restricted for the browser
+// Picker, and referrer restrictions block server-to-server calls (no referrer).
+function apiKey(): string {
+  return (
+    process.env.DRIVE_API_KEY ||
+    process.env.NEXT_PUBLIC_GOOGLE_API_KEY ||
+    ""
+  );
+}
+
+async function keyedFetch(url: string): Promise<Response> {
+  const sep = url.includes("?") ? "&" : "?";
+  const res = await fetch(`${url}${sep}key=${apiKey()}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Drive API error ${res.status}: ${text}`);
+  }
+  return res;
+}
+
 async function driveFetch(token: Token, url: string, init: RequestInit = {}) {
   const res = await fetch(url, {
     ...init,
@@ -48,6 +70,7 @@ export async function getOrCreateAppFolderInfo(
   const data = await res.json();
   if (data.files && data.files.length > 0) {
     const f = data.files[0];
+    await ensureFolderPublic(token, f.id);
     return { id: f.id, webViewLink: f.webViewLink ?? "" };
   }
 
@@ -64,7 +87,32 @@ export async function getOrCreateAppFolderInfo(
     }
   );
   const created = await createRes.json();
+  await ensureFolderPublic(token, created.id);
   return { id: created.id, webViewLink: created.webViewLink ?? "" };
+}
+
+/**
+ * Share the app folder as "anyone with the link → reader" so its files (current
+ * and future) are publicly readable via the API key. Idempotent and best-effort:
+ * a duplicate/pre-existing permission is fine and is swallowed.
+ */
+export async function ensureFolderPublic(
+  token: Token,
+  folderId: string
+): Promise<void> {
+  try {
+    await driveFetch(
+      token,
+      `${DRIVE_API}/files/${folderId}/permissions?fields=id`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "reader", type: "anyone" }),
+      }
+    );
+  } catch {
+    // Already shared, or the account lacks permission to share — non-fatal.
+  }
 }
 
 /**
@@ -284,4 +332,73 @@ export async function updateFileContent(
       body: Buffer.from(bytes as ArrayBuffer),
     }
   );
+}
+
+// --- Token-free public reads (API key + publicly-shared folder) -------------
+
+/**
+ * List every PDF in a publicly-shared folder using only the API key.
+ * Mirrors listPdfFiles but requires no OAuth token.
+ */
+export async function listPublicPdfFiles(
+  folderId: string
+): Promise<DriveFile[]> {
+  const q = encodeURIComponent(
+    `'${folderId}' in parents and mimeType='application/pdf' and trashed=false`
+  );
+  const fields = encodeURIComponent(
+    "nextPageToken,files(id,name,size,createdTime,modifiedTime,hasThumbnail)"
+  );
+
+  const out: DriveFile[] = [];
+  let pageToken: string | undefined;
+  do {
+    const url =
+      `${DRIVE_API}/files?q=${q}&fields=${fields}` +
+      `&orderBy=createdTime desc&pageSize=1000` +
+      (pageToken ? `&pageToken=${pageToken}` : "");
+    const res = await keyedFetch(url);
+    const data = await res.json();
+    if (Array.isArray(data.files)) out.push(...data.files);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return out;
+}
+
+/**
+ * Find a file by exact name inside a publicly-shared folder (API key only).
+ */
+export async function findPublicFileByName(
+  folderId: string,
+  name: string
+): Promise<string | null> {
+  const q = encodeURIComponent(
+    `'${folderId}' in parents and name='${name}' and trashed=false`
+  );
+  try {
+    const res = await keyedFetch(
+      `${DRIVE_API}/files?q=${q}&fields=files(id,name)`
+    );
+    const data = await res.json();
+    return data.files && data.files.length > 0 ? data.files[0].id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Download a publicly-shared file's binary content (API key only). Returns the
+ * raw Response so callers can stream it.
+ */
+export async function downloadPublicFile(fileId: string): Promise<Response> {
+  return keyedFetch(`${DRIVE_API}/files/${fileId}?alt=media`);
+}
+
+/**
+ * Public thumbnail URL for a shared file. Google serves these without auth for
+ * link-shared files, so it doubles as a cover fallback for the public library.
+ */
+export function publicThumbnailUrl(fileId: string, size = 400): string {
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${size}`;
 }

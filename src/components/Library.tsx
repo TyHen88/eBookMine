@@ -7,6 +7,15 @@ import UploadZone from "./UploadZone";
 import BookDetailModal from "./BookDetailModal";
 import ImportFromDrive from "./ImportFromDrive";
 import { extractPdfInfo } from "@/lib/pdf";
+import { Button, SearchInput, SegmentedControl, Select, Spinner } from "./ui";
+import {
+  GridIcon,
+  ListIcon,
+  LogoIcon,
+  PlusIcon,
+  SearchIcon,
+  StarIcon,
+} from "./ui/icons";
 
 const PAGE_SIZE = 48;
 
@@ -192,23 +201,16 @@ export default function Library() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
       {/* Toolbar */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search title or author…"
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 pl-10 dark:border-slate-700 dark:bg-slate-900"
-          />
-          <span className="pointer-events-none absolute left-3 top-2.5 text-slate-400">
-            🔍
-          </span>
-        </div>
+      <div className="mb-6 flex animate-fade-in-down flex-wrap items-center gap-3">
+        <SearchInput
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search title or author…"
+        />
 
-        <select
+        <Select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium dark:border-slate-700 dark:bg-slate-900"
           title="Filter by category"
         >
           <option value="">All categories</option>
@@ -217,46 +219,35 @@ export default function Library() {
               {c} ({n})
             </option>
           ))}
-        </select>
+        </Select>
 
-        <button
+        <Button
+          variant={favoritesOnly ? "primary" : "secondary"}
           onClick={() => setFavoritesOnly((v) => !v)}
-          className={`rounded-xl border px-3 py-2 text-sm font-medium ${
-            favoritesOnly
-              ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-200"
-              : "border-slate-300 dark:border-slate-700"
-          }`}
         >
-          ⭐ Favorites
-        </button>
+          <StarIcon size={16} filled={favoritesOnly} />
+          Favorites
+        </Button>
 
-        <div className="flex overflow-hidden rounded-xl border border-slate-300 dark:border-slate-700">
-          <button
-            onClick={() => setView("grid")}
-            className={`px-3 py-2 text-sm ${view === "grid" ? "bg-slate-200 dark:bg-slate-800" : ""}`}
-          >
-            ▦
-          </button>
-          <button
-            onClick={() => setView("list")}
-            className={`px-3 py-2 text-sm ${view === "list" ? "bg-slate-200 dark:bg-slate-800" : ""}`}
-          >
-            ☰
-          </button>
-        </div>
+        <SegmentedControl
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "grid", label: <GridIcon size={17} />, title: "Grid view" },
+            { value: "list", label: <ListIcon size={17} />, title: "List view" },
+          ]}
+        />
 
         <ImportFromDrive onImported={importFromDrive} />
 
-        <button
-          onClick={() => setShowUpload((v) => !v)}
-          className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          + Add books
-        </button>
+        <Button onClick={() => setShowUpload((v) => !v)}>
+          <PlusIcon size={17} />
+          Add books
+        </Button>
       </div>
 
       {showUpload && (
-        <div className="mb-6">
+        <div className="mb-6 animate-scale-in">
           <UploadZone
             onUploaded={(book) =>
               setBooks((prev) => [book, ...prev.filter((b) => b.id !== book.id)])
@@ -270,10 +261,10 @@ export default function Library() {
         <div className="mb-6 flex flex-wrap gap-2">
           <button
             onClick={() => setActiveTag(null)}
-            className={`rounded-full px-3 py-1 text-sm ${
+            className={`rounded-full px-3 py-1 text-sm transition-all duration-200 active:scale-95 ${
               activeTag === null
-                ? "bg-brand-600 text-white"
-                : "bg-slate-200 dark:bg-slate-800"
+                ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-500/30"
+                : "bg-slate-200 hover:bg-brand-100 dark:bg-slate-800 dark:hover:bg-brand-900/50"
             }`}
           >
             All
@@ -282,10 +273,10 @@ export default function Library() {
             <button
               key={t}
               onClick={() => setActiveTag(t === activeTag ? null : t)}
-              className={`rounded-full px-3 py-1 text-sm ${
+              className={`rounded-full px-3 py-1 text-sm transition-all duration-200 active:scale-95 ${
                 activeTag === t
-                  ? "bg-brand-600 text-white"
-                  : "bg-slate-200 dark:bg-slate-800"
+                  ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-500/30"
+                  : "bg-slate-200 hover:bg-brand-100 dark:bg-slate-800 dark:hover:bg-brand-900/50"
               }`}
             >
               {t}
@@ -296,16 +287,18 @@ export default function Library() {
 
       {/* Continue reading shelf */}
       {!query && !activeTag && !favoritesOnly && continueReading.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+        <section className="mb-8 animate-fade-in-up">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <span className="inline-block h-4 w-1 rounded-full bg-gradient-to-b from-brand-500 to-brand-400" />
             Continue reading
           </h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {continueReading.map((b) => (
+            {continueReading.map((b, i) => (
               <BookCard
                 key={b.id}
                 book={b}
                 view="grid"
+                index={i}
                 onToggleFavorite={(bk) => patchBook(bk.id, { favorite: !bk.favorite })}
                 onEdit={setEditing}
               />
@@ -316,23 +309,24 @@ export default function Library() {
 
       {/* Main grid */}
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+        <div className="flex justify-center py-24">
+          <Spinner size="lg" />
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState hasBooks={books.length > 0} onAdd={() => setShowUpload(true)} />
       ) : (
         <>
-          <div className="mb-3 text-sm text-slate-500">
+          <div className="mb-3 text-sm font-medium text-slate-500">
             {filtered.length} book{filtered.length === 1 ? "" : "s"}
           </div>
           {view === "grid" ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-              {shown.map((b) => (
+              {shown.map((b, i) => (
                 <BookCard
                   key={b.id}
                   book={b}
                   view="grid"
+                  index={i}
                   onToggleFavorite={(bk) => patchBook(bk.id, { favorite: !bk.favorite })}
                   onEdit={setEditing}
                   onVisible={handleVisible}
@@ -341,11 +335,12 @@ export default function Library() {
             </div>
           ) : (
             <div className="space-y-2">
-              {shown.map((b) => (
+              {shown.map((b, i) => (
                 <BookCard
                   key={b.id}
                   book={b}
                   view="list"
+                  index={i}
                   onToggleFavorite={(bk) => patchBook(bk.id, { favorite: !bk.favorite })}
                   onEdit={setEditing}
                   onVisible={handleVisible}
@@ -357,7 +352,7 @@ export default function Library() {
           {/* Infinite-scroll sentinel */}
           {visible < filtered.length && (
             <div ref={sentinelRef} className="flex justify-center py-8">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+              <Spinner />
             </div>
           )}
         </>
@@ -386,8 +381,10 @@ function EmptyState({
   onAdd: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-20 text-center dark:border-slate-700">
-      <div className="text-5xl">{hasBooks ? "🔍" : "📚"}</div>
+    <div className="flex animate-scale-in flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-24 text-center dark:border-slate-700">
+      <div className="animate-float text-brand-500/70">
+        {hasBooks ? <SearchIcon size={44} /> : <LogoIcon size={44} />}
+      </div>
       <h2 className="mt-4 text-lg font-semibold">
         {hasBooks ? "No books match your filters" : "Your library is empty"}
       </h2>
@@ -397,12 +394,10 @@ function EmptyState({
           : "Upload your first PDF to get started."}
       </p>
       {!hasBooks && (
-        <button
-          onClick={onAdd}
-          className="mt-4 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          + Add books
-        </button>
+        <Button onClick={onAdd} className="mt-5">
+          <PlusIcon size={17} />
+          Add books
+        </Button>
       )}
     </div>
   );

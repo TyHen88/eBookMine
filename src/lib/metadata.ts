@@ -4,6 +4,8 @@ import {
   downloadFile,
   uploadFile,
   updateFileContent,
+  findPublicFileByName,
+  downloadPublicFile,
 } from "./drive";
 
 export interface Bookmark {
@@ -50,6 +52,24 @@ export async function loadLibrary(
 
   try {
     const res = await downloadFile(token, fileId);
+    const data = (await res.json()) as Library;
+    if (!data.books) return { ...EMPTY_LIBRARY };
+    return data;
+  } catch {
+    return { ...EMPTY_LIBRARY };
+  }
+}
+
+/**
+ * Load library.json from a publicly-shared folder using only the API key
+ * (no OAuth token). Returns an empty library if absent or unreadable.
+ */
+export async function loadPublicLibrary(folderId: string): Promise<Library> {
+  const fileId = await findPublicFileByName(folderId, METADATA_FILE_NAME);
+  if (!fileId) return { ...EMPTY_LIBRARY };
+
+  try {
+    const res = await downloadPublicFile(fileId);
     const data = (await res.json()) as Library;
     if (!data.books) return { ...EMPTY_LIBRARY };
     return data;

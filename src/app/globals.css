@@ -11,8 +11,37 @@ body {
   height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+  /* Soft indigo aura behind the whole app. */
+  background-image: radial-gradient(
+      55rem 55rem at 100% -10%,
+      rgba(224, 231, 255, 0.55),
+      transparent 60%
+    ),
+    radial-gradient(
+      45rem 45rem at -10% 10%,
+      rgba(238, 242, 255, 0.7),
+      transparent 55%
+    );
+  background-attachment: fixed;
+}
+
+.dark body {
+  background-image: radial-gradient(
+      55rem 55rem at 100% -10%,
+      rgba(49, 46, 129, 0.3),
+      transparent 60%
+    ),
+    radial-gradient(
+      45rem 45rem at -10% 10%,
+      rgba(30, 27, 75, 0.6),
+      transparent 55%
+    );
 }
 
 /* react-pdf text & annotation layers */
@@ -32,5 +61,35 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+  @apply bg-brand-300/70 dark:bg-brand-800/70 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-brand-400 dark:bg-brand-700;
+}
+
+/* indigo selection */
+::selection {
+  @apply bg-brand-500/25;
+}
+
+/* Reusable helper: apply an entrance animation to a whole grid's children with
+   an increasing stagger. Cards set `--i` via inline style. */
+.stagger-item {
+  animation: fade-in-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+/* Respect users who prefer less motion — collapse everything to near-instant. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

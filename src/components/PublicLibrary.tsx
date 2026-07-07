@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookMeta } from "@/lib/types";
 import BookCard from "./BookCard";
+import { SearchInput, SegmentedControl, Select, Spinner } from "./ui";
+import { GridIcon, ListIcon, LockIcon, SearchIcon } from "./ui/icons";
 
 const PAGE_SIZE = 48;
 
@@ -64,19 +66,23 @@ export default function PublicLibrary() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+      <div className="flex justify-center py-24">
+        <Spinner size="lg" />
       </div>
     );
   }
 
   if (!configured) {
     return (
-      <main className="mx-auto max-w-2xl px-4 py-20 text-center">
-        <div className="text-5xl">🔒</div>
-        <h2 className="mt-4 text-lg font-semibold">Public library not set up yet</h2>
+      <main className="mx-auto max-w-2xl animate-fade-in-up px-4 py-24 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
+          <LockIcon size={30} />
+        </div>
+        <h2 className="mt-5 text-lg font-semibold">
+          Public library not set up yet
+        </h2>
         <p className="mt-1 text-slate-500 dark:text-slate-400">
-          The owner hasn&apos;t enabled public access. (Set OWNER_REFRESH_TOKEN.)
+          The owner hasn&apos;t enabled public access. (Set EBOOKMINE_FOLDER_ID.)
         </p>
       </main>
     );
@@ -86,73 +92,78 @@ export default function PublicLibrary() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search title or author…"
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 pl-10 dark:border-slate-700 dark:bg-slate-900"
-          />
-          <span className="pointer-events-none absolute left-3 top-2.5 text-slate-400">
-            🔍
-          </span>
-        </div>
-
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium dark:border-slate-700 dark:bg-slate-900"
-        >
+      <div className="mb-6 flex animate-fade-in-down flex-wrap items-center gap-3">
+        <SearchInput
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search title or author…"
+        />
+        <Select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">All categories</option>
           {allCategories.map(([c, n]) => (
             <option key={c} value={c}>
               {c} ({n})
             </option>
           ))}
-        </select>
-
-        <div className="flex overflow-hidden rounded-xl border border-slate-300 dark:border-slate-700">
-          <button
-            onClick={() => setView("grid")}
-            className={`px-3 py-2 text-sm ${view === "grid" ? "bg-slate-200 dark:bg-slate-800" : ""}`}
-          >
-            ▦
-          </button>
-          <button
-            onClick={() => setView("list")}
-            className={`px-3 py-2 text-sm ${view === "list" ? "bg-slate-200 dark:bg-slate-800" : ""}`}
-          >
-            ☰
-          </button>
-        </div>
+        </Select>
+        <SegmentedControl
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "grid", label: <GridIcon size={17} />, title: "Grid view" },
+            { value: "list", label: <ListIcon size={17} />, title: "List view" },
+          ]}
+        />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="py-20 text-center text-slate-500">
-          {books.length === 0 ? "No books in the library yet." : "No matches."}
+        <div className="flex animate-scale-in flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-24 text-center dark:border-slate-700">
+          <div className="animate-float text-slate-400">
+            <SearchIcon size={44} />
+          </div>
+          <p className="mt-4 text-slate-500 dark:text-slate-400">
+            {books.length === 0
+              ? "No books in the library yet."
+              : "No books match your search."}
+          </p>
         </div>
       ) : (
         <>
-          <div className="mb-3 text-sm text-slate-500">
+          <div className="mb-3 text-sm font-medium text-slate-500">
             {filtered.length} book{filtered.length === 1 ? "" : "s"}
           </div>
           {view === "grid" ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-              {shown.map((b) => (
-                <BookCard key={b.id} book={b} view="grid" readOnly onToggleFavorite={noop} onEdit={noop} />
+              {shown.map((b, i) => (
+                <BookCard
+                  key={b.id}
+                  book={b}
+                  view="grid"
+                  index={i}
+                  readOnly
+                  onToggleFavorite={noop}
+                  onEdit={noop}
+                />
               ))}
             </div>
           ) : (
-            <div className="space-y-2">
-              {shown.map((b) => (
-                <BookCard key={b.id} book={b} view="list" readOnly onToggleFavorite={noop} onEdit={noop} />
+            <div className="space-y-2.5">
+              {shown.map((b, i) => (
+                <BookCard
+                  key={b.id}
+                  book={b}
+                  view="list"
+                  index={i}
+                  readOnly
+                  onToggleFavorite={noop}
+                  onEdit={noop}
+                />
               ))}
             </div>
           )}
           {visible < filtered.length && (
             <div ref={sentinelRef} className="flex justify-center py-8">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+              <Spinner />
             </div>
           )}
         </>
