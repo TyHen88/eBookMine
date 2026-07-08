@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Document, Page } from "react-pdf";
@@ -57,7 +57,14 @@ export default function Reader({ id }: { id: string }) {
   // Wrapper elements for each page in scroll mode (for scroll-into-view + the
   // "which page is centered" observer). Keyed by 1-based page number.
   const pageEls = useRef<Map<number, HTMLDivElement>>(new Map());
-  const scrollResumed = useRef(false);
+  // Always holds the latest `page` so effects can read it without re-running.
+  const pageRef = useRef(page);
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+  // True while a scroll-mode "jump to current page" is in flight — suppresses
+  // the centre-page observer so it doesn't clobber the page to 1 at the top.
+  const resumingScroll = useRef(false);
 
   // Restore the last-used reading mode. Starts "paged" for SSR safety, then
   // syncs to the persisted choice on mount (avoids a hydration mismatch).
@@ -167,6 +174,9 @@ export default function Reader({ id }: { id: string }) {
     const root = viewportRef.current;
     const obs = new IntersectionObserver(
       (entries) => {
+        // Ignore observer noise while we're programmatically jumping to the
+        // resume page (otherwise the top-of-list page 1 wins and clobbers it).
+        if (resumingScroll.current) return;
         const hit = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
@@ -181,16 +191,23 @@ export default function Reader({ id }: { id: string }) {
     return () => obs.disconnect();
   }, [mode, numPages]);
 
-  // First time entering scroll mode, jump to the current/last page.
+  // Each time we enter scroll mode, jump to the page we were reading. Guard the
+  // observer until the jump settles so it can't reset the page to 1.
   useEffect(() => {
-    if (mode !== "scroll" || !numPages || scrollResumed.current) return;
-    const target = book && book.lastPage > 1 ? book.lastPage : page;
-    const t = setTimeout(() => {
+    if (mode !== "scroll" || !numPages) return;
+    resumingScroll.current = true;
+    const target = pageRef.current;
+    const raf = requestAnimationFrame(() => {
       pageEls.current.get(target)?.scrollIntoView();
-      scrollResumed.current = true;
-    }, 120);
-    return () => clearTimeout(t);
-  }, [mode, numPages, book, page]);
+    });
+    const t = setTimeout(() => {
+      resumingScroll.current = false;
+    }, 400);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [mode, numPages]);
 
   // Keyboard navigation (both modes).
   useEffect(() => {
@@ -407,10 +424,7 @@ export default function Reader({ id }: { id: string }) {
                       width={pageWidth}
                       estHeight={estHeight}
                       rootRef={viewportRef}
-                      register={(el) => {
-                        if (el) pageEls.current.set(p, el);
-                        else pageEls.current.delete(p);
-                      }}
+                      pageEls={pageEls}
                     />
                   ))}
                 </div>
@@ -474,19 +488,24 @@ export default function Reader({ id }: { id: string }) {
  * One page in continuous-scroll mode. Renders a lightweight placeholder until
  * it nears the viewport, then mounts the real (canvas-backed) react-pdf page —
  * so a 400-page book doesn't rasterise every page up front.
+ *
+ * Memoized: scrolling updates the parent's `page` state on every tick, which
+ * re-renders Reader. Without memo that would re-render every page in the book
+ * each tick. Props are all stable (primitives + refs) except width/estHeight,
+ * which only change on zoom/resize — so this only re-renders when it must.
  */
-function ScrollPage({
+const ScrollPage = memo(function ScrollPage({
   pageNumber,
   width,
   estHeight,
   rootRef,
-  register,
+  pageEls,
 }: {
   pageNumber: number;
   width?: number;
   estHeight: number;
   rootRef: React.RefObject<HTMLDivElement | null>;
-  register: (el: HTMLDivElement | null) => void;
+  pageEls: React.RefObject<Map<number, HTMLDivElement>>;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [show, setShow] = useState(false);
@@ -504,12 +523,20 @@ function ScrollPage({
     return () => obs.disconnect();
   }, [rootRef, show]);
 
+  // Stable ref callback (identity depends only on pageNumber/pageEls) so the
+  // memoized component isn't defeated by a fresh closure each parent render.
+  const setRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      ref.current = el;
+      if (el) pageEls.current.set(pageNumber, el);
+      else pageEls.current.delete(pageNumber);
+    },
+    [pageNumber, pageEls]
+  );
+
   return (
     <div
-      ref={(el) => {
-        ref.current = el;
-        register(el);
-      }}
+      ref={setRef}
       data-page={pageNumber}
       className="flex w-full justify-center"
       style={show ? undefined : { height: estHeight }}
@@ -533,4 +560,4 @@ function ScrollPage({
       ) : null}
     </div>
   );
-}
+});

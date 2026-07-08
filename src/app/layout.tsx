@@ -21,6 +21,13 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#4f46e5",
+  // Lock the browser's own zoom: no pinch-to-zoom of the whole page, and no
+  // iOS auto-zoom when a search/text input is focused. The reader has its own
+  // in-app zoom (the +/- controls), which is what should scale the page.
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

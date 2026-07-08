@@ -17,6 +17,8 @@ html {
 
 body {
   @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+  /* No double-tap-to-zoom; the reader has its own in-app zoom. */
+  touch-action: manipulation;
   /* Soft indigo aura behind the whole app. */
   background-image: radial-gradient(
       55rem 55rem at 100% -10%,
@@ -42,6 +44,17 @@ body {
       rgba(30, 27, 75, 0.6),
       transparent 55%
     );
+}
+
+/* iOS Safari auto-zooms the page when a focused input's font-size is < 16px.
+   The viewport meta blocks pinch-zoom elsewhere, but iOS ignores it for this,
+   so force inputs to 16px on small screens to stop the focus-zoom. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 /* react-pdf text & annotation layers */
