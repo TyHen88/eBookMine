@@ -63,6 +63,14 @@ export default function Reader({ id }: { id: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [fitWidth, setFitWidth] = useState(0);
+  // Cap the render resolution. react-pdf otherwise rasterises each page at the
+  // full device-pixel-ratio (2–3× on phones), so one page can be a 50MB canvas
+  // and a few of them crash the tab. 1.5× stays sharp while roughly halving the
+  // memory. Computed on mount to avoid an SSR/hydration mismatch on window.
+  const [dpr, setDpr] = useState(1);
+  useEffect(() => {
+    setDpr(Math.min(1.5, window.devicePixelRatio || 1));
+  }, []);
   const savedRef = useRef(false);
   // Wrapper elements for each page in scroll mode (for scroll-into-view + the
   // "which page is centered" observer). Keyed by 1-based page number.
@@ -436,6 +444,7 @@ export default function Reader({ id }: { id: string }) {
                       estHeight={estHeight}
                       rootRef={viewportRef}
                       pageEls={pageEls}
+                      dpr={dpr}
                     />
                   ))}
                 </div>
@@ -444,6 +453,7 @@ export default function Reader({ id }: { id: string }) {
                   pageNumber={page}
                   width={pageWidth}
                   scale={pageWidth ? undefined : scale}
+                  devicePixelRatio={dpr}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
                   className="shadow-lg"
@@ -511,12 +521,14 @@ const ScrollPage = memo(function ScrollPage({
   estHeight,
   rootRef,
   pageEls,
+  dpr,
 }: {
   pageNumber: number;
   width?: number;
   estHeight: number;
   rootRef: React.RefObject<HTMLDivElement | null>;
   pageEls: React.RefObject<Map<number, HTMLDivElement>>;
+  dpr: number;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [show, setShow] = useState(false);
@@ -533,7 +545,7 @@ const ScrollPage = memo(function ScrollPage({
     if (!el) return;
     const obs = new IntersectionObserver(
       ([e]) => setShow(e.isIntersecting),
-      { root: rootRef.current ?? null, rootMargin: "1200px 0px" }
+      { root: rootRef.current ?? null, rootMargin: "600px 0px" }
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -563,6 +575,7 @@ const ScrollPage = memo(function ScrollPage({
         <Page
           pageNumber={pageNumber}
           width={width}
+          devicePixelRatio={dpr}
           renderTextLayer={false}
           renderAnnotationLayer={false}
           className="shadow-lg"
