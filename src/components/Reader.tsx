@@ -43,6 +43,11 @@ const PDF_OPTIONS = {
   disableStream: false,
 };
 
+// Scroll mode only rasterises pages within this many of the settled centre page.
+// A hard, small cap on live canvases (2 → at most 5 pages) is what stops a big
+// book from crashing the tab on mobile when you fling through it.
+const RENDER_WINDOW = 2;
+
 export default function Reader({ id }: { id: string }) {
   const { status } = useSession();
   // Owner (signed in) reads from their own Drive and saves progress/bookmarks.
@@ -56,6 +61,10 @@ export default function Reader({ id }: { id: string }) {
   // scale is relative to fit-to-width: 1 = fit the screen, >1 zooms in.
   const [scale, setScale] = useState(1);
   const [mode, setMode] = useState<ReadMode>("paged");
+  // The page around which scroll mode rasterises real canvases. Debounced off
+  // `page` so flinging through the book doesn't rasterise every page it passes —
+  // only pages you actually settle near get rendered.
+  const [renderCenter, setRenderCenter] = useState(1);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [pageInput, setPageInput] = useState("1");
@@ -170,6 +179,15 @@ export default function Reader({ id }: { id: string }) {
     setPageInput(String(p));
   };
 
+  // Move the render window to the current page ~150ms after scrolling stops.
+  // Each page change resets the timer, so a continuous fling never lands here
+  // until it settles — that's what prevents rasterising every page flown past.
+  useEffect(() => {
+    if (mode !== "scroll") return;
+    const t = setTimeout(() => setRenderCenter(page), 150);
+    return () => clearTimeout(t);
+  }, [page, mode]);
+
   // Navigate to a page — scrolls it into view in scroll mode, swaps the single
   // page in paged mode.
   const goTo = useCallback(
@@ -215,6 +233,7 @@ export default function Reader({ id }: { id: string }) {
     if (mode !== "scroll" || !numPages) return;
     resumingScroll.current = true;
     const target = pageRef.current;
+    setRenderCenter(target); // render the resume page's neighbourhood at once
     const raf = requestAnimationFrame(() => {
       pageEls.current.get(target)?.scrollIntoView();
     });
@@ -442,9 +461,9 @@ export default function Reader({ id }: { id: string }) {
                       pageNumber={p}
                       width={pageWidth}
                       estHeight={estHeight}
-                      rootRef={viewportRef}
                       pageEls={pageEls}
                       dpr={dpr}
+                      active={Math.abs(p - renderCenter) <= RENDER_WINDOW}
                     />
                   ))}
                 </div>
@@ -506,50 +525,35 @@ export default function Reader({ id }: { id: string }) {
 }
 
 /**
- * One page in continuous-scroll mode. Renders a lightweight placeholder until
- * it nears the viewport, then mounts the real (canvas-backed) react-pdf page —
- * so a 400-page book doesn't rasterise every page up front.
+ * One page in continuous-scroll mode. Every page keeps a lightweight,
+ * correctly-sized placeholder in the DOM (so the scrollbar/positions are right),
+ * but only pages the parent marks `active` — a small window around the settled
+ * centre page — actually rasterise a canvas. That hard cap on live canvases is
+ * what keeps a 500+ page book from crashing the tab on mobile.
  *
- * Memoized: scrolling updates the parent's `page` state on every tick, which
- * re-renders Reader. Without memo that would re-render every page in the book
- * each tick. Props are all stable (primitives + refs) except width/estHeight,
- * which only change on zoom/resize — so this only re-renders when it must.
+ * Memoized so that scrolling (which re-renders the parent every tick) only
+ * re-renders the handful of pages whose `active` flag actually flips.
  */
 const ScrollPage = memo(function ScrollPage({
   pageNumber,
   width,
   estHeight,
-  rootRef,
   pageEls,
   dpr,
+  active,
 }: {
   pageNumber: number;
   width?: number;
   estHeight: number;
-  rootRef: React.RefObject<HTMLDivElement | null>;
   pageEls: React.RefObject<Map<number, HTMLDivElement>>;
   dpr: number;
+  active: boolean;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [show, setShow] = useState(false);
   // Real page aspect ratio (height/width), learned once the page renders. Used
-  // for the placeholder height after we unmount it, so collapsing doesn't shift
-  // the scroll position.
+  // for the placeholder height when inactive, so collapsing the canvas doesn't
+  // shift the scroll position.
   const [ratio, setRatio] = useState<number | null>(null);
-
-  // Mount the real (canvas) page only while it's near the viewport, and unmount
-  // it again once it's well past — otherwise a long book keeps every rendered
-  // canvas in memory and eventually crashes the tab on mobile.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([e]) => setShow(e.isIntersecting),
-      { root: rootRef.current ?? null, rootMargin: "600px 0px" }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [rootRef]);
 
   // Stable ref callback (identity depends only on pageNumber/pageEls) so the
   // memoized component isn't defeated by a fresh closure each parent render.
@@ -569,9 +573,9 @@ const ScrollPage = memo(function ScrollPage({
       ref={setRef}
       data-page={pageNumber}
       className="flex w-full justify-center"
-      style={show ? undefined : { height: placeholderHeight }}
+      style={active ? undefined : { height: placeholderHeight }}
     >
-      {show ? (
+      {active ? (
         <Page
           pageNumber={pageNumber}
           width={width}
