@@ -33,6 +33,16 @@ import {
 type ReadMode = "paged" | "scroll";
 const MODE_KEY = "ebookmine-readmode";
 
+// Let pdf.js pull the PDF over HTTP Range requests and only fetch the bytes it
+// needs per page (disableAutoFetch), instead of downloading the whole file into
+// memory — this is what keeps very large books from crashing the tab (OOM).
+// Module-level constant so react-pdf sees a stable reference (a new object each
+// render makes it reload the document repeatedly).
+const PDF_OPTIONS = {
+  disableAutoFetch: true,
+  disableStream: false,
+};
+
 export default function Reader({ id }: { id: string }) {
   const { status } = useSession();
   // Owner (signed in) reads from their own Drive and saves progress/bookmarks.
@@ -404,6 +414,7 @@ export default function Reader({ id }: { id: string }) {
           ) : (
             <Document
               file={fileUrl}
+              options={PDF_OPTIONS}
               onLoadSuccess={({ numPages }) => {
                 setNumPages(numPages);
                 setLoadError(false);
@@ -509,19 +520,24 @@ const ScrollPage = memo(function ScrollPage({
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [show, setShow] = useState(false);
+  // Real page aspect ratio (height/width), learned once the page renders. Used
+  // for the placeholder height after we unmount it, so collapsing doesn't shift
+  // the scroll position.
+  const [ratio, setRatio] = useState<number | null>(null);
 
+  // Mount the real (canvas) page only while it's near the viewport, and unmount
+  // it again once it's well past — otherwise a long book keeps every rendered
+  // canvas in memory and eventually crashes the tab on mobile.
   useEffect(() => {
     const el = ref.current;
-    if (!el || show) return;
+    if (!el) return;
     const obs = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) setShow(true);
-      },
+      ([e]) => setShow(e.isIntersecting),
       { root: rootRef.current ?? null, rootMargin: "1200px 0px" }
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [rootRef, show]);
+  }, [rootRef]);
 
   // Stable ref callback (identity depends only on pageNumber/pageEls) so the
   // memoized component isn't defeated by a fresh closure each parent render.
@@ -534,12 +550,14 @@ const ScrollPage = memo(function ScrollPage({
     [pageNumber, pageEls]
   );
 
+  const placeholderHeight = width && ratio ? width * ratio : estHeight;
+
   return (
     <div
       ref={setRef}
       data-page={pageNumber}
       className="flex w-full justify-center"
-      style={show ? undefined : { height: estHeight }}
+      style={show ? undefined : { height: placeholderHeight }}
     >
       {show ? (
         <Page
@@ -548,10 +566,15 @@ const ScrollPage = memo(function ScrollPage({
           renderTextLayer={false}
           renderAnnotationLayer={false}
           className="shadow-lg"
+          onLoadSuccess={(pg) => {
+            const w = pg.originalWidth || pg.width;
+            const h = pg.originalHeight || pg.height;
+            if (w && h) setRatio(h / w);
+          }}
           loading={
             <div
               className="flex items-center justify-center"
-              style={{ height: estHeight, width: width ?? "100%" }}
+              style={{ height: width && ratio ? width * ratio : estHeight, width: width ?? "100%" }}
             >
               <Spinner />
             </div>

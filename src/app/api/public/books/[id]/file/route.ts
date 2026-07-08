@@ -18,16 +18,23 @@ export async function GET(
   const safeName = (rawName ? rawName.replace(/[^\w.\- ]+/g, "_") : id) + ".pdf";
 
   try {
-    const driveRes = await downloadPublicFile(id);
+    // Forward Range so pdf.js streams large PDFs in slices (206) rather than
+    // pulling the whole file into memory. Skip it for explicit downloads.
+    const range = download ? undefined : req.headers.get("range") ?? undefined;
+    const driveRes = await downloadPublicFile(id, range);
+
     const headers = new Headers();
     headers.set("Content-Type", "application/pdf");
     headers.set("Cache-Control", "public, max-age=3600");
+    headers.set("Accept-Ranges", "bytes");
     const len = driveRes.headers.get("content-length");
     if (len) headers.set("Content-Length", len);
+    const contentRange = driveRes.headers.get("content-range");
+    if (contentRange) headers.set("Content-Range", contentRange);
     if (download) {
       headers.set("Content-Disposition", `attachment; filename="${safeName}"`);
     }
-    return new NextResponse(driveRes.body, { status: 200, headers });
+    return new NextResponse(driveRes.body, { status: driveRes.status, headers });
   } catch {
     return new NextResponse(null, { status: 404 });
   }

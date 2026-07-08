@@ -26,9 +26,12 @@ function apiKey(): string {
   );
 }
 
-async function keyedFetch(url: string): Promise<Response> {
+async function keyedFetch(
+  url: string,
+  init: RequestInit = {}
+): Promise<Response> {
   const sep = url.includes("?") ? "&" : "?";
-  const res = await fetch(`${url}${sep}key=${apiKey()}`);
+  const res = await fetch(`${url}${sep}key=${apiKey()}`, init);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Drive API error ${res.status}: ${text}`);
@@ -204,10 +207,21 @@ export async function uploadFile(
 }
 
 /**
- * Download a file's binary content. Returns the raw Response so callers can stream it.
+ * Download a file's binary content. Returns the raw Response so callers can
+ * stream it. Pass an HTTP `Range` header to fetch only a byte slice — Drive's
+ * `alt=media` endpoint honours it and replies 206, which lets pdf.js load large
+ * PDFs page-by-page instead of pulling the whole file into memory.
  */
-export async function downloadFile(token: Token, fileId: string) {
-  return driveFetch(token, `${DRIVE_API}/files/${fileId}?alt=media`);
+export async function downloadFile(
+  token: Token,
+  fileId: string,
+  range?: string
+) {
+  return driveFetch(
+    token,
+    `${DRIVE_API}/files/${fileId}?alt=media`,
+    range ? { headers: { Range: range } } : {}
+  );
 }
 
 /**
@@ -391,8 +405,14 @@ export async function findPublicFileByName(
  * Download a publicly-shared file's binary content (API key only). Returns the
  * raw Response so callers can stream it.
  */
-export async function downloadPublicFile(fileId: string): Promise<Response> {
-  return keyedFetch(`${DRIVE_API}/files/${fileId}?alt=media`);
+export async function downloadPublicFile(
+  fileId: string,
+  range?: string
+): Promise<Response> {
+  return keyedFetch(
+    `${DRIVE_API}/files/${fileId}?alt=media`,
+    range ? { headers: { Range: range } } : {}
+  );
 }
 
 /**
