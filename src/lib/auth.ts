@@ -1,95 +1,81 @@
 import type { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-
-// Scope: full "drive" so the app can list & read every PDF in the eBookMine
-// folder, including files the user uploads manually through the Drive website.
-// (The narrower drive.file scope only sees files the app itself created.)
-const GOOGLE_SCOPES = [
-  "openid",
-  "email",
-  "profile",
-  "https://www.googleapis.com/auth/drive",
-].join(" ");
-
-/**
- * Refresh an expired Google access token using the stored refresh token.
- */
-async function refreshAccessToken(token: any) {
-  try {
-    const res = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        grant_type: "refresh_token",
-        refresh_token: token.refreshToken,
-      }),
-    });
-
-    const refreshed = await res.json();
-    if (!res.ok) throw refreshed;
-
-    return {
-      ...token,
-      accessToken: refreshed.access_token,
-      // Google returns expires_in (seconds from now).
-      accessTokenExpires: Date.now() + refreshed.expires_in * 1000,
-      // Fall back to the old refresh token if a new one wasn't returned.
-      refreshToken: refreshed.refresh_token ?? token.refreshToken,
-    };
-  } catch (error) {
-    console.error("Error refreshing access token", error);
-    return { ...token, error: "RefreshAccessTokenError" };
-  }
-}
+import CredentialsProvider from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/db";
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      authorization: {
-        params: {
-          scope: GOOGLE_SCOPES,
-          // access_type=offline + prompt=consent ensures we receive a refresh token.
-          access_type: "offline",
-          prompt: "consent",
-        },
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required");
+        }
+
+        const email = credentials.email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({
+          where: { email },
+        });
+
+        if (!user || !user.passwordHash) {
+          throw new Error("Invalid email or password");
+        }
+
+        const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
+        if (!isValid) {
+          throw new Error("Invalid email or password");
+        }
+
+        const ownerEmail = process.env.OWNER_EMAIL;
+        const isOwner = ownerEmail ? email === ownerEmail.toLowerCase() : user.role === "ADMIN";
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          role: isOwner ? "ADMIN" : user.role,
+        };
       },
     }),
   ],
   session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, account }) {
-      // Initial sign in: account is present.
-      if (account) {
-        token.accessToken = account.access_token;
-        token.refreshToken = account.refresh_token;
-        token.accessTokenExpires = account.expires_at
-          ? account.expires_at * 1000
-          : Date.now() + 3600 * 1000;
-        return token;
+    async jwt({ token, user }) {
+      if (user) {
+        token.dbUserId = user.id;
+        token.role = (user as any).role ?? "USER";
+      } else if (token.email) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { email: token.email },
+          });
+          if (dbUser) {
+            token.dbUserId = dbUser.id;
+            token.role = dbUser.role;
+          }
+        } catch {
+          /* DB lookup fallback */
+        }
       }
-
-      // Return the existing token if it has not expired yet.
-      if (Date.now() < (token.accessTokenExpires as number) - 60_000) {
-        return token;
-      }
-
-      // Otherwise refresh it.
-      return refreshAccessToken(token);
+      return token;
     },
     async session({ session, token }) {
-      (session as any).accessToken = token.accessToken;
-      (session as any).error = token.error;
-      // Only the configured owner account may manage the library. If OWNER_EMAIL
-      // is unset, fall back to treating any signed-in user as the owner (handy
-      // for local single-user development).
+      if (session.user) {
+        (session.user as Record<string, unknown>).id = token.dbUserId;
+        (session.user as Record<string, unknown>).role = token.role ?? "USER";
+      }
+
       const ownerEmail = process.env.OWNER_EMAIL;
-      (session as any).isOwner = ownerEmail
-        ? token.email === ownerEmail
-        : true;
+      const isOwner =
+        token.role === "ADMIN" ||
+        (ownerEmail && token.email ? token.email.toLowerCase() === ownerEmail.toLowerCase() : false);
+
+      (session as unknown as Record<string, unknown>).isOwner = isOwner;
       return session;
     },
   },

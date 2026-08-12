@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react";
 import { createContext, useContext, useEffect, useState } from "react";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 type Theme = "light" | "dark";
 const ThemeContext = createContext<{
@@ -23,8 +24,10 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
       (window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"
         : "light");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(initial);
   }, []);
+
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -43,7 +46,10 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <ThemeProvider>{children}</ThemeProvider>
+      <ThemeProvider>
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </ThemeProvider>
     </SessionProvider>
   );
 }
+

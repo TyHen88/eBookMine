@@ -1,67 +1,91 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccessToken } from "@/lib/session";
 import { getOrCreateAppFolder, uploadFile } from "@/lib/drive";
-import { loadLibrary, saveLibrary, BookMeta } from "@/lib/metadata";
-import { cleanTitle } from "@/lib/title";
-import { categorize } from "@/lib/categorize";
-import { getMergedBooks } from "@/lib/booksService";
+import { getMergedBooks, createDbBook } from "@/lib/booksService";
+import { requireAuth } from "@/lib/authHelpers";
+import { bookCreateSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/books — return the merged library (metadata + any orphan PDFs in Drive).
+ * GET /api/books — return books from Neon PostgreSQL.
  */
 export async function GET() {
-  const token = await getAccessToken();
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { session, response } = await requireAuth();
+  if (response) return response;
 
-  const books = await getMergedBooks(token, { persist: true });
-  return NextResponse.json({ books });
+  try {
+    const token = session.accessToken ?? "";
+    const books = await getMergedBooks(token, { userId: session.user?.id });
+    return NextResponse.json({ books });
+  } catch (err) {
+    logger.error("GET /api/books failed", err);
+    return NextResponse.json({ error: "Failed to fetch books" }, { status: 500 });
+  }
 }
 
 /**
- * POST /api/books — upload a new PDF.
+ * POST /api/books — upload a new PDF to Google Drive & create record in PostgreSQL.
  * Expects multipart/form-data: `file` (the PDF) + `meta` (JSON string).
  */
 export async function POST(req: NextRequest) {
-  const token = await getAccessToken();
+  const { session, response } = await requireAuth();
+  if (response) return response;
+
+  const token = session.accessToken;
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const form = await req.formData();
-  const file = form.get("file") as File | null;
-  const metaRaw = form.get("meta") as string | null;
-  if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
+  try {
+    const form = await req.formData();
+    const file = form.get("file") as File | null;
+    const metaRaw = form.get("meta") as string | null;
+    if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-  const meta = metaRaw ? JSON.parse(metaRaw) : {};
-  const folderId = await getOrCreateAppFolder(token);
-  const bytes = await file.arrayBuffer();
+    // Validate file type
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      return NextResponse.json({ error: "Only PDF files are supported" }, { status: 400 });
+    }
 
-  const uploaded = await uploadFile(
-    token,
-    folderId,
-    file.name,
-    "application/pdf",
-    bytes
-  );
+    // Validate meta payload with Zod
+    let meta: Record<string, any> = {};
+    if (metaRaw) {
+      try {
+        const parsed = JSON.parse(metaRaw);
+        const result = bookCreateSchema.safeParse(parsed);
+        if (result.success) meta = result.data;
+        else meta = parsed; // fallback: use raw meta for backwards compat
+      } catch {
+        return NextResponse.json({ error: "Invalid meta JSON" }, { status: 400 });
+      }
+    }
 
-  const library = await loadLibrary(token, folderId);
-  const book: BookMeta = {
-    id: uploaded.id,
-    title: meta.title || cleanTitle(file.name),
-    author: meta.author || "Unknown",
-    fileName: file.name,
-    pageCount: meta.pageCount || 0,
-    category: meta.category || categorize(`${meta.title ?? ""} ${file.name}`),
-    tags: Array.isArray(meta.tags) ? meta.tags : [],
-    favorite: false,
-    cover: meta.cover || null,
-    addedAt: uploaded.createdTime ?? new Date().toISOString(),
-    lastPage: 1,
-    bookmarks: [],
-    sizeBytes: uploaded.size ? parseInt(uploaded.size, 10) : bytes.byteLength,
-  };
-  library.books[book.id] = book;
-  await saveLibrary(token, folderId, library);
+    const folderId = await getOrCreateAppFolder(token);
+    const bytes = await file.arrayBuffer();
 
-  return NextResponse.json({ book });
+    const uploaded = await uploadFile(
+      token,
+      folderId,
+      file.name,
+      "application/pdf",
+      bytes
+    );
+
+    const book = await createDbBook({
+      driveFileId: uploaded.id,
+      title: meta.title || file.name,
+      fileName: file.name,
+      author: meta.author,
+      category: meta.category,
+      pageCount: meta.pageCount || 0,
+      sizeBytes: uploaded.size ? parseInt(uploaded.size, 10) : bytes.byteLength,
+      coverUrl: meta.cover || null,
+      userId: session.user?.id,
+    });
+
+    logger.info("Book created", { bookId: book.id, title: book.title });
+    return NextResponse.json({ book });
+  } catch (err) {
+    logger.error("POST /api/books failed", err);
+    return NextResponse.json({ error: "Book upload failed" }, { status: 500 });
+  }
 }

@@ -288,3 +288,20 @@ export const GoogleIcon = ({ size = 20, ...props }: IconProps) => (
     <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C42.6 35.8 45 30.4 45 24c0-1.2-.1-2.3-.4-3.5z" />
   </svg>
 );
+
+export const SparklesIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m12 3 1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z" />
+    <path d="M19 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" />
+  </Svg>
+);
+
+export const RefreshIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21.5 2v6h-6" />
+    <path d="M2.5 22v-6h6" />
+    <path d="M2 11.5a10 10 0 0 1 18.8-4.3L21.5 8" />
+    <path d="M22 12.5a10 10 0 0 1-18.8 4.2L2.5 16" />
+  </Svg>
+);
+

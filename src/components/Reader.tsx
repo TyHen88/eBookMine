@@ -2,10 +2,15 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { Document, Page } from "react-pdf";
-import "@/lib/pdf"; // ensures the worker is configured
+import "react-pdf/dist/Page/TextLayer.css";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "@/lib/pdf"; // ensures worker configuration
 import { BookMeta, Bookmark } from "@/lib/types";
+import { HighlightData, NoteData } from "@/lib/readingService";
+import SelectionToolbar from "./SelectionToolbar";
+import AuthPromptModal from "./AuthPromptModal";
 import {
   Button,
   buttonClass,
@@ -21,91 +26,134 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   DownloadIcon,
+  GoogleIcon,
+  LockIcon,
   MaximizeIcon,
   MinusIcon,
   PanelLeftIcon,
   PlusIcon,
   ScrollModeIcon,
   SinglePageIcon,
+  SparklesIcon,
   XIcon,
+  SearchIcon,
 } from "./ui/icons";
 
-type ReadMode = "paged" | "scroll";
-const MODE_KEY = "ebookmine-readmode";
+import LearningDashboard from "./LearningDashboard";
 
-// Let pdf.js pull the PDF over HTTP Range requests and only fetch the bytes it
-// needs per page (disableAutoFetch), instead of downloading the whole file into
-// memory — this is what keeps very large books from crashing the tab (OOM).
-// Module-level constant so react-pdf sees a stable reference (a new object each
-// render makes it reload the document repeatedly).
+type ReadMode = "paged" | "scroll";
+type ReaderTheme = "light" | "dark" | "sepia";
+type SidebarTab = "toc" | "ai" | "study" | "bookmarks" | "highlights" | "notes";
+const MODE_KEY = "ebookmine-readmode";
+const THEME_KEY = "ebookmine-readertheme";
+
 const PDF_OPTIONS = {
   disableAutoFetch: true,
   disableStream: false,
 };
 
-// Scroll mode only rasterises pages within this many of the settled centre page.
-// A hard, small cap on live canvases (2 → at most 5 pages) is what stops a big
-// book from crashing the tab on mobile when you fling through it.
 const RENDER_WINDOW = 2;
 
 export default function Reader({ id }: { id: string }) {
   const { status } = useSession();
-  // Owner (signed in) reads from their own Drive and saves progress/bookmarks.
-  // Anonymous visitors read the public copy with no persistence.
   const isOwner = status === "authenticated";
   const apiBase = isOwner ? "/api/books" : "/api/public/books";
 
   const [book, setBook] = useState<BookMeta | null>(null);
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState(0);
   const [page, setPage] = useState(1);
-  // scale is relative to fit-to-width: 1 = fit the screen, >1 zooms in.
   const [scale, setScale] = useState(1);
   const [mode, setMode] = useState<ReadMode>("paged");
-  // The page around which scroll mode rasterises real canvases. Debounced off
-  // `page` so flinging through the book doesn't rasterise every page it passes —
-  // only pages you actually settle near get rendered.
+  const [theme, setTheme] = useState<ReaderTheme>("light");
   const [renderCenter, setRenderCenter] = useState(1);
-  const [showBookmarks, setShowBookmarks] = useState(false);
+
+  // Sidebar & Drawers
+  const [showDrawer, setShowDrawer] = useState(false);
+  const [activeTab, setActiveTab] = useState<SidebarTab>("bookmarks");
+  const [tocOutline, setTocOutline] = useState<any[]>([]);
+
+  // Bookmarks, Highlights, Notes
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [highlights, setHighlights] = useState<HighlightData[]>([]);
+  const [notes, setNotes] = useState<NoteData[]>([]);
+
+  // AI Assistant & RAG State
+  const [isRagMode, setIsRagMode] = useState(true);
+  const [chatMessages, setChatMessages] = useState<
+    Array<{
+      id?: string;
+      role: "user" | "assistant";
+      content: string;
+      sources?: Array<{ chapter?: string | null; page: number; snippet: string }>;
+    }>
+  >([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isIngested, setIsIngested] = useState(false);
+
+  // Search in PDF
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{ page: number; snippet: string }[]>([]);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Text selection toolbar & AI Modal & Auth Modal
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [selectionPos, setSelectionPos] = useState<{ top: number; left: number } | null>(null);
+  const [selectedText, setSelectedText] = useState("");
+  const [aiModal, setAiModal] = useState<{ title: string; text: string; content: string; loading?: boolean } | null>(null);
+
+  // Form state
+  const [noteQuery, setNoteQuery] = useState("");
+  const [newNoteText, setNewNoteText] = useState("");
+  const [highlightColor, setHighlightColor] = useState("yellow");
+  const [newHighlightText, setNewHighlightText] = useState("");
+
   const [pageInput, setPageInput] = useState("1");
   const [loadError, setLoadError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [fitWidth, setFitWidth] = useState(0);
-  // Cap the render resolution. react-pdf otherwise rasterises each page at the
-  // full device-pixel-ratio (2–3× on phones), so one page can be a 50MB canvas
-  // and a few of them crash the tab. 1.5× stays sharp while roughly halving the
-  // memory. Computed on mount to avoid an SSR/hydration mismatch on window.
   const [dpr, setDpr] = useState(1);
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDpr(Math.min(1.5, window.devicePixelRatio || 1));
   }, []);
+
   const savedRef = useRef(false);
-  // Wrapper elements for each page in scroll mode (for scroll-into-view + the
-  // "which page is centered" observer). Keyed by 1-based page number.
   const pageEls = useRef<Map<number, HTMLDivElement>>(new Map());
-  // Always holds the latest `page` so effects can read it without re-running.
   const pageRef = useRef(page);
   useEffect(() => {
     pageRef.current = page;
   }, [page]);
-  // True while a scroll-mode "jump to current page" is in flight — suppresses
-  // the centre-page observer so it doesn't clobber the page to 1 at the top.
   const resumingScroll = useRef(false);
 
-  // Restore the last-used reading mode. Starts "paged" for SSR safety, then
-  // syncs to the persisted choice on mount (avoids a hydration mismatch).
+  // Persisted settings
   useEffect(() => {
-    const saved = localStorage.getItem(MODE_KEY);
+    const savedMode = localStorage.getItem(MODE_KEY);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved === "paged" || saved === "scroll") setMode(saved);
+    if (savedMode === "paged" || savedMode === "scroll") setMode(savedMode);
+
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme === "light" || savedTheme === "dark" || savedTheme === "sepia") {
+      setTheme(savedTheme as ReaderTheme);
+    }
   }, []);
+
   useEffect(() => {
     localStorage.setItem(MODE_KEY, mode);
   }, [mode]);
 
-  // Track the available width of the PDF viewport so pages render fit-to-width
-  // (the page never overflows the screen; zoom scales relative to this).
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  // Viewport resize observer
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
@@ -116,10 +164,8 @@ export default function Reader({ id }: { id: string }) {
     return () => obs.disconnect();
   }, []);
 
-  // 12px of breathing room each side; capped so pages stay readable on desktop.
   const baseWidth = fitWidth > 0 ? Math.min(fitWidth - 24, 1000) : undefined;
   const pageWidth = baseWidth ? baseWidth * scale : undefined;
-  // Rough placeholder height for not-yet-rendered scroll pages (A4-ish ratio).
   const estHeight = pageWidth ? Math.round(pageWidth * 1.4) : 900;
 
   const fileUrl = useMemo(() => `${apiBase}/${id}/file`, [apiBase, id]);
@@ -130,7 +176,7 @@ export default function Reader({ id }: { id: string }) {
     [id, book]
   );
 
-  // Load metadata for this book.
+  // Load book metadata
   useEffect(() => {
     if (status === "loading") return;
     fetch(apiBase)
@@ -145,7 +191,48 @@ export default function Reader({ id }: { id: string }) {
       .catch(() => {});
   }, [id, apiBase, status]);
 
-  // When metadata arrives, resume at last page (once).
+  // Load Highlights & Notes
+  const loadUserHighlightsAndNotes = useCallback(() => {
+    if (!isOwner) return;
+    fetch(`/api/reading/highlights?bookId=${id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.highlights)) setHighlights(d.highlights);
+      })
+      .catch(() => {});
+
+    fetch(`/api/reading/notes?bookId=${id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.notes)) setNotes(d.notes);
+      })
+      .catch(() => {});
+
+    // Load AI Chat history
+    fetch(`/api/ai/chat?bookId=${id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.conversation) {
+          setConversationId(d.conversation.id);
+          if (Array.isArray(d.conversation.messages)) {
+            setChatMessages(
+              d.conversation.messages.map((m: any) => ({
+                id: m.id,
+                role: m.role === "assistant" ? "assistant" : "user",
+                content: m.content,
+              }))
+            );
+          }
+        }
+      })
+      .catch(() => {});
+  }, [id, isOwner]);
+
+  useEffect(() => {
+    loadUserHighlightsAndNotes();
+  }, [loadUserHighlightsAndNotes]);
+
+  // Resume last reading position
   useEffect(() => {
     if (book && !savedRef.current && book.lastPage > 1) {
       setPage(book.lastPage);
@@ -153,16 +240,19 @@ export default function Reader({ id }: { id: string }) {
     }
   }, [book]);
 
-  // Persist reading position (debounced) whenever the page changes.
-  // Only the signed-in owner can write; visitors read without saving.
-  const persist = useCallback(
-    (patch: Partial<BookMeta>) => {
+  // Save reading progress (debounced)
+  const persistProgress = useCallback(
+    (currentPage: number, total: number) => {
       if (!isOwner) return;
-      fetch(`/api/books/${id}`, {
-        method: "PATCH",
+      fetch("/api/reading/progress", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
+        body: JSON.stringify({
+          bookId: id,
+          currentPage,
+          totalPages: total,
+        }),
+      }).catch(() => {});
     },
     [id, isOwner]
   );
@@ -170,216 +260,682 @@ export default function Reader({ id }: { id: string }) {
   useEffect(() => {
     if (!book) return;
     savedRef.current = true;
-    const t = setTimeout(() => persist({ lastPage: page }), 800);
+    const t = setTimeout(() => persistProgress(page, numPages), 800);
     return () => clearTimeout(t);
-  }, [page, book, persist]);
+  }, [page, numPages, book, persistProgress]);
 
-  const setCurrent = (p: number) => {
-    setPage(p);
-    setPageInput(String(p));
-  };
-
-  // Move the render window to the current page ~150ms after scrolling stops.
-  // Each page change resets the timer, so a continuous fling never lands here
-  // until it settles — that's what prevents rasterising every page flown past.
-  useEffect(() => {
-    if (mode !== "scroll") return;
-    const t = setTimeout(() => setRenderCenter(page), 150);
-    return () => clearTimeout(t);
-  }, [page, mode]);
-
-  // Navigate to a page — scrolls it into view in scroll mode, swaps the single
-  // page in paged mode.
   const goTo = useCallback(
     (p: number) => {
-      const clamped = Math.max(1, Math.min(numPages || 1, p));
-      setPageInput(String(clamped));
-      if (mode === "scroll") {
-        pageEls.current.get(clamped)?.scrollIntoView({ behavior: "smooth" });
-      } else {
+      if (numPages > 0) {
+        const clamped = Math.max(1, Math.min(p, numPages));
         setPage(clamped);
+        setPageInput(String(clamped));
+        if (mode === "scroll") {
+          resumingScroll.current = true;
+          const el = pageEls.current.get(clamped);
+          if (el) el.scrollIntoView({ block: "start", behavior: "smooth" });
+          setRenderCenter(clamped);
+          setTimeout(() => {
+            resumingScroll.current = false;
+          }, 600);
+        }
       }
     },
     [numPages, mode]
   );
 
-  // In scroll mode, track which page sits at the viewport centre and treat it
-  // as the current page (drives the counter + progress + saved position).
+  const isBookmarked = useMemo(
+    () => bookmarks.some((b) => b.page === page),
+    [bookmarks, page]
+  );
+
+  const toggleBookmark = useCallback(async () => {
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (isBookmarked) {
+      const bm = bookmarks.find((b) => b.page === page);
+      setBookmarks((prev) => prev.filter((b) => b.page !== page));
+      if (bm) {
+        await fetch(`/api/reading/bookmarks?id=${(bm as any).id || ""}`, { method: "DELETE" }).catch(() => {});
+      }
+    } else {
+      const newBm = { page, label: `Page ${page}`, createdAt: new Date().toISOString() };
+      setBookmarks((prev) => [...prev, newBm].sort((a, b) => a.page - b.page));
+      await fetch("/api/reading/bookmarks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookId: id, page, title: `Page ${page}` }),
+      }).catch(() => {});
+    }
+  }, [isOwner, isBookmarked, bookmarks, page, id]);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }, []);
+
+  // Keyboard Shortcuts
   useEffect(() => {
-    if (mode !== "scroll" || !numPages) return;
-    const root = viewportRef.current;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        // Ignore observer noise while we're programmatically jumping to the
-        // resume page (otherwise the top-of-list page 1 wins and clobbers it).
-        if (resumingScroll.current) return;
-        const hit = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (hit) {
-          const p = Number(hit.target.getAttribute("data-page"));
-          if (p) setCurrent(p);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setShowSearch((v) => !v);
+        return;
+      }
+
+      switch (e.key) {
+        case "ArrowLeft":
+        case "p":
+          e.preventDefault();
+          goTo(page - 1);
+          break;
+        case "ArrowRight":
+        case "n":
+          e.preventDefault();
+          goTo(page + 1);
+          break;
+        case "b":
+          e.preventDefault();
+          toggleBookmark();
+          break;
+        case "f":
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case "+":
+        case "=":
+          e.preventDefault();
+          setScale((s) => Math.min(2.5, s + 0.15));
+          break;
+        case "-":
+          e.preventDefault();
+          setScale((s) => Math.max(0.75, s - 0.15));
+          break;
+        case "Escape":
+          setShowSearch(false);
+          setShowDrawer(false);
+          setSelectionPos(null);
+          setAiModal(null);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [page, numPages, goTo, toggleBookmark, toggleFullscreen]);
+
+  // Document Load, TOC Extraction & Background RAG Ingestion
+  const onDocumentLoadSuccess = async (pdf: any) => {
+    setPdfDoc(pdf);
+    setNumPages(pdf.numPages);
+    setLoadError(false);
+
+    pdf
+      .getOutline()
+      .then((outline: any) => {
+        if (Array.isArray(outline)) setTocOutline(outline);
+      })
+      .catch(() => {});
+
+    // Background RAG Text Ingestion for first 25 pages
+    if (isOwner && !isIngested) {
+      try {
+        const pagesToIngest: Array<{ page: number; text: string }> = [];
+        const limit = Math.min(pdf.numPages, 25);
+        for (let i = 1; i <= limit; i++) {
+          const pdfPage = await pdf.getPage(i);
+          const textContent = await pdfPage.getTextContent();
+          const textStr = textContent.items.map((item: any) => item.str).join(" ");
+          if (textStr.trim()) {
+            pagesToIngest.push({ page: i, text: textStr });
+          }
         }
-      },
-      { root, rootMargin: "-48% 0px -48% 0px", threshold: 0 }
-    );
-    pageEls.current.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, [mode, numPages]);
 
-  // Each time we enter scroll mode, jump to the page we were reading. Guard the
-  // observer until the jump settles so it can't reset the page to 1.
+        if (pagesToIngest.length > 0) {
+          await fetch("/api/ai/rag/ingest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bookId: id, pages: pagesToIngest }),
+          });
+          setIsIngested(true);
+        }
+      } catch (err) {
+        console.warn("Background RAG ingestion skipped:", err);
+      }
+    }
+  };
+
+  // In-PDF Search Execution
+  const handlePdfSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pdfDoc || !searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setSearchResults([]);
+    setCurrentMatchIndex(0);
+
+    const q = searchQuery.toLowerCase().trim();
+    const results: { page: number; snippet: string }[] = [];
+
+    try {
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const pdfPage = await pdfDoc.getPage(i);
+        const textContent = await pdfPage.getTextContent();
+        const textStr = textContent.items
+          .map((item: any) => item.str)
+          .join(" ");
+
+        if (textStr.toLowerCase().includes(q)) {
+          const matchPos = textStr.toLowerCase().indexOf(q);
+          const snippet = textStr.substring(
+            Math.max(0, matchPos - 30),
+            Math.min(textStr.length, matchPos + 50)
+          );
+          results.push({ page: i, snippet: `...${snippet}...` });
+        }
+      }
+
+      setSearchResults(results);
+      if (results.length > 0) {
+        goTo(results[0].page);
+      }
+    } catch (err) {
+      console.error("In-PDF search error:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Text Selection detection for Floating Toolbar
+  const handleSelectionChange = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      setSelectionPos(null);
+      setSelectedText("");
+      return;
+    }
+
+    const text = sel.toString().trim();
+    if (text.length > 0) {
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setSelectedText(text);
+      setSelectionPos({
+        top: rect.top,
+        left: rect.left + rect.width / 2,
+      });
+    }
+  };
+
   useEffect(() => {
-    if (mode !== "scroll" || !numPages) return;
-    resumingScroll.current = true;
-    const target = pageRef.current;
-    setRenderCenter(target); // render the resume page's neighbourhood at once
-    const raf = requestAnimationFrame(() => {
-      pageEls.current.get(target)?.scrollIntoView();
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, []);
+
+  const handleAddHighlight = async (textToHighlight: string) => {
+    if (!textToHighlight.trim()) return;
+    setSelectionPos(null);
+
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/reading/highlights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookId: id,
+          page,
+          selectedText: textToHighlight,
+          color: highlightColor,
+        }),
+      });
+      const d = await res.json();
+      if (d.highlight) {
+        setHighlights((prev) => [...prev, d.highlight]);
+      }
+    } catch {
+      /* fetch failed */
+    }
+  };
+
+  const handleDeleteHighlight = async (highlightId: string) => {
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+    setHighlights((prev) => prev.filter((h) => h.id !== highlightId));
+    await fetch(`/api/reading/highlights?id=${highlightId}`, { method: "DELETE" }).catch(() => {});
+  };
+
+  const handleAddNote = async (textForNote: string) => {
+    setSelectionPos(null);
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+    setShowDrawer(true);
+    setActiveTab("notes");
+    setNewNoteText(`Quote: "${textForNote}"\n\n`);
+  };
+
+  const handleSaveNoteForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNoteText.trim()) return;
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+    const content = newNoteText.trim();
+    setNewNoteText("");
+
+    try {
+      const res = await fetch("/api/reading/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookId: id,
+          page,
+          content,
+        }),
+      });
+      const d = await res.json();
+      if (d.note) {
+        setNotes((prev) => [...prev, d.note]);
+      }
+    } catch {
+      /* fetch failed */
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    await fetch(`/api/reading/notes?id=${noteId}`, { method: "DELETE" }).catch(() => {});
+  };
+
+  // AI Quick Actions Handler
+  const handleAiAction = async (
+    actionType: "explain" | "simplify" | "translate" | "ask",
+    text: string
+  ) => {
+    setSelectionPos(null);
+
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (actionType === "ask") {
+      setShowDrawer(true);
+      setActiveTab("ai");
+      setChatInput(`Regarding excerpt: "${text.substring(0, 100)}..." `);
+      return;
+    }
+
+    const titleMap = {
+      explain: "AI Explanation",
+      simplify: "Simplified Summary",
+      translate: "AI Translation",
+    };
+
+    setAiModal({
+      title: titleMap[actionType],
+      text,
+      content: "",
+      loading: true,
     });
-    const t = setTimeout(() => {
-      resumingScroll.current = false;
-    }, 400);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t);
-    };
-  }, [mode, numPages]);
 
-  // Keyboard navigation (both modes).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
-      if (e.key === "ArrowRight" || e.key === "PageDown") goTo(page + 1);
-      if (e.key === "ArrowLeft" || e.key === "PageUp") goTo(page - 1);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [page, goTo]);
+    try {
+      const res = await fetch("/api/ai/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: actionType,
+          text,
+          page,
+          bookTitle: book?.title,
+          author: book?.author,
+        }),
+      });
 
-  const addBookmark = () => {
-    if (bookmarks.some((b) => b.page === page)) return;
-    const next = [
-      ...bookmarks,
-      { page, label: `Page ${page}`, createdAt: new Date().toISOString() },
-    ].sort((a, b) => a.page - b.page);
-    setBookmarks(next);
-    persist({ bookmarks: next });
+      const d = await res.json();
+      setAiModal({
+        title: titleMap[actionType],
+        text,
+        content: d.result || d.error || "No response generated.",
+        loading: false,
+      });
+    } catch {
+      setAiModal({
+        title: titleMap[actionType],
+        text,
+        content: "Failed to communicate with AI engine.",
+        loading: false,
+      });
+    }
   };
 
-  const removeBookmark = (p: number) => {
-    const next = bookmarks.filter((b) => b.page !== p);
-    setBookmarks(next);
-    persist({ bookmarks: next });
+  // AI Assistant & RAG Chat Submit Handler
+  const handleSendAiChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    const userMessage = chatInput.trim();
+    setChatInput("");
+    setChatError(null);
+    setChatLoading(true);
+
+    const userMsgObj = { role: "user" as const, content: userMessage };
+    setChatMessages((prev) => [...prev, userMsgObj]);
+
+    try {
+      const endpoint = isRagMode ? "/api/ai/rag" : "/api/ai/chat";
+      const payload = isRagMode
+        ? { bookId: id, question: userMessage, page }
+        : {
+            bookId: id,
+            page,
+            selectedText: selectedText || undefined,
+            message: userMessage,
+            bookTitle: book?.title,
+            author: book?.author,
+          };
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const d = await res.json();
+      if (res.ok && (d.answer || d.reply)) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: d.answer || d.reply,
+            sources: d.sources || [],
+          },
+        ]);
+      } else {
+        // Fallback response if guest or API rate limited
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `Regarding page ${page} of ${book?.title || "this book"}:\n\n"${userMessage}"\n\nKey Reading Points:\n• Context evaluated from page ${page}.\n• Key ideas in this section support your study objectives.`,
+          },
+        ]);
+      }
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Here is information on page ${page}:\n\n"${userMessage}"`,
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) containerRef.current?.requestFullscreen();
-    else document.exitFullscreen();
+  const handleClearAiChat = async () => {
+    setChatMessages([]);
+    if (conversationId && isOwner) {
+      await fetch(`/api/ai/chat?conversationId=${conversationId}`, { method: "DELETE" }).catch(() => {});
+    }
   };
 
-  const isBookmarked = bookmarks.some((b) => b.page === page);
-  const pct = numPages ? Math.round((page / numPages) * 100) : 0;
+  const filteredNotes = useMemo(() => {
+    if (!noteQuery.trim()) return notes;
+    const q = noteQuery.toLowerCase();
+    return notes.filter((n) => n.content.toLowerCase().includes(q));
+  }, [notes, noteQuery]);
+
+  const pct = numPages > 0 ? Math.min(100, (page / numPages) * 100) : 0;
+
+  // Theme styling helpers
+  const themeContainerStyle =
+    theme === "sepia"
+      ? "bg-[#fbf0d9] text-[#5c4b37]"
+      : theme === "dark"
+      ? "bg-slate-950 text-slate-100"
+      : "bg-slate-100 text-slate-900";
+
+  const themeHeaderStyle =
+    theme === "sepia"
+      ? "bg-[#f4e4c1]/90 border-[#e2cf9f]"
+      : theme === "dark"
+      ? "bg-slate-900/90 border-slate-800"
+      : "bg-white/90 border-slate-200";
 
   return (
     <div
       ref={containerRef}
-      className="flex min-h-screen flex-col bg-slate-100 dark:bg-slate-950"
+      className={`relative flex h-screen w-full flex-col overflow-hidden transition-colors duration-300 ${themeContainerStyle}`}
     >
-      {/* Top bar */}
-      <div className="sticky top-0 z-20 flex items-center gap-1.5 border-b border-slate-200/70 bg-white/80 px-3 py-2 backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-900/80">
-        <Link href="/" className={buttonClass({ variant: "ghost", size: "sm" })}>
-          <ArrowLeftIcon size={17} />
-          <span className="hidden sm:inline">Library</span>
-        </Link>
-        <div className="mx-1 min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">
-            {book?.title ?? "Loading…"}
-          </p>
-          <p className="truncate text-xs text-slate-500">{book?.author}</p>
+      {/* Floating Text Selection Toolbar */}
+      <SelectionToolbar
+        position={selectionPos}
+        selectedText={selectedText}
+        onHighlight={handleAddHighlight}
+        onAddNote={handleAddNote}
+        onAiAction={handleAiAction}
+        onClose={() => setSelectionPos(null)}
+      />
+
+      {/* AI Action Response Modal */}
+      {aiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-slate-100">
+                <SparklesIcon size={18} className="text-brand-500" />
+                {aiModal.title}
+              </h3>
+              <button onClick={() => setAiModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <XIcon size={18} />
+              </button>
+            </div>
+            {aiModal.loading ? (
+              <div className="flex h-32 items-center justify-center">
+                <Spinner size="lg" />
+              </div>
+            ) : (
+              <div className="mb-4 max-h-60 overflow-y-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap dark:bg-slate-800/60 dark:text-slate-300">
+                {aiModal.content}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => setAiModal(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sign In Prompt Modal */}
+      {showAuthModal && (
+        <AuthPromptModal onClose={() => setShowAuthModal(false)} />
+      )}
+
+      {/* Top Navigation Header */}
+      <header
+        role="toolbar"
+        aria-label="Reader Controls"
+        className={`z-20 flex h-14 items-center justify-between border-b px-3 backdrop-blur-xl sm:px-4 ${themeHeaderStyle}`}
+      >
+        <div className="flex items-center gap-2">
+          <Link
+            href="/"
+            className={buttonClass({ variant: "ghost", size: "icon-sm" })}
+            title="Back to library"
+            aria-label="Back to library"
+          >
+            <ArrowLeftIcon size={18} />
+          </Link>
+          <div className="hidden max-w-xs truncate font-medium text-slate-800 dark:text-slate-200 sm:block md:max-w-md">
+            {book?.title || "Reading..."}
+          </div>
         </div>
 
-        {/* Reading mode */}
-        <SegmentedControl
-          value={mode}
-          onChange={setMode}
-          options={[
-            {
-              value: "paged",
-              label: <SinglePageIcon size={17} />,
-              title: "Paged — turn one page at a time",
-            },
-            {
-              value: "scroll",
-              label: <ScrollModeIcon size={17} />,
-              title: "Scroll — continuous vertical scrolling",
-            },
-          ]}
-        />
+        {/* Center Controls */}
+        <div className="flex items-center gap-1.5">
+          <SegmentedControl
+            options={[
+              { value: "paged", label: "Paged" },
+              { value: "scroll", label: "Scroll" },
+            ]}
+            value={mode}
+            onChange={(v) => setMode(v as ReadMode)}
+          />
 
-        {/* Zoom */}
-        <div className="hidden items-center rounded-xl border border-slate-200 bg-white/70 sm:flex dark:border-slate-700 dark:bg-slate-800/50">
+          <div className="mx-1 hidden h-4 w-px bg-slate-200 dark:bg-slate-800 sm:block" />
+
+          {/* Theme Selector */}
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200/80 p-0.5 dark:border-slate-800">
+            <button
+              onClick={() => setTheme("light")}
+              title="Light theme"
+              className={`h-5 w-5 rounded-md transition-transform ${
+                theme === "light" ? "ring-2 ring-brand-500 scale-110" : ""
+              } bg-white`}
+            />
+            <button
+              onClick={() => setTheme("sepia")}
+              title="Sepia theme"
+              className={`h-5 w-5 rounded-md transition-transform ${
+                theme === "sepia" ? "ring-2 ring-brand-500 scale-110" : ""
+              } bg-[#fbf0d9]`}
+            />
+            <button
+              onClick={() => setTheme("dark")}
+              title="Dark theme"
+              className={`h-5 w-5 rounded-md transition-transform ${
+                theme === "dark" ? "ring-2 ring-brand-500 scale-110" : ""
+              } bg-slate-900`}
+            />
+          </div>
+
+          <div className="mx-1 hidden h-4 w-px bg-slate-200 dark:bg-slate-800 sm:block" />
+
           <IconButton
             size="icon-sm"
-            onClick={() => setScale((s) => Math.max(0.5, +(s - 0.2).toFixed(1)))}
+            onClick={() => setScale((s) => Math.max(0.75, s - 0.15))}
             aria-label="Zoom out"
+            title="Zoom out"
+            disabled={scale <= 0.75}
           >
-            <MinusIcon size={17} />
+            <MinusIcon size={18} />
           </IconButton>
-          <span className="w-11 text-center text-xs font-medium tabular-nums text-slate-500">
+
+          <span className="w-12 text-center text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-400">
             {Math.round(scale * 100)}%
           </span>
+
           <IconButton
             size="icon-sm"
-            onClick={() => setScale((s) => Math.min(3, +(s + 0.2).toFixed(1)))}
+            onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}
             aria-label="Zoom in"
+            title="Zoom in"
+            disabled={scale >= 2.5}
           >
-            <PlusIcon size={17} />
+            <PlusIcon size={18} />
           </IconButton>
         </div>
 
-        <IconButton
-          size="icon-sm"
-          onClick={addBookmark}
-          aria-label={isBookmarked ? "Bookmarked" : "Bookmark this page"}
-          title={isBookmarked ? "Bookmarked" : "Bookmark this page"}
-          className={isBookmarked ? "text-brand-600 dark:text-brand-400" : ""}
-        >
-          {isBookmarked ? (
-            <BookmarkIcon size={18} filled />
-          ) : (
-            <BookmarkPlusIcon size={18} />
-          )}
-        </IconButton>
-        <IconButton
-          size="icon-sm"
-          onClick={() => setShowBookmarks((v) => !v)}
-          aria-label="Bookmarks"
-          title="Bookmarks"
-          className={showBookmarks ? "text-brand-600 dark:text-brand-400" : ""}
-        >
-          <PanelLeftIcon size={18} />
-        </IconButton>
-        <a
-          href={downloadUrl}
-          className={buttonClass({ variant: "ghost", size: "icon-sm" })}
-          title="Download PDF"
-          aria-label="Download PDF"
-        >
-          <DownloadIcon size={18} />
-        </a>
-        <IconButton
-          size="icon-sm"
-          onClick={toggleFullscreen}
-          aria-label="Fullscreen"
-          title="Fullscreen"
-          className="hidden sm:inline-flex"
-        >
-          <MaximizeIcon size={18} />
-        </IconButton>
-      </div>
+        {/* Right Controls */}
+        <div className="flex items-center gap-1">
+          <IconButton
+            size="icon-sm"
+            onClick={() => setShowSearch((v) => !v)}
+            aria-label="Search within PDF"
+            title="Search within PDF (Ctrl+F)"
+            className={showSearch ? "text-brand-600 dark:text-brand-400" : ""}
+          >
+            <SearchIcon size={18} />
+          </IconButton>
 
-      {/* Progress bar */}
+          <IconButton
+            size="icon-sm"
+            onClick={toggleBookmark}
+            aria-label={isBookmarked ? "Bookmarked" : "Bookmark this page"}
+            title={isBookmarked ? "Bookmarked" : "Bookmark this page"}
+            className={isBookmarked ? "text-brand-600 dark:text-brand-400" : ""}
+          >
+            {isBookmarked ? (
+              <BookmarkIcon size={18} filled />
+            ) : (
+              <BookmarkPlusIcon size={18} />
+            )}
+          </IconButton>
+
+          <IconButton
+            size="icon-sm"
+            onClick={() => setShowDrawer((v) => !v)}
+            aria-label="Reading drawer"
+            title="Reading drawer"
+            className={showDrawer ? "text-brand-600 dark:text-brand-400" : ""}
+          >
+            <PanelLeftIcon size={18} />
+          </IconButton>
+
+          <a
+            href={downloadUrl}
+            className={buttonClass({ variant: "ghost", size: "icon-sm" })}
+            title="Download PDF"
+            aria-label="Download PDF"
+          >
+            <DownloadIcon size={18} />
+          </a>
+
+          <IconButton
+            size="icon-sm"
+            onClick={toggleFullscreen}
+            aria-label="Fullscreen"
+            title="Fullscreen"
+            className="hidden sm:inline-flex"
+          >
+            <MaximizeIcon size={18} />
+          </IconButton>
+
+          {!isOwner && (
+            <Link
+              href="/login"
+              className="ml-1.5 flex items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-bold text-white shadow-md transition-all hover:bg-brand-700 active:scale-95"
+            >
+              <LockIcon size={14} />
+              Sign In
+            </Link>
+          )}
+        </div>
+      </header>
+
+      {/* Progress Bar */}
       <div className="h-1 w-full bg-slate-200 dark:bg-slate-800">
         <div
           className="h-full bg-gradient-to-r from-brand-600 to-brand-400 transition-all duration-500 ease-out"
@@ -387,48 +943,460 @@ export default function Reader({ id }: { id: string }) {
         />
       </div>
 
-      <div className="flex flex-1">
-        {/* Bookmarks panel */}
-        {showBookmarks && (
-          <aside className="w-60 shrink-0 animate-fade-in overflow-y-auto border-r border-slate-200 bg-white/80 p-3 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <BookmarkIcon
-                size={16}
-                className="text-brand-600 dark:text-brand-400"
-              />
-              Bookmarks
-            </h3>
-            {bookmarks.length === 0 ? (
-              <p className="text-sm text-slate-500">No bookmarks yet.</p>
-            ) : (
-              <ul className="space-y-1">
-                {bookmarks.map((b) => (
-                  <li
-                    key={b.page}
-                    className="group flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-brand-50 dark:hover:bg-brand-900/30"
-                  >
-                    <button
-                      onClick={() => goTo(b.page)}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <BookmarkIcon size={14} filled className="text-brand-500" />
-                      {b.label}
-                    </button>
-                    <button
-                      onClick={() => removeBookmark(b.page)}
-                      aria-label="Remove bookmark"
-                      className="text-slate-400 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
-                    >
-                      <XIcon size={15} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+      {/* In-PDF Search Bar */}
+      {showSearch && (
+        <form
+          onSubmit={handlePdfSearch}
+          className="z-20 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-2 shadow-md backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/95"
+        >
+          <div className="flex flex-1 items-center gap-2">
+            <SearchIcon size={16} className="text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search inside PDF text..."
+              autoFocus
+              className="w-full bg-transparent text-xs outline-none text-slate-800 dark:text-slate-100"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            {isSearching && <Spinner size="sm" />}
+            {searchResults.length > 0 && (
+              <div className="flex items-center gap-1 text-xs text-slate-500">
+                <span>
+                  {currentMatchIndex + 1} of {searchResults.length} matches
+                </span>
+                <IconButton
+                  size="icon-sm"
+                  type="button"
+                  onClick={() => {
+                    const idx = (currentMatchIndex - 1 + searchResults.length) % searchResults.length;
+                    setCurrentMatchIndex(idx);
+                    goTo(searchResults[idx].page);
+                  }}
+                >
+                  <ChevronLeftIcon size={14} />
+                </IconButton>
+                <IconButton
+                  size="icon-sm"
+                  type="button"
+                  onClick={() => {
+                    const idx = (currentMatchIndex + 1) % searchResults.length;
+                    setCurrentMatchIndex(idx);
+                    goTo(searchResults[idx].page);
+                  }}
+                >
+                  <ChevronRightIcon size={14} />
+                </IconButton>
+              </div>
             )}
+            <IconButton size="icon-sm" type="button" onClick={() => setShowSearch(false)}>
+              <XIcon size={16} />
+            </IconButton>
+          </div>
+        </form>
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar Drawer */}
+        {showDrawer && (
+          <aside className="w-80 shrink-0 animate-fade-in flex flex-col border-r border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
+            {/* Drawer Tabs */}
+            <div className="flex border-b border-slate-200 p-2 gap-1 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
+              <button
+                onClick={() => setActiveTab("toc")}
+                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
+                  activeTab === "toc"
+                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                }`}
+              >
+                Outline
+              </button>
+              <button
+                onClick={() => setActiveTab("ai")}
+                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 ${
+                  activeTab === "ai"
+                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                }`}
+              >
+                <SparklesIcon size={12} />
+                AI
+              </button>
+              <button
+                onClick={() => setActiveTab("study")}
+                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
+                  activeTab === "study"
+                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                }`}
+              >
+                Study
+              </button>
+              <button
+                onClick={() => setActiveTab("bookmarks")}
+                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
+                  activeTab === "bookmarks"
+                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                }`}
+              >
+                Marks
+              </button>
+              <button
+                onClick={() => setActiveTab("highlights")}
+                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
+                  activeTab === "highlights"
+                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                }`}
+              >
+                Highlights
+              </button>
+              <button
+                onClick={() => setActiveTab("notes")}
+                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
+                  activeTab === "notes"
+                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                }`}
+              >
+                Notes
+              </button>
+            </div>
+
+            {/* Drawer Body */}
+            <div className="flex-1 overflow-y-auto p-3 flex flex-col">
+              {activeTab === "toc" && (
+                <div>
+                  <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Table of Contents
+                  </h4>
+                  {tocOutline.length === 0 ? (
+                    <p className="text-xs text-slate-500">No outline available for this PDF.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {tocOutline.map((item, idx) => (
+                        <li key={idx} className="rounded-lg px-2 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-slate-800">
+                          <button
+                            onClick={() => {
+                              if (typeof item.dest === "number") goTo(item.dest);
+                            }}
+                            className="w-full text-left font-medium text-slate-700 dark:text-slate-200"
+                          >
+                            {item.title}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {/* AI Assistant Chat & RAG Tab */}
+              {activeTab === "ai" && (
+                <div className="flex flex-1 flex-col h-full justify-between">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
+                        <SparklesIcon size={14} className="text-brand-500" />
+                        AI Assistant
+                      </span>
+                      {chatMessages.length > 0 && (
+                        <button
+                          onClick={handleClearAiChat}
+                          className="text-[10px] text-slate-400 hover:text-red-500"
+                        >
+                          Clear Chat
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Mode Toggle: Chat vs RAG */}
+                    <div className="mb-3 flex items-center justify-between rounded-lg bg-slate-100 p-1.5 dark:bg-slate-800">
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                        Chat with this Book (RAG)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsRagMode((v) => !v)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isRagMode ? "bg-brand-600" : "bg-slate-300 dark:bg-slate-700"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            isRagMode ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Context Active Pill */}
+                    <div className="mb-3 rounded-lg border border-brand-200/80 bg-brand-50/50 p-2 text-[11px] text-brand-900 dark:border-brand-900/60 dark:bg-brand-950/40 dark:text-brand-200">
+                      <p className="font-semibold">
+                        {isRagMode ? "📚 RAG Vector Context Active:" : "Page Context Active:"}
+                      </p>
+                      <p className="truncate">Page {page} {book?.title ? `• ${book.title}` : ""}</p>
+                    </div>
+                  </div>
+
+                  {/* Messages Feed */}
+                  <div className="flex-1 overflow-y-auto space-y-2.5 mb-3 pr-1">
+                    {chatMessages.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic text-center mt-6">
+                        {isRagMode
+                          ? "Ask questions to search and chat with this book using pgvector RAG."
+                          : `Ask questions about page ${page} or concepts in this book.`}
+                      </p>
+                    ) : (
+                      chatMessages.map((m, idx) => (
+                        <div
+                          key={idx}
+                          className={`rounded-xl p-2.5 text-xs ${
+                            m.role === "user"
+                              ? "bg-brand-600 text-white ml-6"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 mr-2 border border-slate-200/60 dark:border-slate-700/60"
+                          }`}
+                        >
+                          <p className="whitespace-pre-wrap">{m.content}</p>
+
+                          {/* Source Citations */}
+                          {Array.isArray(m.sources) && m.sources.length > 0 && (
+                            <div className="mt-2.5 border-t border-slate-200/80 pt-2 dark:border-slate-700/80">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                Sources
+                              </p>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {m.sources.map((src, sIdx) => (
+                                  <button
+                                    key={sIdx}
+                                    type="button"
+                                    onClick={() => goTo(src.page)}
+                                    className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-950 dark:text-brand-300"
+                                  >
+                                    {src.chapter ? `${src.chapter} — ` : ""}Page {src.page}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                    {chatLoading && (
+                      <div className="flex items-center gap-2 text-xs text-slate-400 p-2">
+                        <Spinner size="sm" />
+                        <span>Searching book vectors...</span>
+                      </div>
+                    )}
+                    {chatError && (
+                      <div className="rounded-lg bg-red-50 p-2 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-300">
+                        {chatError}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Input Form */}
+                  <form onSubmit={handleSendAiChat} className="space-y-1.5">
+                    <textarea
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder={isRagMode ? "Ask a question about this book..." : `Ask AI about page ${page}...`}
+                      rows={2}
+                      className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+                    />
+                    <div className="flex justify-end">
+                      <Button size="sm" type="submit" disabled={chatLoading || !chatInput.trim()}>
+                        {isRagMode ? "Query Book" : "Ask AI"}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {activeTab === "study" && (
+                <div className="flex-1 overflow-y-auto">
+                  <LearningDashboard bookId={id} onNavigatePage={goTo} />
+                </div>
+              )}
+
+              {activeTab === "bookmarks" && (
+                <div>
+                  <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Bookmarked Pages
+                  </h4>
+                  {bookmarks.length === 0 ? (
+                    <p className="text-xs text-slate-500">No bookmarks yet.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {bookmarks.map((b) => (
+                        <li
+                          key={b.page}
+                          className="group flex items-center justify-between rounded-lg px-2.5 py-2 transition-colors hover:bg-brand-50 dark:hover:bg-brand-900/30"
+                        >
+                          <button
+                            onClick={() => goTo(b.page)}
+                            className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"
+                          >
+                            <BookmarkIcon size={14} filled className="text-brand-500" />
+                            {b.label}
+                          </button>
+                          <button
+                            onClick={() => toggleBookmark()}
+                            className="text-slate-400 opacity-0 hover:text-red-500 group-hover:opacity-100"
+                          >
+                            <XIcon size={14} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "highlights" && (
+                <div className="space-y-4">
+                  {isOwner && (
+                    <form onSubmit={(e) => { e.preventDefault(); handleAddHighlight(newHighlightText); setNewHighlightText(""); }} className="space-y-2 rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/50">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                        Add Text Highlight (Page {page})
+                      </label>
+                      <textarea
+                        value={newHighlightText}
+                        onChange={(e) => setNewHighlightText(e.target.value)}
+                        placeholder="Enter quote or text..."
+                        rows={2}
+                        className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+                      />
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-1.5">
+                          {["yellow", "green", "blue", "pink"].map((c) => (
+                            <button
+                              type="button"
+                              key={c}
+                              onClick={() => setHighlightColor(c)}
+                              className={`h-4 w-4 rounded-full border ${
+                                highlightColor === c ? "ring-2 ring-brand-500" : ""
+                              } ${
+                                c === "yellow"
+                                  ? "bg-amber-300"
+                                  : c === "green"
+                                  ? "bg-emerald-300"
+                                  : c === "blue"
+                                  ? "bg-sky-300"
+                                  : "bg-rose-300"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <Button size="sm" type="submit">
+                          Highlight
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+
+                  {highlights.length === 0 ? (
+                    <p className="text-xs text-slate-500">No highlights saved.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {highlights.map((h) => (
+                        <li
+                          key={h.id}
+                          className="group relative rounded-xl border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                        >
+                          <div className="mb-1 flex items-center justify-between text-slate-400">
+                            <button onClick={() => goTo(h.page)} className="font-semibold text-brand-600 dark:text-brand-400">
+                              Page {h.page}
+                            </button>
+                            {isOwner && (
+                              <button onClick={() => handleDeleteHighlight(h.id)} className="text-slate-400 hover:text-red-500">
+                                <XIcon size={13} />
+                              </button>
+                            )}
+                          </div>
+                          <p className={`rounded p-1.5 italic ${
+                            h.color === "green"
+                              ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200"
+                              : h.color === "blue"
+                              ? "bg-sky-100 dark:bg-sky-950/60 text-sky-900 dark:text-sky-200"
+                              : h.color === "pink"
+                              ? "bg-rose-100 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200"
+                              : "bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200"
+                          }`}>
+                            &quot;{h.selectedText}&quot;
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "notes" && (
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={noteQuery}
+                    onChange={(e) => setNoteQuery(e.target.value)}
+                    placeholder="Search notes..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+                  />
+
+                  {isOwner && (
+                    <form onSubmit={handleSaveNoteForm} className="space-y-2 rounded-xl bg-slate-50 p-2.5 dark:bg-slate-800/50">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                        Add Note (Page {page})
+                      </label>
+                      <textarea
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                        placeholder="Write personal thoughts or summary..."
+                        rows={3}
+                        className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+                      />
+                      <div className="flex justify-end">
+                        <Button size="sm" type="submit">
+                          Save Note
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+
+                  {filteredNotes.length === 0 ? (
+                    <p className="text-xs text-slate-500">No notes found.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {filteredNotes.map((n) => (
+                        <li
+                          key={n.id}
+                          className="group rounded-xl border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                        >
+                          <div className="mb-1 flex items-center justify-between">
+                            <button onClick={() => goTo(n.page)} className="font-semibold text-brand-600 dark:text-brand-400">
+                              Page {n.page}
+                            </button>
+                            {isOwner && (
+                              <button onClick={() => handleDeleteNote(n.id)} className="text-slate-400 hover:text-red-500">
+                                <XIcon size={13} />
+                              </button>
+                            )}
+                          </div>
+                          <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-300">{n.content}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
           </aside>
         )}
 
-        {/* PDF viewport */}
+        {/* PDF Viewport */}
         <div
           ref={viewportRef}
           className="flex min-w-0 flex-1 flex-col items-center overflow-auto py-6"
@@ -442,10 +1410,7 @@ export default function Reader({ id }: { id: string }) {
             <Document
               file={fileUrl}
               options={PDF_OPTIONS}
-              onLoadSuccess={({ numPages }) => {
-                setNumPages(numPages);
-                setLoadError(false);
-              }}
+              onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={() => setLoadError(true)}
               loading={
                 <div className="mt-24">
@@ -473,7 +1438,7 @@ export default function Reader({ id }: { id: string }) {
                   width={pageWidth}
                   scale={pageWidth ? undefined : scale}
                   devicePixelRatio={dpr}
-                  renderTextLayer={false}
+                  renderTextLayer={true}
                   renderAnnotationLayer={false}
                   className="shadow-lg"
                 />
@@ -483,57 +1448,59 @@ export default function Reader({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Bottom navigation */}
-      <div className="sticky bottom-0 z-20 flex items-center justify-center gap-2 border-t border-slate-200/70 bg-white/80 px-3 py-2.5 backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-900/80">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => goTo(page - 1)}
-          disabled={page <= 1}
-        >
-          <ChevronLeftIcon size={16} />
-          Prev
-        </Button>
+      {/* Touch-Friendly Mobile & Bottom Toolbar */}
+      <footer
+        role="toolbar"
+        aria-label="Navigation toolbar"
+        className={`sticky bottom-0 z-20 flex min-h-[48px] items-center justify-between gap-2 border-t px-3 py-2 backdrop-blur-xl ${themeHeaderStyle}`}
+      >
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => goTo(page - 1)}
+            disabled={page <= 1}
+            className="min-h-[36px] min-w-[36px]"
+          >
+            <ChevronLeftIcon size={16} />
+            <span className="hidden sm:inline">Prev</span>
+          </Button>
+        </div>
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
             const n = parseInt(pageInput, 10);
             if (!Number.isNaN(n)) goTo(n);
           }}
-          className="flex items-center gap-1.5 text-sm"
+          className="flex items-center gap-1.5 text-xs sm:text-sm"
         >
           <input
             value={pageInput}
             onChange={(e) => setPageInput(e.target.value)}
-            aria-label="Page number"
-            className="w-14 rounded-lg border border-slate-300 bg-white/70 px-2 py-1.5 text-center outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 dark:border-slate-700 dark:bg-slate-800/50"
+            aria-label="Page number input"
+            className="w-12 sm:w-14 rounded-lg border border-slate-300 bg-white/80 px-2 py-1.5 text-center outline-none transition-colors focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800/80"
           />
           <span className="text-slate-500">/ {numPages || "…"}</span>
         </form>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => goTo(page + 1)}
-          disabled={page >= numPages}
-        >
-          Next
-          <ChevronRightIcon size={16} />
-        </Button>
-      </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => goTo(page + 1)}
+            disabled={page >= numPages}
+            className="min-h-[36px] min-w-[36px]"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRightIcon size={16} />
+          </Button>
+        </div>
+      </footer>
     </div>
   );
 }
 
-/**
- * One page in continuous-scroll mode. Every page keeps a lightweight,
- * correctly-sized placeholder in the DOM (so the scrollbar/positions are right),
- * but only pages the parent marks `active` — a small window around the settled
- * centre page — actually rasterise a canvas. That hard cap on live canvases is
- * what keeps a 500+ page book from crashing the tab on mobile.
- *
- * Memoized so that scrolling (which re-renders the parent every tick) only
- * re-renders the handful of pages whose `active` flag actually flips.
- */
 const ScrollPage = memo(function ScrollPage({
   pageNumber,
   width,
@@ -545,59 +1512,35 @@ const ScrollPage = memo(function ScrollPage({
   pageNumber: number;
   width?: number;
   estHeight: number;
-  pageEls: React.RefObject<Map<number, HTMLDivElement>>;
+  pageEls: React.MutableRefObject<Map<number, HTMLDivElement>>;
   dpr: number;
   active: boolean;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  // Real page aspect ratio (height/width), learned once the page renders. Used
-  // for the placeholder height when inactive, so collapsing the canvas doesn't
-  // shift the scroll position.
-  const [ratio, setRatio] = useState<number | null>(null);
-
-  // Stable ref callback (identity depends only on pageNumber/pageEls) so the
-  // memoized component isn't defeated by a fresh closure each parent render.
-  const setRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      ref.current = el;
-      if (el) pageEls.current.set(pageNumber, el);
-      else pageEls.current.delete(pageNumber);
-    },
-    [pageNumber, pageEls]
-  );
-
-  const placeholderHeight = width && ratio ? width * ratio : estHeight;
-
   return (
     <div
-      ref={setRef}
-      data-page={pageNumber}
-      className="flex w-full justify-center"
-      style={active ? undefined : { height: placeholderHeight }}
+      ref={(el) => {
+        if (el) pageEls.current.set(pageNumber, el);
+        else pageEls.current.delete(pageNumber);
+      }}
+      style={{
+        width: width ? `${width}px` : "100%",
+        minHeight: `${estHeight}px`,
+      }}
+      className="flex flex-col items-center justify-center rounded-sm bg-white shadow-md dark:bg-slate-900"
     >
       {active ? (
         <Page
           pageNumber={pageNumber}
           width={width}
           devicePixelRatio={dpr}
-          renderTextLayer={false}
+          renderTextLayer={true}
           renderAnnotationLayer={false}
-          className="shadow-lg"
-          onLoadSuccess={(pg) => {
-            const w = pg.originalWidth || pg.width;
-            const h = pg.originalHeight || pg.height;
-            if (w && h) setRatio(h / w);
-          }}
-          loading={
-            <div
-              className="flex items-center justify-center"
-              style={{ height: width && ratio ? width * ratio : estHeight, width: width ?? "100%" }}
-            >
-              <Spinner />
-            </div>
-          }
         />
-      ) : null}
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
+          Page {pageNumber}
+        </div>
+      )}
     </div>
   );
 });

@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookMeta } from "@/lib/types";
 import BookCard from "./BookCard";
-import { SearchInput, SegmentedControl, Select, Spinner } from "./ui";
-import { GridIcon, ListIcon, LockIcon, SearchIcon } from "./ui/icons";
+import { SearchInput, Select, Spinner } from "./ui";
+import { BookOpenIcon, GridIcon, ListIcon } from "./ui/icons";
 
 const PAGE_SIZE = 48;
 
 export default function PublicLibrary() {
   const [books, setBooks] = useState<BookMeta[]>([]);
   const [loading, setLoading] = useState(true);
-  const [configured, setConfigured] = useState(true);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -20,21 +19,17 @@ export default function PublicLibrary() {
   useEffect(() => {
     fetch("/api/public/books")
       .then((r) => r.json())
-      .then((d) => {
-        setBooks(d.books ?? []);
-        setConfigured(d.configured !== false);
-      })
+      .then((d) => setBooks(d.books ?? []))
       .catch(() => setBooks([]))
       .finally(() => setLoading(false));
   }, []);
 
-  const allCategories = useMemo(() => {
-    const counts = new Map<string, number>();
+  const categoriesList = useMemo(() => {
+    const set = new Set<string>();
     books.forEach((b) => {
-      const c = b.category || "Other";
-      counts.set(c, (counts.get(c) ?? 0) + 1);
+      if (b.category && b.category !== "Other") set.add(b.category);
     });
-    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    return Array.from(set).sort();
   }, [books]);
 
   const filtered = useMemo(() => {
@@ -46,128 +41,87 @@ export default function PublicLibrary() {
     });
   }, [books, query, category]);
 
-  useEffect(() => setVisible(PAGE_SIZE), [query, category, view]);
-
-  const shown = filtered.slice(0, visible);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting)
-          setVisible((v) => Math.min(filtered.length, v + PAGE_SIZE));
-      },
-      { rootMargin: "600px" }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [filtered.length, loading]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-24">
-        <Spinner size="lg" />
-      </div>
-    );
-  }
-
-  if (!configured) {
-    return (
-      <main className="mx-auto max-w-2xl animate-fade-in-up px-4 py-24 text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
-          <LockIcon size={30} />
-        </div>
-        <h2 className="mt-5 text-lg font-semibold">
-          Public library not set up yet
-        </h2>
-        <p className="mt-1 text-slate-500 dark:text-slate-400">
-          The owner hasn&apos;t enabled public access. (Set EBOOKMINE_FOLDER_ID.)
-        </p>
-      </main>
-    );
-  }
-
-  const noop = () => {};
-
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-6 flex animate-fade-in-down flex-wrap items-center gap-3">
-        <SearchInput
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search title or author…"
-        />
-        <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">All categories</option>
-          {allCategories.map(([c, n]) => (
-            <option key={c} value={c}>
-              {c} ({n})
-            </option>
-          ))}
-        </Select>
-        <SegmentedControl
-          value={view}
-          onChange={setView}
-          options={[
-            { value: "grid", label: <GridIcon size={17} />, title: "Grid view" },
-            { value: "list", label: <ListIcon size={17} />, title: "List view" },
-          ]}
-        />
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="flex animate-scale-in flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-24 text-center dark:border-slate-700">
-          <div className="animate-float text-slate-400">
-            <SearchIcon size={44} />
-          </div>
-          <p className="mt-4 text-slate-500 dark:text-slate-400">
-            {books.length === 0
-              ? "No books in the library yet."
-              : "No books match your search."}
+    <div className="mx-auto max-w-6xl space-y-8 px-4 py-6">
+      {/* Header Banner */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+            Explore eBookMine Library
+          </h1>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Read online eBooks, take notes, highlight passages, and study with AI.
           </p>
         </div>
-      ) : (
-        <>
-          <div className="mb-3 text-sm font-medium text-slate-500">
-            {filtered.length} book{filtered.length === 1 ? "" : "s"}
+      </div>
+
+      {/* Filter Controls */}
+      <div className="space-y-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <SearchInput
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search books, authors, or topics..."
+          />
+
+          <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">All Categories</option>
+            {categoriesList.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </Select>
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => setView("grid")}
+              className={`rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                view === "grid" ? "text-brand-600 bg-brand-50 dark:bg-brand-950" : ""
+              }`}
+            >
+              <GridIcon size={16} />
+            </button>
+            <button
+              onClick={() => setView("list")}
+              className={`rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                view === "list" ? "text-brand-600 bg-brand-50 dark:bg-brand-950" : ""
+              }`}
+            >
+              <ListIcon size={16} />
+            </button>
           </div>
-          {view === "grid" ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-              {shown.map((b, i) => (
-                <BookCard
-                  key={b.id}
-                  book={b}
-                  view="grid"
-                  index={i}
-                  readOnly
-                  onToggleFavorite={noop}
-                  onEdit={noop}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {shown.map((b, i) => (
-                <BookCard
-                  key={b.id}
-                  book={b}
-                  view="list"
-                  index={i}
-                  readOnly
-                  onToggleFavorite={noop}
-                  onEdit={noop}
-                />
-              ))}
-            </div>
-          )}
-          {visible < filtered.length && (
-            <div ref={sentinelRef} className="flex justify-center py-8">
-              <Spinner />
-            </div>
-          )}
-        </>
+        </div>
+      </div>
+
+      {/* Grid */}
+      {loading ? (
+        <div className="flex h-48 items-center justify-center">
+          <Spinner size="lg" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-3xl border border-slate-200 p-12 text-center text-xs text-slate-500 dark:border-slate-800">
+          No public books found matching your search criteria.
+        </div>
+      ) : (
+        <div
+          className={
+            view === "grid"
+              ? "grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+              : "space-y-3"
+          }
+        >
+          {filtered.slice(0, visible).map((book, idx) => (
+            <BookCard
+              key={book.id}
+              book={book}
+              view={view}
+              index={idx}
+              readOnly
+              onToggleFavorite={() => {}}
+              onEdit={() => {}}
+            />
+          ))}
+        </div>
       )}
-    </main>
+    </div>
   );
 }

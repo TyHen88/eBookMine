@@ -9,6 +9,7 @@ import {
   CheckIcon,
   DownloadIcon,
   StarIcon,
+  SparklesIcon,
 } from "./ui/icons";
 
 function progressPct(book: BookMeta) {
@@ -43,9 +44,11 @@ export default function BookCard({
   index?: number;
 }) {
   const pct = progressPct(book);
+  const isCompleted = pct >= 98;
+  const isReading = pct > 0 && !isCompleted;
+  const isUnread = pct === 0;
+  const [showMenu, setShowMenu] = useState(false);
 
-  // Notify the parent the first time this card scrolls into view (used for
-  // lazy metadata enrichment — only books the user actually looks at get read).
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!onVisible || !rootRef.current) return;
@@ -61,18 +64,14 @@ export default function BookCard({
     );
     obs.observe(el);
     return () => obs.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book.id]);
+  }, [book, onVisible]);
 
-  // Optional staggered entrance: parents pass a per-card index so a whole grid
-  // cascades in. Capped so late cards in a big list don't wait seconds.
   const staggerClass = index === undefined ? "" : "stagger-item";
   const staggerStyle =
     index === undefined
       ? undefined
       : ({ "--i": Math.min(index, 12) } as React.CSSProperties);
 
-  // In selection mode, the whole card toggles selection instead of navigating.
   const wrapProps = selectable
     ? {
         onClick: (e: React.MouseEvent) => {
@@ -83,38 +82,6 @@ export default function BookCard({
       }
     : {};
 
-  const SelectBadge = selectable ? (
-    <div
-      className={`absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
-        selected
-          ? "border-brand-600 bg-brand-600 text-white"
-          : "border-white/80 bg-slate-900/30 text-transparent"
-      }`}
-    >
-      <CheckIcon size={13} />
-    </div>
-  ) : null;
-
-  const FavoriteButton = (
-    <button
-      onClick={(e) => {
-        e.preventDefault();
-        onToggleFavorite(book);
-      }}
-      aria-label={book.favorite ? "Remove favorite" : "Add favorite"}
-      title={book.favorite ? "Remove favorite" : "Add favorite"}
-      className={`flex h-8 w-8 items-center justify-center rounded-full transition-transform duration-200 hover:scale-110 ${
-        book.favorite
-          ? "text-amber-400"
-          : "text-slate-400 hover:text-amber-400"
-      }`}
-    >
-      <StarIcon size={18} filled={book.favorite} />
-    </button>
-  );
-
-  // Owner (management) reads from the private API; the public library reads the
-  // read-only public API. `readOnly` distinguishes the two contexts.
   const apiBase = readOnly ? "/api/public/books" : "/api/books";
   const downloadHref = `${apiBase}/${book.id}/file?download=1&name=${encodeURIComponent(book.title)}`;
 
@@ -123,14 +90,13 @@ export default function BookCard({
       <div
         ref={rootRef}
         style={staggerStyle}
-        className={`${staggerClass} group relative flex items-center gap-4 rounded-2xl border bg-white/80 p-3 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-500/10 dark:bg-slate-900/70 ${
+        className={`${staggerClass} group relative flex items-center gap-4 rounded-2xl border bg-white/80 p-3 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900/70 ${
           selected
             ? "border-brand-500 ring-2 ring-brand-500"
             : "border-slate-200/80 hover:border-brand-300 dark:border-slate-800 dark:hover:border-brand-700"
         }`}
       >
-        {SelectBadge}
-        <Link href={`/book/${book.id}`} className="shrink-0 overflow-hidden rounded-lg" {...wrapProps}>
+        <Link href={`/book/${book.id}`} className="shrink-0 overflow-hidden rounded-xl" {...wrapProps}>
           <Cover
             book={book}
             apiBase={apiBase}
@@ -138,13 +104,20 @@ export default function BookCard({
           />
         </Link>
         <div className="min-w-0 flex-1">
-          <Link href={`/book/${book.id}`} {...wrapProps}>
-            <h3 className="truncate font-semibold transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400">
-              {book.title}
-            </h3>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href={`/book/${book.id}`} {...wrapProps}>
+              <h3 className="truncate text-sm font-bold text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400">
+                {book.title}
+              </h3>
+            </Link>
+            {isCompleted && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                <CheckIcon size={10} /> Completed
+              </span>
+            )}
+          </div>
           {authorLabel(book.author) && (
-            <p className="truncate text-sm text-slate-500 dark:text-slate-400">
+            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
               {book.author}
             </p>
           )}
@@ -152,44 +125,33 @@ export default function BookCard({
             {book.category && book.category !== "Other" && (
               <Chip tone="neutral">{book.category}</Chip>
             )}
-            {book.tags.map((t) => (
-              <Chip key={t}>{t}</Chip>
-            ))}
+            {isReading && (
+              <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400">
+                Page {book.lastPage} / {book.pageCount || "—"} ({pct}%)
+              </span>
+            )}
           </div>
         </div>
-        {pct > 0 && (
-          <span className="hidden shrink-0 text-xs font-medium tabular-nums text-slate-400 sm:inline">
-            {pct}%
-          </span>
-        )}
-        {readOnly ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href={`/book/${book.id}`}
-              className={buttonClass({ variant: "primary", size: "sm" })}
-            >
-              View details
-            </Link>
-            <a
-              href={downloadHref}
-              className={buttonClass({ variant: "ghost", size: "icon-sm" })}
-              title="Download PDF"
-              aria-label="Download PDF"
-            >
-              <DownloadIcon size={18} />
-            </a>
-          </div>
-        ) : (
-          <div className="flex shrink-0 items-center gap-1">
-            {FavoriteButton}
+
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href={`/read/${book.id}`}
+            className={buttonClass({ variant: "primary", size: "sm" })}
+          >
+            {isCompleted ? "Read Again" : isReading ? "Continue" : "Start Reading"}
+          </Link>
+
+          {!readOnly && (
             <button
-              onClick={() => onEdit(book)}
-              className={buttonClass({ variant: "ghost", size: "sm" })}
+              onClick={() => onToggleFavorite(book)}
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition-transform ${
+                book.favorite ? "text-amber-400" : "text-slate-400 hover:text-amber-400"
+              }`}
             >
-              Edit
+              <StarIcon size={16} filled={book.favorite} />
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     );
   }
@@ -198,13 +160,12 @@ export default function BookCard({
     <div
       ref={rootRef}
       style={staggerStyle}
-      className={`${staggerClass} group relative flex flex-col overflow-hidden rounded-2xl border bg-white/80 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-brand-500/15 dark:bg-slate-900/70 ${
+      className={`${staggerClass} group relative flex flex-col overflow-hidden rounded-2xl border bg-white/90 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-brand-500/10 dark:bg-slate-900/80 ${
         selected
           ? "border-brand-500 ring-2 ring-brand-500"
           : "border-slate-200/80 hover:border-brand-300 dark:border-slate-800 dark:hover:border-brand-700"
       }`}
     >
-      {SelectBadge}
       <Link
         href={`/book/${book.id}`}
         className="relative block overflow-hidden"
@@ -213,73 +174,75 @@ export default function BookCard({
         <Cover
           book={book}
           apiBase={apiBase}
-          className="aspect-[3/4] w-full transition-transform duration-500 ease-out group-hover:scale-[1.06]"
+          className="aspect-[3/4] w-full transition-transform duration-500 ease-out group-hover:scale-[1.05]"
         />
-        {/* sheen sweep on hover */}
-        <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+
+        {/* State Badges */}
+        {isCompleted && (
+          <div className="absolute left-2 top-2 rounded-full bg-emerald-600/90 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-md backdrop-blur-sm flex items-center gap-1">
+            <CheckIcon size={11} /> Completed
+          </div>
+        )}
+
         {pct > 0 && (
-          <div className="absolute inset-x-0 bottom-0 h-1.5 bg-slate-900/10 backdrop-blur-sm">
+          <div className="absolute inset-x-0 bottom-0 h-1.5 bg-slate-900/20 backdrop-blur-sm">
             <div
-              className="h-full origin-left animate-bar-grow bg-gradient-to-r from-brand-500 to-brand-400"
+              className="h-full bg-gradient-to-r from-brand-600 to-brand-400 transition-all duration-500"
               style={{ width: `${pct}%` }}
             />
           </div>
         )}
       </Link>
 
-      {!readOnly && !selectable && (
-        <div className="absolute right-2 top-2 rounded-full bg-white/80 shadow-sm backdrop-blur-sm dark:bg-slate-900/70">
-          {FavoriteButton}
-        </div>
+      {!readOnly && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            onToggleFavorite(book);
+          }}
+          className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:scale-110 dark:bg-slate-900/90 ${
+            book.favorite ? "text-amber-400" : "text-slate-400 hover:text-amber-400"
+          }`}
+        >
+          <StarIcon size={16} filled={book.favorite} />
+        </button>
       )}
 
-      <div className="flex flex-1 flex-col p-3">
+      <div className="flex flex-1 flex-col p-3.5">
         <Link href={`/book/${book.id}`} {...wrapProps}>
-          <h3 className="line-clamp-2 text-sm font-semibold transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400">
+          <h3 className="line-clamp-2 text-xs font-bold text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400">
             {book.title}
           </h3>
         </Link>
         {authorLabel(book.author) && (
-          <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
             {book.author}
           </p>
         )}
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {book.category && book.category !== "Other" && (
+
+        <div className="mt-2.5 flex items-center justify-between">
+          {book.category && book.category !== "Other" ? (
             <Chip tone="neutral">{book.category}</Chip>
+          ) : (
+            <span />
           )}
-          {book.tags.slice(0, 2).map((t) => (
-            <Chip key={t}>{t}</Chip>
-          ))}
+
+          {isReading && (
+            <span className="text-[11px] font-bold tabular-nums text-brand-600 dark:text-brand-400">
+              {pct}%
+            </span>
+          )}
         </div>
 
-        {!readOnly && (
-          <button
-            onClick={() => onEdit(book)}
-            className="mt-2 self-start text-xs font-medium text-slate-400 opacity-0 transition-all duration-200 hover:text-brand-600 group-hover:opacity-100"
+        <div className="mt-auto flex items-center gap-1.5 pt-3">
+          <Link
+            href={`/read/${book.id}`}
+            className={`flex-1 ${buttonClass({ variant: isReading ? "primary" : "secondary", size: "sm" })}`}
           >
-            Edit details
-          </button>
-        )}
-        {readOnly && (
-          <div className="mt-auto flex items-center gap-2 pt-3">
-            <Link
-              href={`/read/${book.id}`}
-              className={`flex-1 ${buttonClass({ variant: "primary", size: "sm" })}`}
-            >
-              <BookOpenIcon size={16} />
-              Read
-            </Link>
-            <a
-              href={downloadHref}
-              className={buttonClass({ variant: "secondary", size: "icon-sm" })}
-              title="Download PDF"
-              aria-label="Download PDF"
-            >
-              <DownloadIcon size={16} />
-            </a>
-          </div>
-        )}
+            <BookOpenIcon size={14} />
+            {isCompleted ? "Read Again" : isReading ? "Continue" : "Start Reading"}
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -294,8 +257,6 @@ function Cover({
   apiBase: string;
   className?: string;
 }) {
-  // Prefer a stored cover (from upload extraction); otherwise fall back to
-  // Drive's own thumbnail proxy, and finally a title placeholder if neither loads.
   const [failed, setFailed] = useState(false);
   const src = book.cover ?? `${apiBase}/${book.id}/thumb`;
 
@@ -314,9 +275,9 @@ function Cover({
 
   return (
     <div
-      className={`flex items-center justify-center bg-gradient-to-br from-brand-100 to-brand-300 p-2 text-center dark:from-brand-900 dark:to-brand-700 ${className ?? ""}`}
+      className={`flex items-center justify-center bg-gradient-to-br from-brand-100 to-brand-300 p-2 text-center dark:from-brand-950 dark:to-brand-800 ${className ?? ""}`}
     >
-      <span className="line-clamp-4 text-xs font-medium text-brand-900 dark:text-brand-100">
+      <span className="line-clamp-4 text-xs font-semibold text-brand-900 dark:text-brand-100">
         {book.title}
       </span>
     </div>

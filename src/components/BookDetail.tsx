@@ -6,15 +6,17 @@ import { useSession } from "next-auth/react";
 import { BookMeta } from "@/lib/types";
 import Header from "./Header";
 import BookCard from "./BookCard";
+import LearningDashboard from "./LearningDashboard";
 import { buttonClass, Chip, Spinner } from "./ui";
 import {
   ArrowLeftIcon,
   BookOpenIcon,
   DownloadIcon,
-  SearchIcon,
+  SparklesIcon,
+  BookmarkIcon,
 } from "./ui/icons";
 
-const UPLOADER = "Hen Ty";
+type DetailTab = "overview" | "ai" | "notes" | "bookmarks" | "study";
 
 function formatBytes(bytes: number): string {
   if (!bytes) return "—";
@@ -43,6 +45,7 @@ export default function BookDetail({ id }: { id: string }) {
 
   const [books, setBooks] = useState<BookMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const [coverFailed, setCoverFailed] = useState(false);
 
   useEffect(() => {
@@ -56,7 +59,6 @@ export default function BookDetail({ id }: { id: string }) {
 
   const book = useMemo(() => books.find((b) => b.id === id), [books, id]);
 
-  // Related: same category or any shared tag, excluding this book.
   const related = useMemo(() => {
     if (!book) return [];
     return books
@@ -73,30 +75,26 @@ export default function BookDetail({ id }: { id: string }) {
       .map((x) => x.b);
   }, [books, book]);
 
-  const coverSrc = book
-    ? book.cover ?? `${apiBase}/${book.id}/thumb`
-    : null;
+  const pct = book && book.pageCount && book.lastPage > 1 ? Math.min(100, Math.round((book.lastPage / book.pageCount) * 100)) : 0;
+  const coverSrc = book ? book.cover ?? `${apiBase}/${book.id}/thumb` : null;
   const downloadHref = book
     ? `/api/public/books/${book.id}/file?download=1&name=${encodeURIComponent(book.title)}`
     : "#";
-  const pct =
-    book && book.pageCount && book.lastPage > 1
-      ? Math.min(100, Math.round((book.lastPage / book.pageCount) * 100))
-      : 0;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <Header />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+
+      <main className="mx-auto max-w-6xl px-4 py-8">
         <Link
           href="/"
-          className="group mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-brand-600 dark:text-slate-400"
+          className={`mb-6 inline-flex ${buttonClass({
+            variant: "ghost",
+            size: "sm",
+          })}`}
         >
-          <ArrowLeftIcon
-            size={17}
-            className="transition-transform duration-300 group-hover:-translate-x-1"
-          />
-          Back to library
+          <ArrowLeftIcon size={16} />
+          Back to Library
         </Link>
 
         {loading ? (
@@ -105,128 +103,182 @@ export default function BookDetail({ id }: { id: string }) {
           </div>
         ) : !book ? (
           <div className="flex flex-col items-center py-24 text-center text-slate-500">
-            <SearchIcon size={44} className="text-slate-400" />
-            <p className="mt-4">Book not found.</p>
+            <p className="mt-4 text-base font-bold">Book not found in library.</p>
           </div>
         ) : (
-          <>
-            <div className="flex flex-col gap-8 sm:flex-row">
-              {/* Cover */}
-              <div className="mx-auto w-48 shrink-0 animate-fade-in-up sm:mx-0">
-                {coverSrc && !coverFailed ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={coverSrc}
-                    alt={book.title}
-                    onError={() => setCoverFailed(true)}
-                    className="aspect-[3/4] w-full rounded-xl object-cover shadow-lg shadow-brand-500/20 transition-transform duration-500 hover:scale-[1.03]"
-                  />
-                ) : (
-                  <div className="flex aspect-[3/4] w-full items-center justify-center rounded-xl bg-gradient-to-br from-brand-100 to-brand-300 p-3 text-center dark:from-brand-900 dark:to-brand-700">
-                    <span className="line-clamp-5 text-sm font-medium text-brand-900 dark:text-brand-100">
-                      {book.title}
-                    </span>
-                  </div>
-                )}
-                {pct > 0 && (
-                  <div className="mt-2">
-                    <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700">
-                      <div
-                        className="h-full origin-left animate-bar-grow rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
-                        style={{ width: `${pct}%` }}
-                      />
+          <div className="space-y-8">
+            {/* Hero Card Workspace */}
+            <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90 sm:p-8">
+              <div className="flex flex-col gap-8 sm:flex-row sm:items-start">
+                {/* Cover Image */}
+                <div className="mx-auto w-44 shrink-0 sm:mx-0">
+                  {coverSrc && !coverFailed ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={coverSrc}
+                      alt={book.title}
+                      onError={() => setCoverFailed(true)}
+                      className="aspect-[3/4] w-full rounded-2xl object-cover shadow-xl ring-1 ring-slate-900/10"
+                    />
+                  ) : (
+                    <div className="flex aspect-[3/4] w-full items-center justify-center rounded-2xl bg-gradient-to-br from-brand-600 to-brand-400 p-4 text-center text-white">
+                      <span className="line-clamp-4 text-xs font-bold">{book.title}</span>
                     </div>
-                    <p className="mt-1 text-center text-xs text-slate-400">
-                      {pct}% read
-                    </p>
+                  )}
+
+                  {pct > 0 && (
+                    <div className="mt-3">
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className="h-full bg-gradient-to-r from-brand-600 to-brand-400"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-center text-[11px] font-bold text-slate-500">
+                        {pct}% Completed
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info & Actions */}
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                      {book.title}
+                    </h1>
+                    {authorLabel(book.author) && (
+                      <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
+                        by <span className="font-semibold text-slate-800 dark:text-slate-200">{book.author}</span>
+                      </p>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Info */}
-              <div
-                className="min-w-0 flex-1 animate-fade-in-up"
-                style={{ animationDelay: "80ms" }}
-              >
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                  {book.title}
-                </h1>
-                {authorLabel(book.author) && (
-                  <p className="mt-1 text-lg text-slate-500 dark:text-slate-400">
-                    by {book.author}
-                  </p>
-                )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {book.category && book.category !== "Other" && (
+                      <Chip tone="neutral">{book.category}</Chip>
+                    )}
+                    {book.tags.map((t) => (
+                      <Chip key={t}>{t}</Chip>
+                    ))}
+                  </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {book.category && book.category !== "Other" && (
-                    <Chip tone="neutral" className="px-3 py-1 text-sm">
-                      {book.category}
-                    </Chip>
-                  )}
-                  {book.tags.map((t) => (
-                    <Chip key={t} className="px-3 py-1 text-sm">
-                      {t}
-                    </Chip>
-                  ))}
+                  {/* Primary & Secondary Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <Link
+                      href={`/read/${book.id}`}
+                      className={`flex-1 sm:flex-none ${buttonClass({ variant: "primary", size: "lg" })}`}
+                    >
+                      <BookOpenIcon size={18} />
+                      {pct > 0 ? "Continue Reading" : "Start Reading"}
+                    </Link>
+
+                    <Link
+                      href="/ai-tutor"
+                      className={`flex-1 sm:flex-none ${buttonClass({ variant: "secondary", size: "lg" })}`}
+                    >
+                      <SparklesIcon size={18} className="text-amber-500" />
+                      Ask AI Tutor
+                    </Link>
+
+                    <a
+                      href={downloadHref}
+                      className={buttonClass({ variant: "ghost", size: "lg" })}
+                      title="Download PDF"
+                    >
+                      <DownloadIcon size={20} />
+                    </a>
+                  </div>
+
+                  {/* Details Specs */}
+                  <div className="grid grid-cols-2 gap-4 pt-4 text-xs sm:grid-cols-4 border-t border-slate-100 dark:border-slate-800">
+                    <div>
+                      <span className="block text-[11px] text-slate-400">Page Count</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{book.pageCount || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] text-slate-400">File Size</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{formatBytes(book.sizeBytes)}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] text-slate-400">Date Added</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(book.addedAt)}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] text-slate-400">Current Position</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">Page {book.lastPage}</span>
+                    </div>
+                  </div>
                 </div>
-
-                {/* Action buttons */}
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <Link
-                    href={`/read/${book.id}`}
-                    className={buttonClass({ variant: "primary", size: "lg" })}
-                  >
-                    <BookOpenIcon size={18} />
-                    {pct > 0 ? "Continue reading" : "Read now"}
-                  </Link>
-                  <a
-                    href={downloadHref}
-                    className={buttonClass({ variant: "secondary", size: "lg" })}
-                  >
-                    <DownloadIcon size={18} />
-                    Download
-                  </a>
-                </div>
-
-                {/* Detail table */}
-                <dl className="mt-8 grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
-                  {book.pageCount > 0 && (
-                    <Detail label="Pages" value={String(book.pageCount)} />
-                  )}
-                  {book.sizeBytes > 0 && (
-                    <Detail label="File size" value={formatBytes(book.sizeBytes)} />
-                  )}
-                  <Detail label="Date added" value={formatDate(book.addedAt)} />
-                  <Detail label="Uploaded by" value={UPLOADER} />
-                  {book.category && <Detail label="Category" value={book.category} />}
-                  <Detail label="Format" value="PDF" />
-                </dl>
               </div>
             </div>
 
-            {/* Related books */}
-            {related.length > 0 && (
-              <section className="mt-12">
-                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-                  <span className="inline-block h-5 w-1 rounded-full bg-gradient-to-b from-brand-500 to-brand-400" />
-                  Related books
-                </h2>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                  {related.map((b, i) => (
-                    <BookCard
-                      key={b.id}
-                      book={b}
-                      view="grid"
-                      index={i}
-                      readOnly
-                      onToggleFavorite={() => {}}
-                      onEdit={() => {}}
-                    />
-                  ))}
+            {/* Workspace Tabs Section */}
+            <div className="space-y-4">
+              <div className="flex border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+                {(["overview", "study", "notes", "bookmarks"] as DetailTab[]).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`border-b-2 px-5 py-3 text-xs font-bold transition-all capitalize whitespace-nowrap ${
+                      activeTab === tab
+                        ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
+                        : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                    }`}
+                  >
+                    {tab === "overview" ? "Overview & Related" : tab === "study" ? "Learning Tools & Quiz" : tab}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === "overview" && (
+                <div className="space-y-6">
+                  {related.length > 0 && (
+                    <div>
+                      <h3 className="mb-4 text-sm font-bold text-slate-900 dark:text-white">Related Books</h3>
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-6">
+                        {related.map((r, i) => (
+                          <BookCard
+                            key={r.id}
+                            book={r}
+                            view="grid"
+                            index={i}
+                            readOnly={!isOwner}
+                            onToggleFavorite={() => {}}
+                            onEdit={() => {}}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </section>
-            )}
-          </>
+              )}
+
+              {activeTab === "study" && (
+                <div className="rounded-3xl border border-slate-200/80 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+                  <LearningDashboard bookId={book.id} />
+                </div>
+              )}
+
+              {activeTab === "notes" && (
+                <div className="rounded-3xl border border-slate-200/80 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Book Notes</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Open this book in the reader to highlight quotes and save notes attached to specific pages.
+                  </p>
+                </div>
+              )}
+
+              {activeTab === "bookmarks" && (
+                <div className="rounded-3xl border border-slate-200/80 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Bookmarks</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Your saved bookmarks for quick page navigation.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </main>
     </div>
@@ -235,9 +287,9 @@ export default function BookDetail({ id }: { id: string }) {
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-slate-100 py-1.5 dark:border-slate-800 sm:block sm:border-0 sm:py-0">
-      <dt className="text-sm text-slate-400">{label}</dt>
-      <dd className="text-sm font-medium text-slate-700 dark:text-slate-200 sm:mt-0.5">
+    <div>
+      <dt className="text-xs text-slate-400">{label}</dt>
+      <dd className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
         {value}
       </dd>
     </div>

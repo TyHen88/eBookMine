@@ -102,6 +102,7 @@ export function SegmentedControl<T extends string>({
     <div className="inline-flex rounded-xl border border-slate-300 bg-white/70 p-0.5 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/60">
       {options.map((o) => {
         const active = o.value === value;
+        const isTextLabel = typeof o.label === "string";
         return (
           <button
             key={o.value}
@@ -109,7 +110,9 @@ export function SegmentedControl<T extends string>({
             title={o.title}
             aria-pressed={active}
             onClick={() => onChange(o.value)}
-            className={`flex h-8 w-9 items-center justify-center rounded-[10px] transition-all duration-200 ${
+            className={`flex h-8 items-center justify-center rounded-[10px] transition-all duration-200 ${
+              isTextLabel ? "px-3 text-xs font-semibold" : "w-9"
+            } ${
               active
                 ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-500/30"
                 : "text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-300"
@@ -122,3 +125,4 @@ export function SegmentedControl<T extends string>({
     </div>
   );
 }
+

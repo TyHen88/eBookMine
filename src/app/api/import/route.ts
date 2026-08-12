@@ -1,24 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccessToken } from "@/lib/session";
 import {
   getOrCreateAppFolder,
   moveFileToFolder,
   copyFileToFolder,
   DriveFile,
 } from "@/lib/drive";
-import { loadLibrary, saveLibrary, BookMeta } from "@/lib/metadata";
+import { createDbBook } from "@/lib/booksService";
+import { requireAuth } from "@/lib/authHelpers";
 import { cleanTitle } from "@/lib/title";
 import { categorize } from "@/lib/categorize";
+import { BookMeta } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/import — import PDFs the user selected via the Google Picker.
- * Body: { ids: string[] }. Each file is moved into the eBookMine folder
- * (falling back to a copy if a move is not permitted) and added to the library.
+ * POST /api/import — import PDFs selected via Google Picker into eBookMine folder
+ * and create Book records in Neon PostgreSQL.
  */
 export async function POST(req: NextRequest) {
-  const token = await getAccessToken();
+  const { session, response } = await requireAuth();
+  if (response) return response;
+
+  const token = session.accessToken;
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { ids } = await req.json();
@@ -27,7 +30,6 @@ export async function POST(req: NextRequest) {
   }
 
   const folderId = await getOrCreateAppFolder(token);
-  const library = await loadLibrary(token, folderId);
 
   const imported: BookMeta[] = [];
   const failed: { id: string; error: string }[] = [];
@@ -38,34 +40,26 @@ export async function POST(req: NextRequest) {
       try {
         file = await moveFileToFolder(token, id, folderId);
       } catch {
-        // A move may be disallowed for files the app only has read access to;
-        // copying produces an app-owned file in the folder instead.
         file = await copyFileToFolder(token, id, folderId);
       }
 
-      const book: BookMeta = library.books[file.id] ?? {
-        id: file.id,
+      const book = await createDbBook({
+        driveFileId: file.id,
         title: cleanTitle(file.name),
-        author: "Unknown",
         fileName: file.name,
-        pageCount: 0,
+        author: "Unknown",
         category: categorize(file.name),
-        tags: [],
-        favorite: false,
-        cover: null,
-        addedAt: file.createdTime ?? new Date().toISOString(),
-        lastPage: 1,
-        bookmarks: [],
+        pageCount: 0,
         sizeBytes: file.size ? parseInt(file.size, 10) : 0,
-      };
-      library.books[book.id] = book;
+        userId: session.user?.id,
+      });
+
       imported.push(book);
-    } catch (err: any) {
-      failed.push({ id, error: err?.message ?? "Failed" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed";
+      failed.push({ id, error: msg });
     }
   }
-
-  if (imported.length > 0) await saveLibrary(token, folderId, library);
 
   return NextResponse.json({ imported, failed });
 }

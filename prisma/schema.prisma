@@ -1,0 +1,393 @@
+// Expanded Prisma Schema for eBookMine (Neon PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  readingProgresses ReadingProgress[]
+  bookmarks         Bookmark[]
+  highlights        Highlight[]
+  notes             Note[]
+  readingGoals      ReadingGoal[]
+  aiConversations   AIConversation[]
+  aiUsages          AIUsage[]
+  quizzes           Quiz[]
+  quizAttempts      QuizAttempt[]
+  flashcards        Flashcard[]
+  readingLogs       ReadingLog[]
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  type      String   // "VERIFY_EMAIL" | "FORGOT_PASSWORD"
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email, type])
+}
+
+model Book {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  coverUrl    String?
+  driveFileId String?  @unique
+  fileName    String   @default("")
+  mimeType    String   @default("application/pdf")
+  pageCount   Int      @default(0)
+  sizeBytes   BigInt   @default(0)
+  favorite    Boolean  @default(false)
+  language    String?  @default("en")
+  visibility  String   @default("PRIVATE")
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+
+
+  authors           BookAuthor[]
+  categories        BookCategory[]
+  readingProgresses ReadingProgress[]
+  bookmarks         Bookmark[]
+  highlights        Highlight[]
+  notes             Note[]
+  aiConversations   AIConversation[]
+  contentChunks     ContentChunk[]
+  quizzes           Quiz[]
+  flashcards        Flashcard[]
+
+  @@index([driveFileId])
+  @@index([published, visibility])
+  @@index([title])
+  @@index([createdAt])
+}
+
+model Author {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books BookAuthor[]
+
+  @@index([name])
+}
+
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  books BookCategory[]
+
+  @@index([slug])
+}
+
+model BookAuthor {
+  bookId   String
+  authorId String
+
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  author Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, authorId])
+  @@index([bookId])
+  @@index([authorId])
+}
+
+model BookCategory {
+  bookId     String
+  categoryId String
+
+  book     Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, categoryId])
+  @@index([bookId])
+  @@index([categoryId])
+}
+
+model ReadingProgress {
+  id                 String    @id @default(cuid())
+  userId             String
+  bookId             String
+  currentPage        Int       @default(1)
+  totalPages         Int       @default(0)
+  progressPercentage Float     @default(0.0)
+  lastReadAt         DateTime  @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([lastReadAt])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  page      Int
+  title     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([bookId])
+}
+
+model Highlight {
+  id           String   @id @default(cuid())
+  userId       String
+  bookId       String
+  page         Int
+  selectedText String
+  color        String?  @default("yellow")
+  position     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([bookId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  page      Int
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([bookId])
+}
+
+model ReadingGoal {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  target    Int
+  period    String
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, type])
+}
+
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String?
+  title     String   @default("Book Assistant Chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book? @relation(fields: [bookId], references: [id], onDelete: SetNull)
+
+  messages AIMessage[]
+
+  @@index([userId])
+  @@index([bookId])
+}
+
+model AIMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  page           Int?
+  selectedText   String?
+  tokensUsed     Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model AIUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  tokens    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+}
+
+model ContentChunk {
+  id        String   @id @default(cuid())
+  bookId    String
+  chapter   String?
+  page      Int
+  content   String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([bookId])
+  @@index([bookId, page])
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  title     String
+  page      Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@index([userId])
+  @@index([bookId])
+}
+
+model QuizQuestion {
+  id            String   @id @default(cuid())
+  quizId        String
+  type          String   // "multiple_choice" | "true_false" | "short_answer" | "explanation"
+  question      String
+  options       String?  // JSON string array for multiple choice
+  correctAnswer String
+  explanation   String?
+  page          Int?
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  answers QuizAnswer[]
+
+  @@index([quizId])
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  quizId    String
+  userId    String
+  score     Float
+  total     Int
+  createdAt DateTime @default(now())
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  answers QuizAnswer[]
+
+  @@index([quizId])
+  @@index([userId])
+}
+
+model QuizAnswer {
+  id         String   @id @default(cuid())
+  attemptId  String
+  questionId String
+  userAnswer String
+  isCorrect  Boolean
+
+  attempt  QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([questionId])
+}
+
+model Flashcard {
+  id             String    @id @default(cuid())
+  userId         String
+  bookId         String
+  chapter        String?
+  page           Int?
+  question       String
+  answer         String
+  difficulty     String    @default("medium") // "easy" | "medium" | "hard"
+  dueDate        DateTime  @default(now())
+  interval       Int       @default(1)
+  repetition     Int       @default(0)
+  easeFactor     Float     @default(2.5)
+  lastReviewedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([bookId])
+  @@index([userId, dueDate])
+}
+
+model ReadingLog {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  minutes   Int      @default(0)
+  pagesRead Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+
+
+

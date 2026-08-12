@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPublicFolderId } from "@/lib/owner";
 import { getPublicBooks } from "@/lib/booksService";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,11 @@ export async function GET() {
   try {
     const books = await getPublicBooks(folderId);
     return NextResponse.json({ books, configured: true });
-  } catch (err: any) {
+  } catch (err) {
+    // Never expose internal stack traces to unauthenticated public endpoint
+    logger.error("GET /api/public/books failed", err);
     return NextResponse.json(
-      { books: [], configured: true, error: err?.message ?? "Failed" },
+      { books: [], configured: true, error: "Service temporarily unavailable" },
       { status: 500 }
     );
   }
