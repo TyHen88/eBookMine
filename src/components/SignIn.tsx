@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { signIn, useSession } from "next-auth/react";
 import ThemeToggle from "./ThemeToggle";
 import { Button, Spinner } from "./ui";
 import {
@@ -47,6 +47,14 @@ export default function SignIn({ initialTab = "signin" }: { initialTab?: AuthTab
   const [otpSent, setOtpSent] = useState(false);
   const [devOtpHint, setDevOtpHint] = useState<string | null>(null);
 
+  const { status } = useSession();
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      window.location.href = "/dashboard";
+    }
+  }, [status]);
+
   const clearState = () => {
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -80,7 +88,7 @@ export default function SignIn({ initialTab = "signin" }: { initialTab?: AuthTab
       if (res?.error) {
         setErrorMsg("Invalid email or password.");
       } else {
-        window.location.reload();
+        window.location.href = "/dashboard";
       }
     } catch {
       setErrorMsg("Sign in failed. Please try again.");
@@ -155,7 +163,7 @@ export default function SignIn({ initialTab = "signin" }: { initialTab?: AuthTab
           password: password.trim(),
           redirect: false,
         });
-        window.location.reload();
+        window.location.href = "/dashboard";
       }
     } catch {
       setErrorMsg("Registration failed. Please try again.");
