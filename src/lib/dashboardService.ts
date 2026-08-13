@@ -103,23 +103,27 @@ export async function getUserDashboardData(userId: string): Promise<DashboardDat
   const continueReading = progresses
     .filter((p) => p.progressPercentage > 0 && p.progressPercentage < 100)
     .map((p) => ({
-      id: p.book.id,
-      driveFileId: p.book.driveFileId,
-      title: p.book.title,
-      coverUrl: p.book.coverUrl,
-      author: p.book.authors[0]?.author.name || "Unknown",
-      currentPage: p.currentPage,
-      totalPages: p.totalPages,
-      progressPercentage: p.progressPercentage,
+      book: {
+        id: p.book.driveFileId || p.book.id,
+        cover: p.book.coverUrl || null,
+        title: p.book.title,
+        author: p.book.authors[0]?.author.name || "Unknown",
+      },
+      progress: {
+        currentPage: p.currentPage,
+        totalPages: p.totalPages,
+        progressPercentage: p.progressPercentage,
+      },
       lastReadAt: p.lastReadAt,
     }));
 
   const recentlyRead = progresses.slice(0, 6).map((p) => ({
-    id: p.book.id,
-    driveFileId: p.book.driveFileId,
-    title: p.book.title,
-    coverUrl: p.book.coverUrl,
-    author: p.book.authors[0]?.author.name || "Unknown",
+    book: {
+      id: p.book.driveFileId || p.book.id,
+      cover: p.book.coverUrl || null,
+      title: p.book.title,
+      author: p.book.authors[0]?.author.name || "Unknown",
+    },
     lastReadAt: p.lastReadAt,
   }));
 
