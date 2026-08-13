@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { Button, Spinner } from "./ui";
-import { LockIcon, XIcon } from "./ui/icons";
+import { useToast } from "./ui/Toast";
+import { LockIcon, XIcon, GoogleIcon } from "./ui/icons";
 
 interface AuthPromptModalProps {
   onClose: () => void;
@@ -14,8 +15,7 @@ type AuthMode = "signin" | "signup" | "forgot";
 export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,11 +26,10 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
 
   const handleSendOtp = async (type: "VERIFY_EMAIL" | "FORGOT_PASSWORD") => {
     if (!email.trim()) {
-      setErrorMsg("Please enter your email.");
+      showToast("Please enter your email address.", "error");
       return;
     }
     setLoading(true);
-    setErrorMsg(null);
     try {
       const res = await fetch("/api/auth/otp/send", {
         method: "POST",
@@ -39,14 +38,14 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
       });
       const d = await res.json();
       if (!res.ok) {
-        setErrorMsg(d.error || "Failed to send OTP.");
+        showToast(d.error || "Failed to send verification code.", "error");
       } else {
         setOtpSent(true);
-        setSuccessMsg(`OTP sent to ${email.trim()}`);
+        showToast(`Verification code sent to ${email.trim()} 📬`, "success");
         if (d.otpCode) setDevOtpHint(d.otpCode);
       }
     } catch {
-      setErrorMsg("Failed to send OTP.");
+      showToast("Failed to send OTP code.", "error");
     } finally {
       setLoading(false);
     }
@@ -55,7 +54,6 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setErrorMsg(null);
     try {
       const res = await signIn("credentials", {
         email: email.trim(),
@@ -64,12 +62,13 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
       });
 
       if (res?.error) {
-        setErrorMsg("Invalid email or password.");
+        showToast("Invalid email or password.", "error");
       } else {
+        showToast("Signed in successfully!", "success");
         window.location.reload();
       }
     } catch {
-      setErrorMsg("Sign in failed.");
+      showToast("Sign in failed.", "error");
     } finally {
       setLoading(false);
     }
@@ -78,7 +77,6 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setErrorMsg(null);
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -92,8 +90,9 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
       });
       const d = await res.json();
       if (!res.ok) {
-        setErrorMsg(d.error || "Registration failed.");
+        showToast(d.error || "Registration failed.", "error");
       } else {
+        showToast("Account created successfully!", "success");
         await signIn("credentials", {
           email: email.trim(),
           password: password.trim(),
@@ -102,7 +101,7 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
         window.location.reload();
       }
     } catch {
-      setErrorMsg("Registration failed.");
+      showToast("Registration failed.", "error");
     } finally {
       setLoading(false);
     }
@@ -111,7 +110,6 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setErrorMsg(null);
     try {
       const res = await fetch("/api/auth/reset-password", {
         method: "POST",
@@ -124,226 +122,261 @@ export default function AuthPromptModal({ onClose }: AuthPromptModalProps) {
       });
       const d = await res.json();
       if (!res.ok) {
-        setErrorMsg(d.error || "Password reset failed.");
+        showToast(d.error || "Password reset failed.", "error");
       } else {
-        setSuccessMsg("Password reset successfully! Please sign in.");
+        showToast("Password reset successfully! Please sign in.", "success");
         setMode("signin");
         setOtpSent(false);
         setPassword("");
       }
     } catch {
-      setErrorMsg("Password reset failed.");
+      showToast("Password reset failed.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md animate-fade-in">
+      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        {/* Header Bar */}
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
-              <LockIcon size={16} />
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand-600 to-brand-400 text-white shadow-md">
+              <LockIcon size={18} />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-              {mode === "signin" ? "Sign In Required" : mode === "signup" ? "Sign Up with OTP" : "Reset Password"}
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {mode === "signin" ? "Sign In Required" : mode === "signup" ? "Create Account" : "Reset Password"}
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Access your eBookMine library features
+              </p>
+            </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <XIcon size={18} />
           </button>
         </div>
 
-        {/* Mode Selector */}
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 mb-4">
-          <button
-            onClick={() => { setMode("signin"); setErrorMsg(null); setSuccessMsg(null); }}
-            className={`rounded-lg py-1.5 text-[11px] font-bold ${mode === "signin" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white" : "text-slate-500"}`}
-          >
-            Sign In
-          </button>
-          <button
-            onClick={() => { setMode("signup"); setErrorMsg(null); setSuccessMsg(null); }}
-            className={`rounded-lg py-1.5 text-[11px] font-bold ${mode === "signup" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white" : "text-slate-500"}`}
-          >
-            Sign Up
-          </button>
-          <button
-            onClick={() => { setMode("forgot"); setErrorMsg(null); setSuccessMsg(null); }}
-            className={`rounded-lg py-1.5 text-[11px] font-bold ${mode === "forgot" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white" : "text-slate-500"}`}
-          >
-            Forgot
-          </button>
-        </div>
 
-        {errorMsg && (
-          <div className="mb-3 rounded-lg bg-red-50 p-2 text-center text-xs font-medium text-red-600 dark:bg-red-950/40 dark:text-red-300">
-            {errorMsg}
-          </div>
-        )}
-        {successMsg && (
-          <div className="mb-3 rounded-lg bg-emerald-50 p-2 text-center text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-            {successMsg}
-          </div>
-        )}
+
         {devOtpHint && (
-          <div className="mb-3 rounded-lg bg-amber-50 p-2 text-center text-xs font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-            🔑 Dev OTP Code: <span className="font-mono underline">{devOtpHint}</span>
+          <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 p-2.5 text-center text-xs font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
+            🔑 Dev Code: <span className="font-mono underline font-black">{devOtpHint}</span>
           </div>
         )}
 
-        {mode === "signin" && (
-          <form onSubmit={handleSignIn} className="space-y-3">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-            <Button type="submit" className="w-full py-2 text-xs" disabled={loading}>
-              {loading ? <Spinner size="sm" /> : "Sign In"}
-            </Button>
-          </form>
-        )}
-
-        {mode === "signup" && (
-          <form onSubmit={handleRegister} className="space-y-2.5">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">Full Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">Email</label>
-              <div className="mt-1 flex gap-1.5">
+        {/* Animated Container (No Tabs) */}
+        <div key={mode} className="animate-smooth-switch">
+          {mode === "signin" && (
+            <form onSubmit={handleSignIn} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Email Address</label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  placeholder="name@example.com"
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs outline-none focus:border-brand-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleSendOtp("VERIFY_EMAIL")}
-                  disabled={loading || !email.trim()}
-                  className="shrink-0 text-[10px]"
-                >
-                  {otpSent ? "Resend" : "Send OTP"}
-                </Button>
               </div>
-            </div>
-
-            {otpSent && (
               <div>
-                <label className="block text-[11px] font-semibold text-brand-600 dark:text-brand-400">6-Digit OTP Code</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Password</label>
+                  <button
+                    type="button"
+                    onClick={() => setMode("forgot")}
+                    className="text-[10px] font-semibold text-brand-600 hover:underline dark:text-brand-400"
+                  >
+                    Forgot?
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs outline-none focus:border-brand-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+              <Button type="submit" className="w-full py-2.5 text-xs font-extrabold rounded-2xl" disabled={loading}>
+                {loading ? <Spinner size="sm" /> : "Sign In"}
+              </Button>
+            </form>
+          )}
+
+          {mode === "signup" && (
+            <form onSubmit={handleRegister} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Full Name</label>
                 <input
                   type="text"
-                  required
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                  className="mt-1 w-full text-center font-mono font-bold rounded-xl border border-brand-300 bg-brand-50/50 p-2 text-xs outline-none dark:border-brand-800 dark:bg-brand-950/40 dark:text-white"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Doe"
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs outline-none focus:border-brand-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
-            )}
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              />
-            </div>
-
-            <Button type="submit" className="w-full py-2 text-xs" disabled={loading || !otpSent}>
-              {loading ? <Spinner size="sm" /> : "Create Account"}
-            </Button>
-          </form>
-        )}
-
-        {mode === "forgot" && (
-          <form onSubmit={handleResetPassword} className="space-y-2.5">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">Email</label>
-              <div className="mt-1 flex gap-1.5">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleSendOtp("FORGOT_PASSWORD")}
-                  disabled={loading || !email.trim()}
-                  className="shrink-0 text-[10px]"
-                >
-                  {otpSent ? "Resend" : "Send OTP"}
-                </Button>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Email Address</label>
+                <div className="mt-1 flex gap-2">
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs outline-none focus:border-brand-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleSendOtp("VERIFY_EMAIL")}
+                    disabled={loading || !email.trim()}
+                    className="shrink-0 text-[10px] rounded-2xl px-3"
+                  >
+                    {otpSent ? "Resend" : "Send OTP"}
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            {otpSent && (
-              <>
+              {otpSent && (
                 <div>
-                  <label className="block text-[11px] font-semibold text-brand-600 dark:text-brand-400">6-Digit Reset Code</label>
+                  <label className="block text-[11px] font-bold text-brand-600 dark:text-brand-400">6-Digit OTP Code</label>
                   <input
                     type="text"
                     required
                     maxLength={6}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
-                    className="mt-1 w-full text-center font-mono font-bold rounded-xl border border-brand-300 bg-brand-50/50 p-2 text-xs outline-none dark:border-brand-800 dark:bg-brand-950/40 dark:text-white"
+                    placeholder="123456"
+                    className="mt-1 w-full text-center font-mono font-black rounded-2xl border border-brand-300 bg-brand-50/50 p-2.5 text-sm outline-none dark:border-brand-800 dark:bg-brand-950/40 dark:text-white"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">New Password</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 p-2 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-                </div>
-              </>
-            )}
+              )}
 
-            <Button type="submit" className="w-full py-2 text-xs" disabled={loading || !otpSent}>
-              {loading ? <Spinner size="sm" /> : "Reset Password"}
-            </Button>
-          </form>
-        )}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs outline-none focus:border-brand-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              <Button type="submit" className="w-full py-2.5 text-xs font-extrabold rounded-2xl" disabled={loading || !otpSent}>
+                {loading ? <Spinner size="sm" /> : "Create Account"}
+              </Button>
+            </form>
+          )}
+
+          {mode === "forgot" && (
+            <form onSubmit={handleResetPassword} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Email Address</label>
+                <div className="mt-1 flex gap-2">
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs outline-none focus:border-brand-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleSendOtp("FORGOT_PASSWORD")}
+                    disabled={loading || !email.trim()}
+                    className="shrink-0 text-[10px] rounded-2xl px-3"
+                  >
+                    {otpSent ? "Resend" : "Send OTP"}
+                  </Button>
+                </div>
+              </div>
+
+              {otpSent && (
+                <>
+                  <div>
+                    <label className="block text-[11px] font-bold text-brand-600 dark:text-brand-400">6-Digit Reset Code</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="123456"
+                      className="mt-1 w-full text-center font-mono font-black rounded-2xl border border-brand-300 bg-brand-50/50 p-2.5 text-sm outline-none dark:border-brand-800 dark:bg-brand-950/40 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">New Password</label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs outline-none focus:border-brand-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                </>
+              )}
+
+              <Button type="submit" className="w-full py-2.5 text-xs font-extrabold rounded-2xl" disabled={loading || !otpSent}>
+                {loading ? <Spinner size="sm" /> : "Reset Password"}
+              </Button>
+            </form>
+          )}
+        </div>
+
+        {/* Footer Contextual Links */}
+        <div className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
+          {mode === "signin" ? (
+            <p>
+              Don&apos;t have an account?{" "}
+              <button
+                type="button"
+                onClick={() => setMode("signup")}
+                className="font-bold text-brand-600 hover:underline dark:text-brand-400"
+              >
+                Create Account
+              </button>
+            </p>
+          ) : mode === "signup" ? (
+            <p>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="font-bold text-brand-600 hover:underline dark:text-brand-400"
+              >
+                Sign In
+              </button>
+            </p>
+          ) : (
+            <p>
+              Remembered your password?{" "}
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="font-bold text-brand-600 hover:underline dark:text-brand-400"
+              >
+                Back to Sign In
+              </button>
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

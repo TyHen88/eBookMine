@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import ScrollToTop from "@/components/ScrollToTop";
+import VerticalNav from "@/components/VerticalNav";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -37,8 +38,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
-        <Providers>{children}</Providers>
+      <body suppressHydrationWarning className={`${inter.variable} font-sans antialiased`}>
+        <Providers>
+          <VerticalNav />
+          {children}
+        </Providers>
         <ScrollToTop />
       </body>
     </html>

@@ -75,20 +75,74 @@ export function Chip({
   );
 }
 
-/** Indigo loading spinner in three sizes. */
+
+
+/** Multi-Ring Orbital Glowing Spinner component. */
 export function Spinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const dim =
-    size === "lg" ? "h-9 w-9" : size === "sm" ? "h-5 w-5" : "h-7 w-7";
+    size === "lg" ? "h-10 w-10" : size === "sm" ? "h-5 w-5" : "h-7 w-7";
+  const borderW = size === "lg" ? "border-3" : "border-2";
+
   return (
-    <div
-      className={`${dim} animate-spin rounded-full border-2 border-brand-500/30 border-t-brand-600`}
-      role="status"
-      aria-label="Loading"
-    />
+    <div className="relative flex items-center justify-center">
+      {/* Outer ambient glow ring */}
+      <div
+        className={`${dim} animate-spin rounded-full ${borderW} border-brand-500/20 border-t-brand-600 border-r-indigo-500 shadow-md shadow-brand-500/20`}
+        role="status"
+        aria-label="Loading"
+      />
+      {/* Inner counter-rotating ring */}
+      {size !== "sm" && (
+        <div
+          className="absolute h-4 w-4 animate-reverse-spin rounded-full border border-amber-400/40 border-b-amber-500"
+        />
+      )}
+    </div>
   );
 }
 
-/** Two-option grid/list toggle. Generic over its option values. */
+/** Animated Book flipping & pulse loader with message badge. */
+export function BookLoader({ label = "Loading eBooks & AI Assets..." }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center p-8 space-y-4 text-center">
+      <div className="relative flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-tr from-brand-600 via-brand-500 to-indigo-600 text-white shadow-xl shadow-brand-500/30 animate-pulse">
+        <div className="animate-book-flip">
+          <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        </div>
+        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+          <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-amber-500" />
+        </span>
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight animate-pulse">
+          {label}
+        </p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500">
+          Preparing high-speed cache & vector index
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Shimmering card placeholder skeleton with staggered wave pulse. */
+export function SkeletonCard({ index = 0 }: { index?: number }) {
+  return (
+    <div
+      className="rounded-3xl border border-slate-200/80 bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-slate-800/80 dark:bg-slate-900/80 animate-shimmer space-y-3"
+      style={{ animationDelay: `${(index % 6) * 120}ms` }}
+    >
+      <div className="h-40 w-full rounded-2xl bg-slate-200/70 dark:bg-slate-800/70 animate-pulse" />
+      <div className="h-4 w-3/4 rounded-lg bg-slate-200/70 dark:bg-slate-800/70 animate-pulse" />
+      <div className="h-3 w-1/2 rounded-lg bg-slate-200/70 dark:bg-slate-800/70 animate-pulse" />
+      <div className="h-9 w-full rounded-xl bg-slate-200/70 dark:bg-slate-800/70 animate-pulse" />
+    </div>
+  );
+}
 export function SegmentedControl<T extends string>({
   options,
   value,

@@ -82,6 +82,7 @@ model Book {
 
   @@index([driveFileId])
   @@index([published, visibility])
+  @@index([published, createdAt])
   @@index([title])
   @@index([createdAt])
 }
@@ -388,6 +389,8 @@ model ReadingLog {
   @@index([userId])
 }
 
-
-
-
+model SystemSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}

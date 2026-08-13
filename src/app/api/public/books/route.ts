@@ -17,7 +17,14 @@ export async function GET() {
 
   try {
     const books = await getPublicBooks(folderId);
-    return NextResponse.json({ books, configured: true });
+    return NextResponse.json(
+      { books, configured: true },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+        },
+      }
+    );
   } catch (err) {
     // Never expose internal stack traces to unauthenticated public endpoint
     logger.error("GET /api/public/books failed", err);

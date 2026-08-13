@@ -90,7 +90,7 @@ export default function BookCard({
       <div
         ref={rootRef}
         style={staggerStyle}
-        className={`${staggerClass} group relative flex items-center gap-4 rounded-2xl border bg-white/80 p-3 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900/70 ${
+        className={`${staggerClass} group relative flex items-center gap-3 sm:gap-4 rounded-2xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:bg-slate-900/80 ${
           selected
             ? "border-brand-500 ring-2 ring-brand-500"
             : "border-slate-200/80 hover:border-brand-300 dark:border-slate-800 dark:hover:border-brand-700"
@@ -103,54 +103,58 @@ export default function BookCard({
             className="h-20 w-14 transition-transform duration-500 group-hover:scale-105"
           />
         </Link>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <Link href={`/book/${book.id}`} {...wrapProps}>
-              <h3 className="truncate text-sm font-bold text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400">
-                {book.title}
-              </h3>
-            </Link>
-            {isCompleted && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
-                <CheckIcon size={10} /> Completed
-              </span>
-            )}
-          </div>
-          {authorLabel(book.author) && (
-            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-              {book.author}
-            </p>
-          )}
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {book.category && book.category !== "Other" && (
-              <Chip tone="neutral">{book.category}</Chip>
-            )}
-            {isReading && (
-              <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400">
-                Page {book.lastPage} / {book.pageCount || "—"} ({pct}%)
-              </span>
-            )}
-          </div>
-        </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <Link
-            href={`/read/${book.id}`}
-            className={buttonClass({ variant: "primary", size: "sm" })}
-          >
-            {isCompleted ? "Read Again" : isReading ? "Continue" : "Start Reading"}
-          </Link>
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1 pr-2">
+            <div className="flex items-center gap-2">
+              <Link href={`/book/${book.id}`} className="min-w-0 flex-1" {...wrapProps}>
+                <h3 className="line-clamp-2 text-xs sm:text-sm font-bold text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400">
+                  {book.title}
+                </h3>
+              </Link>
+              {isCompleted && (
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                  <CheckIcon size={10} /> Completed
+                </span>
+              )}
+            </div>
+            {authorLabel(book.author) && (
+              <p className="truncate text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {book.author}
+              </p>
+            )}
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {book.category && book.category !== "Other" && (
+                <Chip tone="neutral">{book.category}</Chip>
+              )}
+              {isReading && (
+                <span className="text-[10px] sm:text-[11px] font-semibold text-brand-600 dark:text-brand-400">
+                  Page {book.lastPage} / {book.pageCount || "—"} ({pct}%)
+                </span>
+              )}
+            </div>
+          </div>
 
-          {!readOnly && (
-            <button
-              onClick={() => onToggleFavorite(book)}
-              className={`flex h-8 w-8 items-center justify-center rounded-full transition-transform ${
-                book.favorite ? "text-amber-400" : "text-slate-400 hover:text-amber-400"
-              }`}
+          <div className="flex shrink-0 items-center gap-2 pt-1 sm:pt-0">
+            <Link
+              href={`/read/${book.id}`}
+              className={`whitespace-nowrap ${buttonClass({ variant: isReading ? "primary" : "secondary", size: "sm" })}`}
             >
-              <StarIcon size={16} filled={book.favorite} />
-            </button>
-          )}
+              <BookOpenIcon size={14} />
+              {isCompleted ? "Read Again" : isReading ? "Continue" : "Start Reading"}
+            </Link>
+
+            {!readOnly && (
+              <button
+                onClick={() => onToggleFavorite(book)}
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition-transform ${
+                  book.favorite ? "text-amber-400" : "text-slate-400 hover:text-amber-400"
+                }`}
+              >
+                <StarIcon size={16} filled={book.favorite} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

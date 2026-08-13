@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { downloadPublicFile } from "@/lib/drive";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +19,22 @@ export async function GET(
   const safeName = (rawName ? rawName.replace(/[^\w.\- ]+/g, "_") : id) + ".pdf";
 
   try {
-    // Forward Range so pdf.js streams large PDFs in slices (206) rather than
-    // pulling the whole file into memory. Skip it for explicit downloads.
+    let driveFileId = id;
+    const dbBook = await prisma.book.findUnique({
+      where: { id },
+      select: { driveFileId: true },
+    }).catch(() => null);
+
+    if (dbBook?.driveFileId) {
+      driveFileId = dbBook.driveFileId;
+    }
+
     const range = download ? undefined : req.headers.get("range") ?? undefined;
-    const driveRes = await downloadPublicFile(id, range);
+    const driveRes = await downloadPublicFile(driveFileId, range);
+
+    if (!driveRes.ok) {
+      return new NextResponse(null, { status: driveRes.status });
+    }
 
     const headers = new Headers();
     headers.set("Content-Type", "application/pdf");

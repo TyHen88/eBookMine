@@ -3,20 +3,33 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { pdfjs } from "@/lib/pdf";
 import { BookMeta } from "@/lib/types";
+import { BookmarkData, HighlightData, NoteData } from "@/lib/readingService";
 import Header from "./Header";
 import BookCard from "./BookCard";
 import LearningDashboard from "./LearningDashboard";
-import { buttonClass, Chip, Spinner } from "./ui";
+import AiTutorView from "./AiTutorView";
+import AuthPromptModal from "./AuthPromptModal";
+import { buttonClass, Spinner } from "./ui";
+import { useToast } from "./ui/Toast";
 import {
   ArrowLeftIcon,
   BookOpenIcon,
   DownloadIcon,
   SparklesIcon,
   BookmarkIcon,
+  ShareIcon,
+  ClockIcon,
+  FileTextIcon,
+  StarIcon,
+  TagIcon,
+  CheckIcon,
+  LockIcon,
+  GridIcon,
 } from "./ui/icons";
 
-type DetailTab = "overview" | "ai" | "notes" | "bookmarks" | "study";
+type DetailTab = "overview" | "study" | "notes" | "bookmarks";
 
 function formatBytes(bytes: number): string {
   if (!bytes) return "—";
@@ -30,9 +43,17 @@ function formatDate(iso: string): string {
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString(undefined, {
     year: "numeric",
-    month: "long",
+    month: "short",
     day: "numeric",
   });
+}
+
+function estimateReadingTime(pagesLeft: number): string {
+  if (pagesLeft <= 0) return "Completed";
+  const mins = Math.ceil(pagesLeft * 2.2);
+  if (mins < 60) return `~${mins} mins left`;
+  const hrs = (mins / 60).toFixed(1);
+  return `~${hrs} hrs left`;
 }
 
 const authorLabel = (a: string) =>
@@ -42,11 +63,20 @@ export default function BookDetail({ id }: { id: string }) {
   const { status } = useSession();
   const isOwner = status === "authenticated";
   const apiBase = isOwner ? "/api/books" : "/api/public/books";
+  const { showToast } = useToast();
 
   const [books, setBooks] = useState<BookMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const [coverFailed, setCoverFailed] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Saved Items for this book
+  const [notes, setNotes] = useState<NoteData[]>([]);
+  const [highlights, setHighlights] = useState<HighlightData[]>([]);
+  const [bookmarks, setBookmarks] = useState<BookmarkData[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -58,6 +88,75 @@ export default function BookDetail({ id }: { id: string }) {
   }, [apiBase, status]);
 
   const book = useMemo(() => books.find((b) => b.id === id), [books, id]);
+
+  useEffect(() => {
+    if (book) {
+      setIsFavorite(Boolean(book.favorite));
+    }
+  }, [book]);
+
+  // AUTO-FETCH Page Count & File Size if missing or 0
+  useEffect(() => {
+    if (!book) return;
+
+    // 1. Fetch file size via HEAD request if missing/0
+    if (!book.sizeBytes || book.sizeBytes === 0) {
+      fetch(`${apiBase}/${book.id}/file`, { method: "HEAD" })
+        .then((res) => {
+          const len = res.headers.get("Content-Length");
+          if (len) {
+            const size = parseInt(len, 10);
+            if (size > 0) {
+              setBooks((prev) =>
+                prev.map((b) => (b.id === book.id ? { ...b, sizeBytes: size } : b))
+              );
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 2. Fetch page count via pdf.js if missing/0
+    if (!book.pageCount || book.pageCount === 0) {
+      const fileUrl = `${apiBase}/${book.id}/file`;
+      pdfjs
+        .getDocument({ url: fileUrl })
+        .promise.then((pdfDoc) => {
+          const count = pdfDoc.numPages;
+          if (count > 0) {
+            setBooks((prev) =>
+              prev.map((b) => (b.id === book.id ? { ...b, pageCount: count } : b))
+            );
+            if (isOwner) {
+              fetch(`/api/books/${book.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pageCount: count }),
+              }).catch(() => {});
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [book, apiBase, isOwner]);
+
+  // Fetch Notes, Highlights, and Bookmarks for this book if authenticated
+  useEffect(() => {
+    if (!id || !isOwner) return;
+    setLoadingSaved(true);
+    Promise.all([
+      fetch(`/api/reading/notes?bookId=${id}`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/reading/highlights?bookId=${id}`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/api/reading/bookmarks?bookId=${id}`).then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([nData, hData, bData]) => {
+        setNotes(Array.isArray(nData) ? nData : []);
+        setHighlights(Array.isArray(hData) ? hData : []);
+        setBookmarks(Array.isArray(bData) ? bData : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSaved(false));
+  }, [id, isOwner]);
 
   const related = useMemo(() => {
     if (!book) return [];
@@ -75,168 +174,347 @@ export default function BookDetail({ id }: { id: string }) {
       .map((x) => x.b);
   }, [books, book]);
 
-  const pct = book && book.pageCount && book.lastPage > 1 ? Math.min(100, Math.round((book.lastPage / book.pageCount) * 100)) : 0;
+  const pct =
+    book && book.pageCount && book.lastPage > 1
+      ? Math.min(100, Math.round((book.lastPage / book.pageCount) * 100))
+      : 0;
+
+  const pagesRemaining = book ? Math.max(0, (book.pageCount || 0) - (book.lastPage || 1)) : 0;
+  const readTimeEst = estimateReadingTime(pagesRemaining);
+
   const coverSrc = book ? book.cover ?? `${apiBase}/${book.id}/thumb` : null;
   const downloadHref = book
     ? `/api/public/books/${book.id}/file?download=1&name=${encodeURIComponent(book.title)}`
     : "#";
 
+  const handleShare = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      showToast("Link copied to clipboard!", "success");
+    }
+  };
+
+  const toggleFavorite = async () => {
+    if (!isOwner) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (!book) return;
+    const nextFav = !isFavorite;
+    setIsFavorite(nextFav);
+    try {
+      await fetch(`/api/books/${book.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ favorite: nextFav }),
+      });
+      showToast(nextFav ? "Added to Favorites" : "Removed from Favorites", "info");
+    } catch {
+      setIsFavorite(!nextFav);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100">
       <Header />
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <Link
-          href="/"
-          className={`mb-6 inline-flex ${buttonClass({
-            variant: "ghost",
-            size: "sm",
-          })}`}
-        >
-          <ArrowLeftIcon size={16} />
-          Back to Library
-        </Link>
+      <main className="mx-auto max-w-5xl px-4 py-5 pb-32 sm:pb-24">
+        {/* Navigation Breadcrumb */}
+        <div className="mb-4 flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md transition-all hover:bg-slate-100 dark:border-slate-800/80 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <ArrowLeftIcon size={14} />
+            Library
+          </Link>
+
+          {book && (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleShare}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm backdrop-blur-md transition-all hover:border-brand-300 hover:text-brand-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                title="Share link"
+              >
+                <ShareIcon size={14} />
+                <span className="hidden sm:inline">Share</span>
+              </button>
+
+              <button
+                onClick={toggleFavorite}
+                className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-md transition-all ${
+                  isFavorite
+                    ? "border-amber-300 bg-amber-50 text-amber-600 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-400"
+                    : "border-slate-200/80 bg-white/80 text-slate-600 hover:border-amber-300 hover:text-amber-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                }`}
+              >
+                <StarIcon size={14} filled={isFavorite} />
+                <span className="hidden sm:inline">
+                  {isFavorite ? "Favorited" : "Favorite"}
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {loading ? (
-          <div className="flex justify-center py-24">
-            <Spinner size="lg" />
+          <div className="flex flex-col items-center justify-center py-24 space-y-3">
+            <Spinner size="md" />
+            <p className="text-xs font-semibold text-slate-400 animate-pulse">Loading book details...</p>
           </div>
         ) : !book ? (
-          <div className="flex flex-col items-center py-24 text-center text-slate-500">
-            <p className="mt-4 text-base font-bold">Book not found in library.</p>
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white/60 p-12 text-center shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/60">
+            <BookOpenIcon size={40} className="text-slate-300 dark:text-slate-700" />
+            <h2 className="mt-3 text-base font-extrabold text-slate-800 dark:text-slate-100">
+              Book Not Found
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 max-w-sm">
+              The requested book was not found in your library or might have been removed.
+            </p>
+            <Link
+              href="/"
+              className={`mt-4 ${buttonClass({ variant: "primary", size: "sm" })}`}
+            >
+              Return to Library
+            </Link>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-5">
             {/* Hero Card Workspace */}
-            <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-xl backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90 sm:p-8">
-              <div className="flex flex-col gap-8 sm:flex-row sm:items-start">
-                {/* Cover Image */}
-                <div className="mx-auto w-44 shrink-0 sm:mx-0">
-                  {coverSrc && !coverFailed ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={coverSrc}
-                      alt={book.title}
-                      onError={() => setCoverFailed(true)}
-                      className="aspect-[3/4] w-full rounded-2xl object-cover shadow-xl ring-1 ring-slate-900/10"
-                    />
-                  ) : (
-                    <div className="flex aspect-[3/4] w-full items-center justify-center rounded-2xl bg-gradient-to-br from-brand-600 to-brand-400 p-4 text-center text-white">
-                      <span className="line-clamp-4 text-xs font-bold">{book.title}</span>
-                    </div>
-                  )}
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-xl backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90 sm:p-6">
+              <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-brand-500/10 blur-2xl" />
+              <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-amber-500/10 blur-2xl" />
 
+              <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start">
+                {/* Cover Image */}
+                <div className="group relative mx-auto w-32 shrink-0 sm:mx-0 sm:w-36">
+                  <div className="relative overflow-hidden rounded-xl border border-slate-200/60 bg-slate-100 shadow-md transition-transform duration-300 group-hover:scale-[1.02] dark:border-slate-800/60 dark:bg-slate-800">
+                    {coverSrc && !coverFailed ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={coverSrc}
+                        alt={book.title}
+                        onError={() => setCoverFailed(true)}
+                        className="aspect-[3/4] w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex aspect-[3/4] w-full flex-col items-center justify-center bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-700 p-3 text-center text-white shadow-inner">
+                        <BookOpenIcon size={24} className="mb-1 text-white/80" />
+                        <span className="line-clamp-3 text-[11px] font-bold leading-snug">
+                          {book.title}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Badge Overlay */}
+                    <div className="absolute top-2 right-2">
+                      {pct >= 100 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-2 py-0.5 text-[9px] font-bold text-white shadow backdrop-blur-md">
+                          <CheckIcon size={10} /> Done
+                        </span>
+                      ) : pct > 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-brand-600/90 px-2 py-0.5 text-[9px] font-bold text-white shadow backdrop-blur-md">
+                          {pct}%
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/80 px-2 py-0.5 text-[9px] font-bold text-white shadow backdrop-blur-md">
+                          New
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
                   {pct > 0 && (
-                    <div className="mt-3">
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div className="mt-2.5 space-y-1">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
                         <div
-                          className="h-full bg-gradient-to-r from-brand-600 to-brand-400"
+                          className="h-full rounded-full bg-gradient-to-r from-brand-500 via-indigo-500 to-amber-500 transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <p className="mt-1 text-center text-[11px] font-bold text-slate-500">
-                        {pct}% Completed
-                      </p>
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                        <span>p. {book.lastPage} of {book.pageCount || "—"}</span>
+                        <span>{pct}%</span>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Info & Actions */}
-                <div className="flex-1 space-y-4">
-                  <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                {/* Book Details */}
+                <div className="flex-1 space-y-3 min-w-0">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {book.category && book.category !== "Other" && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700 dark:bg-brand-950/60 dark:text-brand-300">
+                          <TagIcon size={11} />
+                          {book.category}
+                        </span>
+                      )}
+                      {book.favorite && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
+                          <StarIcon size={11} filled /> Favorite
+                        </span>
+                      )}
+                    </div>
+
+                    <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-2xl leading-snug">
                       {book.title}
                     </h1>
+
                     {authorLabel(book.author) && (
-                      <p className="mt-1 text-base text-slate-500 dark:text-slate-400">
-                        by <span className="font-semibold text-slate-800 dark:text-slate-200">{book.author}</span>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        By <span className="font-bold text-slate-800 dark:text-slate-200">{book.author}</span>
                       </p>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5">
-                    {book.category && book.category !== "Other" && (
-                      <Chip tone="neutral">{book.category}</Chip>
-                    )}
-                    {book.tags.map((t) => (
-                      <Chip key={t}>{t}</Chip>
-                    ))}
-                  </div>
+                  {/* Tags */}
+                  {book.tags && book.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {book.tags.map((t) => (
+                        <span
+                          key={t}
+                          className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                        >
+                          #{t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
-                  {/* Primary & Secondary Action Buttons */}
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                  {/* Action Buttons Hub */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     <Link
                       href={`/read/${book.id}`}
-                      className={`flex-1 sm:flex-none ${buttonClass({ variant: "primary", size: "lg" })}`}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-brand-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     >
-                      <BookOpenIcon size={18} />
-                      {pct > 0 ? "Continue Reading" : "Start Reading"}
+                      <BookOpenIcon size={15} />
+                      {pct > 0 ? `Continue (p. ${book.lastPage})` : "Start Reading"}
                     </Link>
 
                     <Link
-                      href="/ai-tutor"
-                      className={`flex-1 sm:flex-none ${buttonClass({ variant: "secondary", size: "lg" })}`}
+                      href={`/ai-tutor?bookId=${book.id}`}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3.5 py-2.5 text-xs font-bold text-amber-900 shadow-sm transition-all hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200"
                     >
-                      <SparklesIcon size={18} className="text-amber-500" />
-                      Ask AI Tutor
+                      <SparklesIcon size={15} className="text-amber-500 animate-pulse" />
+                      Ask AI About Book
                     </Link>
 
                     <a
                       href={downloadHref}
-                      className={buttonClass({ variant: "ghost", size: "lg" })}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                       title="Download PDF"
                     >
-                      <DownloadIcon size={20} />
+                      <DownloadIcon size={15} />
+                      <span className="hidden sm:inline">PDF</span>
                     </a>
                   </div>
+                </div>
+              </div>
 
-                  {/* Details Specs */}
-                  <div className="grid grid-cols-2 gap-4 pt-4 text-xs sm:grid-cols-4 border-t border-slate-100 dark:border-slate-800">
-                    <div>
-                      <span className="block text-[11px] text-slate-400">Page Count</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{book.pageCount || "—"}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[11px] text-slate-400">File Size</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{formatBytes(book.sizeBytes)}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[11px] text-slate-400">Date Added</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(book.addedAt)}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[11px] text-slate-400">Current Position</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">Page {book.lastPage}</span>
-                    </div>
+              {/* Stats Widgets Grid */}
+              <div className="mt-5 grid grid-cols-2 gap-2 border-t border-slate-200/80 pt-4 dark:border-slate-800/80 sm:grid-cols-4 sm:gap-3">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                    <BookOpenIcon size={13} className="text-brand-500" />
+                    <span>Page Size</span>
                   </div>
+                  <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">
+                    {book.pageCount ? `${book.pageCount} pages` : <span className="animate-pulse text-brand-600">Detecting...</span>}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                    <ClockIcon size={13} className="text-indigo-500" />
+                    <span>Est. Time</span>
+                  </div>
+                  <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">
+                    {readTimeEst}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                    <FileTextIcon size={13} className="text-purple-500" />
+                    <span>File Size</span>
+                  </div>
+                  <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">
+                    {book.sizeBytes ? formatBytes(book.sizeBytes) : <span className="animate-pulse text-purple-600">Calculating...</span>}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                    <TagIcon size={13} className="text-amber-500" />
+                    <span>Added</span>
+                  </div>
+                  <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">
+                    {formatDate(book.addedAt)}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Workspace Tabs Section */}
+            {/* Responsive Workspace Tab Bar */}
             <div className="space-y-4">
-              <div className="flex border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
-                {(["overview", "study", "notes", "bookmarks"] as DetailTab[]).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`border-b-2 px-5 py-3 text-xs font-bold transition-all capitalize whitespace-nowrap ${
-                      activeTab === tab
-                        ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
-                        : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400"
-                    }`}
-                  >
-                    {tab === "overview" ? "Overview & Related" : tab === "study" ? "Learning Tools & Quiz" : tab}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-slate-200/80 bg-white/80 p-1.5 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 sm:grid-cols-4">
+                <button
+                  onClick={() => setActiveTab("overview")}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                    activeTab === "overview"
+                      ? "bg-brand-600 text-white shadow-md dark:bg-brand-500"
+                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <GridIcon size={14} />
+                  <span>Overview</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("study")}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                    activeTab === "study"
+                      ? "bg-brand-600 text-white shadow-md dark:bg-brand-500"
+                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <SparklesIcon size={14} />
+                  <span>Book AI Tutor</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("notes")}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                    activeTab === "notes"
+                      ? "bg-brand-600 text-white shadow-md dark:bg-brand-500"
+                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <FileTextIcon size={14} />
+                  <span>Notes ({notes.length + highlights.length})</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("bookmarks")}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                    activeTab === "bookmarks"
+                      ? "bg-brand-600 text-white shadow-md dark:bg-brand-500"
+                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <BookmarkIcon size={14} filled={activeTab === "bookmarks"} />
+                  <span>Bookmarks ({bookmarks.length})</span>
+                </button>
               </div>
 
+              {/* Tab Contents */}
               {activeTab === "overview" && (
-                <div className="space-y-6">
-                  {related.length > 0 && (
-                    <div>
-                      <h3 className="mb-4 text-sm font-bold text-slate-900 dark:text-white">Related Books</h3>
-                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-6">
+                <div className="space-y-4">
+                  {related.length > 0 ? (
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80">
+                      <h3 className="mb-3 text-sm font-extrabold text-slate-900 dark:text-white">
+                        Recommended & Related Books
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
                         {related.map((r, i) => (
                           <BookCard
                             key={r.id}
@@ -250,48 +528,221 @@ export default function BookDetail({ id }: { id: string }) {
                         ))}
                       </div>
                     </div>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-6 text-center text-slate-500 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80">
+                      <p className="text-xs font-semibold text-slate-400">
+                        No other related books found in your library yet.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
 
               {activeTab === "study" && (
-                <div className="rounded-3xl border border-slate-200/80 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-                  <LearningDashboard bookId={book.id} />
+                <div className="space-y-6">
+                  {/* Book-scoped AI Tutor Assistant View */}
+                  <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+                    <AiTutorView bookId={book.id} />
+                  </div>
+                  {/* Book-scoped Flashcards & Quiz Dashboard */}
+                  <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+                    <LearningDashboard bookId={book.id} />
+                  </div>
                 </div>
               )}
 
               {activeTab === "notes" && (
-                <div className="rounded-3xl border border-slate-200/80 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Book Notes</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Open this book in the reader to highlight quotes and save notes attached to specific pages.
-                  </p>
+                <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                        Notes & Highlights
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Annotations attached to specific pages in this book.
+                      </p>
+                    </div>
+                    {isOwner && (
+                      <Link
+                        href={`/read/${book.id}`}
+                        className="text-xs font-bold text-brand-600 hover:underline dark:text-brand-400"
+                      >
+                        + Add in Reader
+                      </Link>
+                    )}
+                  </div>
+
+                  {!isOwner ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 dark:border-slate-800 dark:bg-slate-900/50">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
+                        <LockIcon size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          Sign In to Sync Notes & Highlights
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Create personal notes, save highlights, and access your annotations across device sessions.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowAuthModal(true)}
+                        className={`mt-2 ${buttonClass({ variant: "primary", size: "sm" })}`}
+                      >
+                        Sign In / Create Account
+                      </button>
+                    </div>
+                  ) : loadingSaved ? (
+                    <div className="flex justify-center py-8">
+                      <Spinner size="sm" />
+                    </div>
+                  ) : notes.length === 0 && highlights.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-2 border border-dashed border-slate-200 rounded-xl dark:border-slate-800">
+                      <FileTextIcon size={30} className="text-slate-300 dark:text-slate-700" />
+                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                        No notes or highlights saved yet.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {notes.map((n) => (
+                        <div
+                          key={n.id}
+                          className="flex flex-col gap-1.5 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 transition-all dark:border-slate-800/80 dark:bg-slate-800/50"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center gap-1 rounded bg-brand-100/80 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                              Page {n.page}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {formatDate(n.createdAt)}
+                            </span>
+                          </div>
+                          <p className="text-xs font-medium text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
+                            {n.content}
+                          </p>
+                          <Link
+                            href={`/read/${book.id}?page=${n.page}`}
+                            className="text-[11px] font-bold text-brand-600 hover:underline dark:text-brand-400 self-end"
+                          >
+                            Jump to Page →
+                          </Link>
+                        </div>
+                      ))}
+
+                      {highlights.map((h) => (
+                        <div
+                          key={h.id}
+                          className="flex flex-col gap-1.5 rounded-xl border border-amber-100 bg-amber-50/50 p-3.5 transition-all dark:border-amber-900/40 dark:bg-amber-950/20"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center gap-1 rounded bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                              Highlight • Page {h.page}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {formatDate(h.createdAt)}
+                            </span>
+                          </div>
+                          <blockquote className="border-l-2 border-amber-400 pl-2.5 text-xs italic text-slate-700 dark:text-slate-300">
+                            &quot;{h.selectedText}&quot;
+                          </blockquote>
+                          <Link
+                            href={`/read/${book.id}?page=${h.page}`}
+                            className="text-[11px] font-bold text-amber-600 hover:underline dark:text-amber-400 self-end"
+                          >
+                            Jump to Page →
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {activeTab === "bookmarks" && (
-                <div className="rounded-3xl border border-slate-200/80 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Bookmarks</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Your saved bookmarks for quick page navigation.
-                  </p>
+                <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                        Saved Bookmarks
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Saved page shortcuts for quick navigation.
+                      </p>
+                    </div>
+                  </div>
+
+                  {!isOwner ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 dark:border-slate-800 dark:bg-slate-900/50">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
+                        <LockIcon size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          Sign In to View Your Bookmarks
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Save key page positions while reading and access them anytime.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowAuthModal(true)}
+                        className={`mt-2 ${buttonClass({ variant: "primary", size: "sm" })}`}
+                      >
+                        Sign In / Create Account
+                      </button>
+                    </div>
+                  ) : loadingSaved ? (
+                    <div className="flex justify-center py-8">
+                      <Spinner size="sm" />
+                    </div>
+                  ) : bookmarks.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-2 border border-dashed border-slate-200 rounded-xl dark:border-slate-800">
+                      <BookmarkIcon size={30} className="text-slate-300 dark:text-slate-700" />
+                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                        No bookmarks saved yet.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                      {bookmarks.map((bm) => (
+                        <div
+                          key={bm.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3 transition-all hover:border-brand-300 dark:border-slate-800/80 dark:bg-slate-800/50"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                              <BookmarkIcon size={15} filled />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {bm.title}
+                              </h4>
+                              <p className="text-[10px] text-slate-400">
+                                Page {bm.page} • {formatDate(bm.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <Link
+                            href={`/read/${book.id}?page=${bm.page}`}
+                            className="shrink-0 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-600 hover:bg-brand-100 dark:bg-brand-950/60 dark:text-brand-300"
+                          >
+                            Open →
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         )}
       </main>
-    </div>
-  );
-}
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
-        {value}
-      </dd>
+      {/* Auth Prompt Modal */}
+      {showAuthModal && <AuthPromptModal onClose={() => setShowAuthModal(false)} />}
     </div>
   );
 }

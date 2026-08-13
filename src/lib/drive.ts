@@ -174,7 +174,7 @@ export async function uploadFile(
   folderId: string,
   name: string,
   mimeType: string,
-  bytes: ArrayBuffer | Buffer
+  bytes: ArrayBuffer | Buffer | Uint8Array
 ): Promise<DriveFile> {
   const boundary = "ebookmine_boundary_" + Math.floor(performance.now());
   const metadata = { name, parents: [folderId] };
@@ -188,9 +188,12 @@ export async function uploadFile(
       `Content-Type: ${mimeType}\r\n\r\n`
   );
   const tail = encoder.encode(`\r\n--${boundary}--`);
+  const payloadBuffer = Buffer.isBuffer(bytes)
+    ? bytes
+    : Buffer.from(bytes as any);
   const body = Buffer.concat([
     Buffer.from(head),
-    Buffer.from(bytes as ArrayBuffer),
+    payloadBuffer,
     Buffer.from(tail),
   ]);
 
@@ -200,7 +203,7 @@ export async function uploadFile(
     {
       method: "POST",
       headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-      body,
+      body: body as unknown as BodyInit,
     }
   );
   return res.json();
@@ -335,15 +338,18 @@ export async function updateFileContent(
   token: Token,
   fileId: string,
   mimeType: string,
-  bytes: ArrayBuffer | Buffer
+  bytes: ArrayBuffer | Buffer | Uint8Array
 ) {
+  const payloadBuffer = Buffer.isBuffer(bytes)
+    ? bytes
+    : Buffer.from(bytes as any);
   await driveFetch(
     token,
     `${DRIVE_UPLOAD}/files/${fileId}?uploadType=media`,
     {
       method: "PATCH",
       headers: { "Content-Type": mimeType },
-      body: Buffer.from(bytes as ArrayBuffer),
+      body: payloadBuffer as unknown as BodyInit,
     }
   );
 }
@@ -409,10 +415,18 @@ export async function downloadPublicFile(
   fileId: string,
   range?: string
 ): Promise<Response> {
-  return keyedFetch(
-    `${DRIVE_API}/files/${fileId}?alt=media`,
-    range ? { headers: { Range: range } } : {}
-  );
+  try {
+    const res = await keyedFetch(
+      `${DRIVE_API}/files/${fileId}?alt=media`,
+      range ? { headers: { Range: range } } : {}
+    );
+    if (res.ok) return res;
+  } catch {
+    /* fallback to direct public stream */
+  }
+
+  const fallbackUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  return fetch(fallbackUrl, range ? { headers: { Range: range } } : {});
 }
 
 /**

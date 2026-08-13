@@ -43,11 +43,15 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+import { ToastProvider } from "./ui/Toast";
+
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <ThemeProvider>
-        <ErrorBoundary>{children}</ErrorBoundary>
+        <ToastProvider>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </ToastProvider>
       </ThemeProvider>
     </SessionProvider>
   );

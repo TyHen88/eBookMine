@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessToken } from "@/lib/session";
 import { downloadFile } from "@/lib/drive";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,24 @@ export async function GET(
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  let driveFileId = id;
+  const dbBook = await prisma.book.findUnique({
+    where: { id },
+    select: { driveFileId: true },
+  }).catch(() => null);
+
+  if (dbBook?.driveFileId) {
+    driveFileId = dbBook.driveFileId;
+  }
+
   // Forward the browser's Range header so pdf.js can fetch large PDFs
   // page-by-page (206 responses) instead of loading the whole file into memory.
   const range = req.headers.get("range") ?? undefined;
-  const driveRes = await downloadFile(token, id, range);
+  const driveRes = await downloadFile(token, driveFileId, range);
+
+  if (!driveRes.ok) {
+    return new NextResponse(null, { status: driveRes.status });
+  }
 
   const headers = new Headers();
   headers.set("Content-Type", "application/pdf");

@@ -1,15 +1,15 @@
 "use client";
 
-import PublicLibrary from "@/components/PublicLibrary";
 import Header from "@/components/Header";
+import Dashboard from "@/components/Dashboard";
 
-// The home page is the public, read-only library for everyone.
-// Owner management lives at /henty (entered manually).
 export default function Home() {
   return (
     <div className="min-h-screen">
       <Header />
-      <PublicLibrary />
+      <main className="mx-auto max-w-6xl px-4 py-6 md:pl-24 md:pr-10">
+        <Dashboard />
+      </main>
     </div>
   );
 }
