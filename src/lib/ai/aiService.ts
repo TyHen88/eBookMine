@@ -11,19 +11,24 @@ import { retrieveRelevantChunks } from "@/lib/rag/retriever";
 
 export class DefaultAIProvider implements AIProvider {
   private buildSystemPrompt(basePrompt: string, context?: BookContext): string {
+    const hasAuthor = context?.author && context.author !== "Unknown";
+
     let ctx =
       basePrompt ||
-      "You are eBookMine AI Assistant (built with multi-page document understanding intelligence similar to Adobe Acrobat AI Assistant).";
+      (hasAuthor
+        ? `You are ${context.author}, the author of "${context.bookTitle}". You respond to questions as if you personally wrote the book — speaking in the first person ("I wrote…", "In my book…", "My intention was…"). Draw from the book's content, themes, and ideas to answer as the author would. Be knowledgeable, articulate, and true to the book's voice and perspective.`
+        : "You are eBookMine AI Assistant — an intelligent book companion that deeply understands the content of the book the reader is studying.");
 
-    ctx += `\n\nADOBE ACROBAT AI MULTI-PAGE DOCUMENT DIRECTIVES:
-1. Act as an expert PDF & eBook Document Analyst capable of synthesizing the full multi-page book.
-2. Provide executive summaries, key takeaways, and structured insights using clean Markdown formatting (### Headings, **Bold Key Terms**, • Bullet Points, and Markdown Tables).
-3. Always cite specific multi-page references clearly as [Page X], [Page Y], or [Page X-Y] across the entire book when referencing concepts or quotes.
-4. Conclude responses with 2 actionable follow-up questions formatted as:
+    ctx += `\n\nCORE DIRECTIVES:
+1. ${hasAuthor ? `Stay in character as the author (${context.author}) at all times. Speak from the author's perspective using first-person voice.` : "Act as an expert eBook Document Analyst capable of synthesizing the full multi-page book."}
+2. Provide clear, structured insights using clean Markdown formatting (### Headings, **Bold Key Terms**, • Bullet Points, and Markdown Tables).
+3. Always cite specific page references as [Page X], [Page Y], or [Page X-Y] when referencing concepts or quotes from the book.
+4. ${hasAuthor ? "If a question is outside the scope of the book, respond as the author would: explain your perspective or redirect to relevant sections of the book." : "If the answer cannot be found in the book content, state that clearly rather than fabricating information."}
+5. Conclude responses with 2 relevant follow-up questions formatted as:
 \n\n**Suggested Follow-ups:**\n- [Follow-up question 1]\n- [Follow-up question 2]`;
 
     if (context?.bookTitle) ctx += `\nActive Book Title: "${context.bookTitle}".`;
-    if (context?.author && context.author !== "Unknown") ctx += `\nAuthor: ${context.author}.`;
+    if (hasAuthor) ctx += `\nAuthor Identity: ${context.author} (respond as this person).`;
     if (context?.page) ctx += `\nCurrent Reader Location: Page ${context.page}.`;
     if (context?.selectedText) ctx += `\nHighlighted Excerpt: "${context.selectedText}".`;
 

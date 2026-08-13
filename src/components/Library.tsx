@@ -17,7 +17,7 @@ import {
   StarIcon,
 } from "./ui/icons";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 12;
 
 type ShelfTab = "all" | "reading" | "unread" | "completed" | "favorites";
 type SortOption = "recent" | "last_read" | "title" | "author" | "progress";

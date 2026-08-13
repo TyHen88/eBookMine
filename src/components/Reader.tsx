@@ -1825,19 +1825,38 @@ export default function Reader({ id }: { id: string }) {
                   </div>
 
                   {/* Input Form */}
-                  <form onSubmit={handleSendAiChat} className="space-y-1.5">
+                  <form
+                    onSubmit={handleSendAiChat}
+                    className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/10 dark:border-slate-800 dark:bg-slate-900/60 dark:focus-within:border-brand-400"
+                  >
                     <textarea
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       placeholder={isRagMode ? "Ask a question about this book..." : `Ask AI about page ${page}...`}
-                      rows={2}
-                      className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+                      rows={1}
+                      className="flex-1 resize-none bg-transparent py-2 px-3 text-xs outline-none dark:text-white max-h-24"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendAiChat(e);
+                        }
+                      }}
                     />
-                    <div className="flex justify-end">
-                      <Button size="sm" type="submit" disabled={chatLoading || !chatInput.trim()}>
-                        {isRagMode ? "Query Book" : "Ask AI"}
-                      </Button>
-                    </div>
+                    <button
+                      type="submit"
+                      disabled={chatLoading || !chatInput.trim()}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-500 text-white shadow-sm transition-all hover:scale-105 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+                      title={isRagMode ? "Query Book" : "Ask AI"}
+                    >
+                      {chatLoading ? (
+                        <Spinner size="sm" />
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="22" y1="2" x2="11" y2="13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                      )}
+                    </button>
                   </form>
                 </div>
               )}
@@ -2192,19 +2211,38 @@ export default function Reader({ id }: { id: string }) {
                       )}
                     </div>
 
-                    <form onSubmit={handleSendAiChat} className="space-y-1.5">
+                    <form
+                      onSubmit={handleSendAiChat}
+                      className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/10 dark:border-slate-800 dark:bg-slate-900/60 dark:focus-within:border-brand-400"
+                    >
                       <textarea
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         placeholder={isRagMode ? "Ask a question about this book..." : `Ask AI about page ${page}...`}
-                        rows={2}
-                        className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-900"
+                        rows={1}
+                        className="flex-1 resize-none bg-transparent py-2 px-3 text-xs outline-none dark:text-white max-h-24"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendAiChat(e);
+                          }
+                        }}
                       />
-                      <div className="flex justify-end">
-                        <Button size="sm" type="submit" disabled={chatLoading || !chatInput.trim()}>
-                          {isRagMode ? "Query Book" : "Ask AI"}
-                        </Button>
-                      </div>
+                      <button
+                        type="submit"
+                        disabled={chatLoading || !chatInput.trim()}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-500 text-white shadow-sm transition-all hover:scale-105 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+                        title={isRagMode ? "Query Book" : "Ask AI"}
+                      >
+                        {chatLoading ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                          </svg>
+                        )}
+                      </button>
                     </form>
                   </div>
                 )}

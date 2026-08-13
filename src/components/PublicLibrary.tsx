@@ -14,7 +14,7 @@ import {
   TagIcon,
 } from "./ui/icons";
 
-const PAGE_SIZE = 48;
+const PAGE_SIZE = 12;
 
 export default function PublicLibrary() {
   const [books, setBooks] = useState<BookMeta[]>([]);
@@ -48,6 +48,11 @@ export default function PublicLibrary() {
       return true;
     });
   }, [books, query, category]);
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisible(PAGE_SIZE);
+  }, [query, category]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:pl-24 md:pr-10 animate-fade-in">
@@ -217,6 +222,22 @@ export default function PublicLibrary() {
               onEdit={() => {}}
             />
           ))}
+        </div>
+      )}
+
+      {/* Load More Button */}
+      {!loading && filtered.length > visible && (
+        <div className="flex flex-col items-center gap-2 pt-6">
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+            Showing {Math.min(visible, filtered.length)} of {filtered.length} books
+          </p>
+          <button
+            onClick={() => setVisible((v) => v + PAGE_SIZE)}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-600 hover:shadow-md active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-brand-500 dark:hover:text-brand-400"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+            Load More Books
+          </button>
         </div>
       )}
     </div>

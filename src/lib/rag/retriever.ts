@@ -19,7 +19,7 @@ export async function retrieveRelevantChunks(
 ): Promise<RetrievedChunk[]> {
   const book = await prisma.book.findFirst({
     where: {
-      OR: [{ driveFileId: bookId }, { id: bookId }],
+      OR: [{ driveFileId: bookId }, { id: bookId }, { title: bookId }],
     },
   });
 

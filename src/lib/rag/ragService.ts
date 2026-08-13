@@ -26,7 +26,7 @@ export async function chatWithBook(
 ): Promise<RagResponse> {
   // Authorization check
   const accessResponse = await requireBookAccess(bookId);
-  if (accessResponse) {
+  if (!accessResponse.allowed) {
     throw new Error("Unauthorized to access this book");
   }
 
@@ -35,16 +35,24 @@ export async function chatWithBook(
 
   const book = await prisma.book.findFirst({
     where: { OR: [{ driveFileId: bookId }, { id: bookId }] },
+    include: { authors: { include: { author: true } } },
   });
 
   if (!book) {
     throw new Error("Book not found");
   }
 
+  // Extract author name from the BookAuthor relation
+  const authorName =
+    book.authors && book.authors.length > 0
+      ? book.authors.map((ba) => ba.author?.name).filter(Boolean).join(", ")
+      : undefined;
+
   // Retrieve relevant chunks
   const chunks = await retrieveRelevantChunks(book.id, question, 4);
 
   let contextPrompt = `Book: "${book.title}"\n`;
+  if (authorName) contextPrompt += `Author: ${authorName}\n`;
   if (pageContext) contextPrompt += `User is currently reading Page ${pageContext}.\n`;
 
   if (chunks.length === 0) {
@@ -64,6 +72,7 @@ export async function chatWithBook(
   const answer = await aiProvider.generateText(prompt, {
     bookTitle: book.title,
     page: pageContext,
+    author: authorName,
   });
 
   const sources: RagSource[] = chunks.map((c) => ({
