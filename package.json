@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "copy-worker": "node scripts/copy-pdf-worker.mjs",
-    "predev": "npm run copy-worker",
-    "prebuild": "npm run copy-worker",
-    "postinstall": "npm run copy-worker",
+    "predev": "prisma generate && npm run copy-worker",
+    "prebuild": "prisma generate && npm run copy-worker",
+    "postinstall": "prisma generate && npm run copy-worker",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
