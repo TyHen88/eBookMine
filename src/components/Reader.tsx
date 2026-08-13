@@ -276,11 +276,20 @@ export default function Reader({ id }: { id: string }) {
   const [showOcrTips, setShowOcrTips] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem(`ebookmine-page-${id}`) || localStorage.getItem(`ebookmine-page-${id}`);
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+    }
+    return 1;
+  });
   const [scale, setScale] = useState(1);
   const [mode, setMode] = useState<ReadMode>("paged");
   const [theme, setTheme] = useState<ReaderTheme>("light");
-  const [renderCenter, setRenderCenter] = useState(1);
+  const [renderCenter, setRenderCenter] = useState<number>(() => page);
 
   // Sidebar & Drawers
   const [showDrawer, setShowDrawer] = useState(false);
@@ -320,7 +329,15 @@ export default function Reader({ id }: { id: string }) {
   const [showMobileSettings, setShowMobileSettings] = useState(false);
   const [selectionPos, setSelectionPos] = useState<{ top: number; left: number } | null>(null);
   const [selectedText, setSelectedText] = useState("");
-  const [aiModal, setAiModal] = useState<{ title: string; text: string; content: string; loading?: boolean } | null>(null);
+  const [aiModal, setAiModal] = useState<{
+    actionType?: "explain" | "simplify" | "translate";
+    title: string;
+    text: string;
+    content: string;
+    loading?: boolean;
+    targetLang?: string;
+    provider?: string;
+  } | null>(null);
 
   // Form state
   const [noteQuery, setNoteQuery] = useState("");
@@ -328,7 +345,16 @@ export default function Reader({ id }: { id: string }) {
   const [highlightColor, setHighlightColor] = useState("yellow");
   const [newHighlightText, setNewHighlightText] = useState("");
 
-  const [pageInput, setPageInput] = useState("1");
+  const [pageInput, setPageInput] = useState(() => String(page));
+
+  // Sync current page to sessionStorage and localStorage for instant refresh recovery
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(`ebookmine-page-${id}`, String(page));
+      localStorage.setItem(`ebookmine-page-${id}`, String(page));
+    }
+  }, [id, page]);
+
   const [loadError, setLoadError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -340,7 +366,7 @@ export default function Reader({ id }: { id: string }) {
     setDpr(Math.min(1.5, window.devicePixelRatio || 1));
   }, []);
 
-  const savedRef = useRef(false);
+  const hasRestoredPageRef = useRef(false);
   const pageEls = useRef<Map<number, HTMLDivElement>>(new Map());
   const pageRef = useRef(page);
   useEffect(() => {
@@ -447,13 +473,17 @@ export default function Reader({ id }: { id: string }) {
     loadUserHighlightsAndNotes();
   }, [loadUserHighlightsAndNotes]);
 
-  // Resume last reading position
+  // Resume last reading position from DB metadata if not already restored locally
   useEffect(() => {
-    if (book && !savedRef.current && book.lastPage > 1) {
-      setPage(book.lastPage);
-      setPageInput(String(book.lastPage));
+    if (book && !hasRestoredPageRef.current) {
+      hasRestoredPageRef.current = true;
+      if (book.lastPage > 1 && page === 1) {
+        setPage(book.lastPage);
+        setPageInput(String(book.lastPage));
+        setRenderCenter(book.lastPage);
+      }
     }
-  }, [book]);
+  }, [book, page]);
 
   // Save reading progress (debounced)
   const persistProgress = useCallback(
@@ -473,9 +503,8 @@ export default function Reader({ id }: { id: string }) {
   );
 
   useEffect(() => {
-    if (!book) return;
-    savedRef.current = true;
-    const t = setTimeout(() => persistProgress(page, numPages), 800);
+    if (!book || !hasRestoredPageRef.current) return;
+    const t = setTimeout(() => persistProgress(page, numPages), 1000);
     return () => clearTimeout(t);
   }, [page, numPages, book, persistProgress]);
 
@@ -570,6 +599,24 @@ export default function Reader({ id }: { id: string }) {
 
     return () => observer.disconnect();
   }, [mode, numPages]);
+
+  // Restore scroll position in continuous scroll mode after document load or page refresh
+  useEffect(() => {
+    if (pdfDoc && page > 1 && mode === "scroll") {
+      const t = setTimeout(() => {
+        const el = pageEls.current.get(page);
+        if (el) {
+          resumingScroll.current = true;
+          el.scrollIntoView({ block: "start", behavior: "instant" as ScrollBehavior });
+          setRenderCenter(page);
+          setTimeout(() => {
+            resumingScroll.current = false;
+          }, 500);
+        }
+      }, 250);
+      return () => clearTimeout(t);
+    }
+  }, [pdfDoc, page, mode]);
 
   const isBookmarked = useMemo(
     () => bookmarks.some((b) => b.page === page),
@@ -786,30 +833,54 @@ export default function Reader({ id }: { id: string }) {
     }
   };
 
-  // Text Selection detection for Floating Toolbar
-  const handleSelectionChange = () => {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-      setSelectionPos(null);
-      setSelectedText("");
-      return;
-    }
+  const handleScrollPageTextSuccess = useCallback((pageNum: number, hasText: boolean) => {
+    setNonSelectablePages((prev) => {
+      if (prev[pageNum] === !hasText) return prev;
+      return { ...prev, [pageNum]: !hasText };
+    });
+  }, []);
 
-    const text = sel.toString().trim();
-    if (text.length > 0) {
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      setSelectedText(text);
-      setSelectionPos({
-        top: rect.top,
-        left: rect.left + rect.width / 2,
-      });
-    }
-  };
-
+  // Text Selection detection for Floating Toolbar (triggered on mouseup/touchend)
   useEffect(() => {
-    document.addEventListener("selectionchange", handleSelectionChange);
-    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+    const handleSelectionCheck = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setSelectionPos(null);
+        setSelectedText("");
+        return;
+      }
+
+      const text = sel.toString().trim();
+      if (text.length > 0) {
+        try {
+          const range = sel.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            setSelectedText(text);
+            setSelectionPos({
+              top: rect.top,
+              left: rect.left + rect.width / 2,
+            });
+          }
+        } catch {
+          // Range might be temporarily unavailable
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setTimeout(handleSelectionCheck, 10);
+    };
+
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("touchend", handleMouseUp);
+    document.addEventListener("keyup", handleSelectionCheck);
+
+    return () => {
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("touchend", handleMouseUp);
+      document.removeEventListener("keyup", handleSelectionCheck);
+    };
   }, []);
 
   const handleAddHighlight = async (textToHighlight: string) => {
@@ -899,10 +970,11 @@ export default function Reader({ id }: { id: string }) {
     await fetch(`/api/reading/notes?id=${noteId}`, { method: "DELETE" }).catch(() => {});
   };
 
-  // AI Quick Actions Handler
+  // AI & Translation Quick Actions Handler
   const handleAiAction = async (
     actionType: "explain" | "simplify" | "translate" | "ask",
-    text: string
+    text: string,
+    targetLang: string = "km"
   ) => {
     setSelectionPos(null);
 
@@ -918,17 +990,57 @@ export default function Reader({ id }: { id: string }) {
       return;
     }
 
+    if (actionType === "translate") {
+      setAiModal({
+        actionType: "translate",
+        title: "Google Translate",
+        text,
+        content: "",
+        loading: true,
+        targetLang,
+      });
+
+      try {
+        const res = await fetch("/api/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, to: targetLang }),
+        });
+        const d = await res.json();
+        setAiModal({
+          actionType: "translate",
+          title: "Google Translate",
+          text,
+          content: d.translatedText || d.error || "Translation failed.",
+          provider: "google-translate",
+          targetLang,
+          loading: false,
+        });
+      } catch {
+        setAiModal({
+          actionType: "translate",
+          title: "Google Translate",
+          text,
+          content: "Failed to communicate with Google Translate service.",
+          loading: false,
+        });
+      }
+      return;
+    }
+
     const titleMap = {
       explain: "AI Explanation",
       simplify: "Simplified Summary",
-      translate: "AI Translation",
+      translate: "Google Translate",
     };
 
     setAiModal({
+      actionType,
       title: titleMap[actionType],
       text,
       content: "",
       loading: true,
+      targetLang,
     });
 
     try {
@@ -941,23 +1053,59 @@ export default function Reader({ id }: { id: string }) {
           page,
           bookTitle: book?.title,
           author: book?.author,
+          targetLang,
         }),
       });
 
       const d = await res.json();
       setAiModal({
+        actionType,
         title: titleMap[actionType],
         text,
         content: d.result || d.error || "No response generated.",
+        provider: d.provider,
+        targetLang,
         loading: false,
       });
     } catch {
       setAiModal({
+        actionType,
         title: titleMap[actionType],
         text,
-        content: "Failed to communicate with AI engine.",
+        content: "Failed to communicate with translation engine.",
         loading: false,
       });
+    }
+  };
+
+  const handleReTranslate = async (lang: string) => {
+    if (!aiModal || !aiModal.text) return;
+    setAiModal((prev) => (prev ? { ...prev, targetLang: lang, loading: true } : null));
+
+    try {
+      const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: aiModal.text,
+          to: lang,
+        }),
+      });
+
+      const d = await res.json();
+      setAiModal((prev) =>
+        prev
+          ? {
+              ...prev,
+              content: d.translatedText || d.error || "Translation empty.",
+              provider: "google-translate",
+              targetLang: lang,
+              loading: false,
+            }
+          : null
+      );
+    } catch {
+      setAiModal((prev) => (prev ? { ...prev, loading: false } : null));
     }
   };
 
@@ -1126,24 +1274,128 @@ export default function Reader({ id }: { id: string }) {
                 <SparklesIcon size={18} className="text-brand-500" />
                 {aiModal.title}
               </h3>
+              {aiModal.provider && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  aiModal.provider === "google-translate"
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                    : "bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300"
+                }`}>
+                  {aiModal.provider === "google-translate" ? "Google Translate" : "AI Provider"}
+                </span>
+              )}
               <button onClick={() => setAiModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <XIcon size={18} />
               </button>
             </div>
-            {aiModal.loading ? (
-              <div className="flex h-36 items-center justify-center">
-                <BookLoader label="AI Assistant Generating Response..." />
+
+            {aiModal.actionType === "translate" ? (
+              <div className="space-y-3.5 mb-4">
+                {/* Original Excerpt Card */}
+                <div className={`rounded-xl border p-3 text-xs ${
+                  theme === "sepia"
+                    ? "bg-[#ebd9b3]/40 border-[#e2cf9f]"
+                    : theme === "dark"
+                    ? "bg-slate-950/60 border-slate-800"
+                    : "bg-slate-50 border-slate-200/80"
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
+                      Original Text
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(aiModal.text);
+                        showToast("Original text copied!", "info");
+                      }}
+                      className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <p className="italic text-slate-700 dark:text-slate-300 max-h-24 overflow-y-auto leading-relaxed">
+                    "{aiModal.text}"
+                  </p>
+                </div>
+
+                {/* Target Language Selection Header */}
+                <div className="flex items-center justify-between gap-2 px-0.5">
+                  <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
+                    Translation
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-400 font-medium">To:</span>
+                    <select
+                      value={aiModal.targetLang || "km"}
+                      onChange={(e) => handleReTranslate(e.target.value)}
+                      disabled={aiModal.loading}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm outline-none transition disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    >
+                      <option value="km">Khmer (ភាសាខ្មែរ)</option>
+                      <option value="en">English (US/UK)</option>
+                      <option value="es">Spanish (Español)</option>
+                      <option value="fr">French (Français)</option>
+                      <option value="de">German (Deutsch)</option>
+                      <option value="ja">Japanese (日本語)</option>
+                      <option value="zh-CN">Chinese (中文)</option>
+                      <option value="vi">Vietnamese (Tiếng Việt)</option>
+                      <option value="ko">Korean (한국어)</option>
+                      <option value="ru">Russian (Русский)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Translated Result Box */}
+                <div className={`rounded-xl border p-3.5 text-sm sm:text-base border-brand-500/20 ${
+                  theme === "sepia"
+                    ? "bg-[#ebd9b3]/50 border-[#e2cf9f]"
+                    : theme === "dark"
+                    ? "bg-slate-950/80 border-slate-800"
+                    : "bg-brand-50/40 border-brand-200/60"
+                }`}>
+                  {aiModal.loading ? (
+                    <div className="flex h-24 items-center justify-center">
+                      <BookLoader label="Translating with Google Translate..." />
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex justify-end mb-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(aiModal.content);
+                            showToast("Translation copied!", "info");
+                          }}
+                          className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                        >
+                          Copy Translation
+                        </button>
+                      </div>
+                      <p className="font-medium leading-relaxed text-slate-900 dark:text-slate-100 max-h-48 overflow-y-auto">
+                        {aiModal.content}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
-              <div className={`mb-4 max-h-60 overflow-y-auto rounded-xl p-3 text-xs border ${
-                theme === "sepia"
-                  ? "bg-[#ebd9b3]/40 border-[#e2cf9f]/60"
-                  : theme === "dark"
-                  ? "bg-slate-950/40 border-slate-800/60"
-                  : "bg-slate-50 border-slate-200/60"
-              }`}>
-                <MarkdownContent content={aiModal.content} theme={theme} />
-              </div>
+              <>
+                {aiModal.loading ? (
+                  <div className="flex h-36 items-center justify-center">
+                    <BookLoader label="AI Assistant Generating Response..." />
+                  </div>
+                ) : (
+                  <div className={`mb-4 max-h-60 overflow-y-auto rounded-xl p-3 text-xs border ${
+                    theme === "sepia"
+                      ? "bg-[#ebd9b3]/40 border-[#e2cf9f]/60"
+                      : theme === "dark"
+                      ? "bg-slate-950/40 border-slate-800/60"
+                      : "bg-slate-50 border-slate-200/60"
+                  }`}>
+                    <MarkdownContent content={aiModal.content} theme={theme} />
+                  </div>
+                )}
+              </>
             )}
             <div className="flex justify-end">
               <Button size="sm" onClick={() => setAiModal(null)}>
@@ -2414,40 +2666,18 @@ export default function Reader({ id }: { id: string }) {
                           pageEls={pageEls}
                           dpr={dpr}
                           active={Math.abs(p - renderCenter) <= RENDER_WINDOW}
-                          onGetTextSuccess={(pageNum, hasText) => {
-                            setNonSelectablePages((prev) => {
-                              if (prev[pageNum] === !hasText) return prev;
-                              return { ...prev, [pageNum]: !hasText };
-                            });
-                          }}
+                          onGetTextSuccess={handleScrollPageTextSuccess}
                         />
                       );
                     })}
                   </div>
                 ) : (
-                <Page
-                  pageNumber={page}
-                  width={pageWidth}
-                  scale={pageWidth ? undefined : scale}
-                  devicePixelRatio={dpr}
-                  renderTextLayer={true}
-                  renderAnnotationLayer={false}
-                  onGetTextSuccess={(text) => {
-                    const hasText = text.items.length > 0;
-                    setNonSelectablePages((prev) => {
-                      if (prev[page] === !hasText) return prev;
-                      return { ...prev, [page]: !hasText };
-                    });
-                  }}
-                  onRenderError={(err) => {
-                    if (isAbortError(err)) return;
-                    console.error("Page render error:", err);
-                  }}
-                  onRenderTextLayerError={(err) => {
-                    if (isAbortError(err)) return;
-                    console.error("TextLayer error:", err);
-                  }}
-                  className="shadow-lg"
+                <PagedPage
+                  page={page}
+                  pageWidth={pageWidth}
+                  scale={scale}
+                  dpr={dpr}
+                  onGetTextSuccess={handleScrollPageTextSuccess}
                 />
               )}
             </Document>
@@ -2522,6 +2752,43 @@ export default function Reader({ id }: { id: string }) {
     </div>
   );
 }
+
+const PagedPage = memo(function PagedPage({
+  page,
+  pageWidth,
+  scale,
+  dpr,
+  onGetTextSuccess,
+}: {
+  page: number;
+  pageWidth?: number;
+  scale: number;
+  dpr: number;
+  onGetTextSuccess: (pageNum: number, hasText: boolean) => void;
+}) {
+  return (
+    <Page
+      pageNumber={page}
+      width={pageWidth}
+      scale={pageWidth ? undefined : scale}
+      devicePixelRatio={dpr}
+      renderTextLayer={true}
+      renderAnnotationLayer={false}
+      onGetTextSuccess={(text) => {
+        onGetTextSuccess(page, text.items.length > 0);
+      }}
+      onRenderError={(err) => {
+        if (isAbortError(err)) return;
+        console.error("Page render error:", err);
+      }}
+      onRenderTextLayerError={(err) => {
+        if (isAbortError(err)) return;
+        console.error("TextLayer error:", err);
+      }}
+      className="shadow-lg"
+    />
+  );
+});
 
 const ScrollPage = memo(function ScrollPage({
   pageNumber,

@@ -2,25 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authHelpers";
 import { aiProvider, checkAndTrackUsage } from "@/lib/ai/aiService";
 import { BookContext } from "@/lib/ai/aiProvider";
+import { translateText } from "@/lib/translateService";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/ai/actions — execute quick AI actions (explain, simplify, translate, quiz, flashcards).
- * Body: { action: "explain"|"simplify"|"translate"|"quiz"|"flashcards", text, page, bookTitle, author }
+ * Body: { action: "explain"|"simplify"|"translate"|"quiz"|"flashcards", text, page, bookTitle, author, targetLang }
  */
 export async function POST(req: NextRequest) {
   const { user, response } = await requireUser();
   if (response) return response;
 
   try {
-    const { action, text, page, bookTitle, author } = await req.json();
+    const { action, text, page, bookTitle, author, targetLang } = await req.json();
     if (!action || typeof action !== "string") {
       return NextResponse.json({ error: "Action is required" }, { status: 400 });
     }
 
-    await checkAndTrackUsage(user.id, action, 200);
+    if (action !== "translate") {
+      await checkAndTrackUsage(user.id, action, 200);
+    }
 
     const context: BookContext = {
       bookTitle,
@@ -31,22 +34,39 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case "explain": {
-        const result = await aiProvider.generateText(
-          `Explain the following excerpt in detail:\n\n${text}`,
-          context
-        );
+        const prompt = `Provide a precise, meaningful, and well-structured explanation of the following excerpt from "${bookTitle || "the book"}":
+
+"${text}"
+
+EXPLANATION REQUIREMENTS:
+- **Core Meaning**: Begin with a 1-2 sentence clear overview of what this passage means.
+- **Key Concept Breakdown**: Use 2-3 bullet points to explain essential terms, arguments, or ideas.
+- **Practical Takeaway**: Conclude with a brief summary of why this concept matters.
+- **Length**: Balanced and focused (120–220 words). Not too long, not too short.`;
+
+        const result = await aiProvider.generateText(prompt, context);
         return NextResponse.json({ result });
       }
       case "simplify": {
-        const result = await aiProvider.generateSummary(text || "Page content", context);
+        const prompt = `Rephrase and simplify the following passage into plain, easy-to-understand language while preserving its exact core meaning:
+
+"${text}"
+
+SIMPLIFY REQUIREMENTS:
+- **Plain Summary**: 2 sentences explaining the main idea in simple, everyday language.
+- **Key Takeaways**: 3 concise bullet points listing the primary facts or steps.
+- **Length**: Compact and clear (100–180 words). Eliminate unnecessary jargon and fluff.`;
+
+        const result = await aiProvider.generateText(prompt, context);
         return NextResponse.json({ result });
       }
       case "translate": {
-        const result = await aiProvider.generateText(
-          `Translate the following passage into English clearly:\n\n${text}`,
-          context
-        );
-        return NextResponse.json({ result });
+        const lang = targetLang || "en";
+        const gtResult = await translateText(text, lang);
+        return NextResponse.json({
+          result: gtResult.translatedText,
+          provider: "google-translate",
+        });
       }
       case "quiz": {
         const questions = await aiProvider.generateQuiz(text || "Page content", 3);
