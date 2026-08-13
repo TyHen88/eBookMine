@@ -135,10 +135,12 @@ export async function requireBookAccess(
     });
 
     if (book) {
+      // Public books are accessible to everyone (no session required)
       if (book.published && book.visibility === "PUBLIC") {
         return { allowed: true, isPublic: true, response: null };
       }
 
+      // Non-public books require authentication (any logged-in user can read)
       if (!session) {
         return {
           allowed: false,
@@ -150,26 +152,8 @@ export async function requireBookAccess(
         };
       }
 
-      const isAdmin =
-        session.user?.role === "ADMIN" || session.isOwner === true;
-      const isOwnerOfBook =
-        "userId" in book &&
-        typeof (book as Record<string, unknown>).userId === "string" &&
-        session.user?.id === (book as Record<string, unknown>).userId;
-
-      if (isAdmin || isOwnerOfBook) {
-        return { allowed: true, isPublic: false, response: null };
-      }
-
-
-      return {
-        allowed: false,
-        isPublic: false,
-        response: NextResponse.json(
-          { error: "Forbidden: Book access denied" },
-          { status: 403 }
-        ),
-      };
+      // Any authenticated user can access library books
+      return { allowed: true, isPublic: false, response: null };
     }
   } catch {
     /* fallback to session check if DB lookup fails */
