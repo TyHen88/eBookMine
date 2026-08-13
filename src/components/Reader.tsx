@@ -40,6 +40,7 @@ import {
   XIcon,
   SearchIcon,
   SlidersIcon,
+  InfoIcon,
 } from "./ui/icons";
 
 import LearningDashboard from "./LearningDashboard";
@@ -109,6 +110,145 @@ class ReaderErrorBoundary extends React.Component<
   }
 }
 
+function MarkdownContent({ content, theme }: { content: string; theme: "light" | "dark" | "sepia" }) {
+  const themeClass = theme === "sepia" ? "ai-markdown-sepia" : theme === "dark" ? "ai-markdown-dark" : "";
+
+  // A very simple yet effective line-by-line markdown parser
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let inCodeBlock = false;
+  let codeBuffer: string[] = [];
+
+  const processInlineText = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[Page\s*[^\]]+\])/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={idx} className="font-bold">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("*") && part.endsWith("*")) {
+        return <em key={idx} className="italic">{part.slice(1, -1)}</em>;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={idx} className="font-mono text-xs rounded px-1 py-0.5 bg-black/5 dark:bg-white/10">{part.slice(1, -1)}</code>;
+      }
+      if (part.startsWith("[Page") && part.endsWith("]")) {
+        return (
+          <span key={idx} className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[9px] font-extrabold bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300 shadow-sm mx-0.5">
+            📖 {part.slice(1, -1)}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
+  let currentList: { type: "ul" | "ol"; items: React.ReactNode[] } | null = null;
+
+  const flushList = (key: string | number) => {
+    if (!currentList) return null;
+    const ListTag = currentList.type;
+    const el = (
+      <ListTag key={key} className={currentList.type === "ul" ? "list-disc pl-5 my-1" : "list-decimal pl-5 my-1"}>
+        {currentList.items}
+      </ListTag>
+    );
+    currentList = null;
+    return el;
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+
+    if (inCodeBlock) {
+      if (trimmed.startsWith("```")) {
+        elements.push(
+          <pre key={`code-${index}`} className="p-2.5 my-2.5 overflow-x-auto rounded-xl bg-slate-900 font-mono text-xs text-slate-100">
+            <code>{codeBuffer.join("\n")}</code>
+          </pre>
+        );
+        codeBuffer = [];
+        inCodeBlock = false;
+      } else {
+        codeBuffer.push(line);
+      }
+      return;
+    }
+
+    if (trimmed.startsWith("```")) {
+      if (currentList) {
+        const listEl = flushList(`list-${index}`);
+        if (listEl) elements.push(listEl);
+      }
+      inCodeBlock = true;
+      return;
+    }
+
+    const isBullet = trimmed.startsWith("• ") || trimmed.startsWith("- ") || trimmed.startsWith("* ");
+    const isNumList = /^\d+\.\s/.test(trimmed);
+
+    if (isBullet) {
+      if (currentList && currentList.type !== "ul") {
+        const listEl = flushList(`list-${index}`);
+        if (listEl) elements.push(listEl);
+      }
+      if (!currentList) {
+        currentList = { type: "ul", items: [] };
+      }
+      currentList.items.push(
+        <li key={`li-${index}`} className="ml-4 list-disc text-xs sm:text-sm my-0.5 leading-relaxed">
+          {processInlineText(trimmed.slice(2))}
+        </li>
+      );
+      return;
+    }
+
+    if (isNumList) {
+      const match = trimmed.match(/^(\d+\.\s)(.*)/);
+      if (match) {
+        if (currentList && currentList.type !== "ol") {
+          const listEl = flushList(`list-${index}`);
+          if (listEl) elements.push(listEl);
+        }
+        if (!currentList) {
+          currentList = { type: "ol", items: [] };
+        }
+        currentList.items.push(
+          <li key={`li-${index}`} className="ml-4 list-decimal text-xs sm:text-sm my-0.5 leading-relaxed">
+            {processInlineText(match[2])}
+          </li>
+        );
+        return;
+      }
+    }
+
+    if (currentList) {
+      const listEl = flushList(`list-${index}`);
+      if (listEl) elements.push(listEl);
+    }
+
+    if (trimmed.startsWith("### ")) {
+      elements.push(<h3 key={index} className="mt-3 mb-1 text-xs font-extrabold uppercase">{processInlineText(trimmed.slice(4))}</h3>);
+    } else if (trimmed.startsWith("## ")) {
+      elements.push(<h2 key={index} className="mt-3 mb-1 text-sm font-extrabold">{processInlineText(trimmed.slice(3))}</h2>);
+    } else if (trimmed.startsWith("# ")) {
+      elements.push(<h1 key={index} className="mt-4 mb-2 text-base font-extrabold">{processInlineText(trimmed.slice(2))}</h1>);
+    } else if (trimmed.startsWith("> ")) {
+      elements.push(<blockquote key={index} className="border-l-2 pl-2 my-2 italic">{processInlineText(trimmed.slice(2))}</blockquote>);
+    } else if (trimmed === "---" || trimmed === "***") {
+      elements.push(<hr key={index} className="my-3 border-slate-200 dark:border-slate-800" />);
+    } else if (trimmed.length > 0) {
+      elements.push(<p key={index} className="my-1.5 leading-relaxed text-xs sm:text-sm">{processInlineText(line)}</p>);
+    }
+  });
+
+  if (currentList) {
+    const listEl = flushList("list-final");
+    if (listEl) elements.push(listEl);
+  }
+
+  return <div className={`ai-markdown ${themeClass} space-y-1`}>{elements}</div>;
+}
+
 type ReadMode = "paged" | "scroll";
 type ReaderTheme = "light" | "dark" | "sepia";
 type SidebarTab = "toc" | "ai" | "study" | "bookmarks" | "highlights" | "notes";
@@ -132,6 +272,8 @@ export default function Reader({ id }: { id: string }) {
   const apiBase = isOwner ? "/api/books" : "/api/public/books";
 
   const [book, setBook] = useState<BookMeta | null>(null);
+  const [nonSelectablePages, setNonSelectablePages] = useState<Record<number, boolean>>({});
+  const [showOcrTips, setShowOcrTips] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState(0);
   const [page, setPage] = useState(1);
@@ -903,7 +1045,40 @@ export default function Reader({ id }: { id: string }) {
 
   const pct = numPages > 0 ? Math.min(100, (page / numPages) * 100) : 0;
 
+  const currentHasText = !nonSelectablePages[page];
+
   // Theme styling helpers
+  const themeSidebarStyle =
+    theme === "sepia"
+      ? "bg-[#f4e4c1]/90 border-[#e2cf9f] text-[#5c4b37]"
+      : theme === "dark"
+      ? "bg-slate-900/90 border-slate-800 text-slate-100"
+      : "bg-white/90 border-slate-200 text-slate-800";
+
+  const themeTabsHeaderStyle =
+    theme === "sepia"
+      ? "border-[#e2cf9f] bg-[#ebd9b3]"
+      : theme === "dark"
+      ? "border-slate-800 bg-slate-950"
+      : "border-slate-200 bg-slate-50";
+
+  const getTabButtonStyle = (tab: SidebarTab) => {
+    const isActive = activeTab === tab;
+    if (theme === "sepia") {
+      return isActive
+        ? "bg-[#fbf0d9] text-indigo-950 font-bold shadow-sm"
+        : "text-[#9e876a] hover:text-[#5c4b37]";
+    }
+    if (theme === "dark") {
+      return isActive
+        ? "bg-slate-900 text-brand-400 font-bold shadow-sm"
+        : "text-slate-500 hover:text-slate-200";
+    }
+    return isActive
+      ? "bg-white text-brand-600 font-bold shadow-sm"
+      : "text-slate-500 hover:text-slate-800";
+  };
+
   const themeContainerStyle =
     theme === "sepia"
       ? "bg-[#fbf0d9] text-[#5c4b37]"
@@ -933,14 +1108,21 @@ export default function Reader({ id }: { id: string }) {
         onAddNote={handleAddNote}
         onAiAction={handleAiAction}
         onClose={() => setSelectionPos(null)}
+        theme={theme}
       />
 
       {/* AI Action Response Modal */}
       {aiModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-slate-100">
+          <div className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl ${
+            theme === "sepia"
+              ? "bg-[#f4e4c1] border-[#e2cf9f] text-[#5c4b37]"
+              : theme === "dark"
+              ? "bg-slate-900 border-slate-800 text-slate-100"
+              : "bg-white border-slate-200 text-slate-900"
+          }`}>
+            <div className="mb-4 flex items-center justify-between border-b pb-2.5 border-slate-200/60 dark:border-slate-800/60">
+              <h3 className="flex items-center gap-2 text-base font-bold">
                 <SparklesIcon size={18} className="text-brand-500" />
                 {aiModal.title}
               </h3>
@@ -953,13 +1135,102 @@ export default function Reader({ id }: { id: string }) {
                 <BookLoader label="AI Assistant Generating Response..." />
               </div>
             ) : (
-              <div className="mb-4 max-h-60 overflow-y-auto rounded-xl bg-slate-50 p-3 text-xs text-slate-700 whitespace-pre-wrap dark:bg-slate-800/60 dark:text-slate-300">
-                {aiModal.content}
+              <div className={`mb-4 max-h-60 overflow-y-auto rounded-xl p-3 text-xs border ${
+                theme === "sepia"
+                  ? "bg-[#ebd9b3]/40 border-[#e2cf9f]/60"
+                  : theme === "dark"
+                  ? "bg-slate-950/40 border-slate-800/60"
+                  : "bg-slate-50 border-slate-200/60"
+              }`}>
+                <MarkdownContent content={aiModal.content} theme={theme} />
               </div>
             )}
             <div className="flex justify-end">
               <Button size="sm" onClick={() => setAiModal(null)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OCR Tips Modal */}
+      {showOcrTips && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in">
+          <div className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl ${
+            theme === "sepia"
+              ? "bg-[#f4e4c1] border-[#e2cf9f] text-[#5c4b37]"
+              : theme === "dark"
+              ? "bg-slate-900 border-slate-800 text-slate-100"
+              : "bg-white border-slate-200 text-slate-900"
+          }`}>
+            <div className="mb-4 flex items-center justify-between border-b pb-2.5 border-slate-200/60 dark:border-slate-800/60">
+              <h3 className="flex items-center gap-2 text-base font-bold">
+                <InfoIcon size={18} className="text-brand-500" />
+                Text Selection & OCR Guide
+              </h3>
+              <button onClick={() => setShowOcrTips(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <XIcon size={18} />
+              </button>
+            </div>
+            
+            <div className="space-y-4 text-xs sm:text-sm">
+              <p>
+                This page appears to be <strong>image-only</strong> (e.g. a scanned book or document). In these files, native text selection is not supported.
+              </p>
+              
+              <div className={`p-3 rounded-xl border ${
+                theme === "sepia"
+                  ? "bg-[#ebd9b3]/50 border-[#e2cf9f]"
+                  : theme === "dark"
+                  ? "bg-slate-950/40 border-slate-800/60"
+                  : "bg-slate-50 border-slate-150"
+              }`}>
+                <h4 className="font-bold text-brand-600 dark:text-brand-400 mb-1">💻 Windows Users (Shortcut Method)</h4>
+                <p className="leading-relaxed">
+                  We recommend using the official <strong>Windows PowerToys Text Extractor</strong>:
+                </p>
+                <ol className="list-decimal pl-4 mt-1 space-y-1">
+                  <li>Press <kbd className="px-1.5 py-0.5 border rounded bg-slate-100 dark:bg-slate-800 font-mono text-xs">Win + Shift + T</kbd> on your keyboard.</li>
+                  <li>Click and drag a box over any text on the page to OCR it.</li>
+                  <li>Open the AI Assistant drawer on the right and paste the copied text to ask questions!</li>
+                </ol>
+              </div>
+
+              <div className={`p-3 rounded-xl border ${
+                theme === "sepia"
+                  ? "bg-[#ebd9b3]/50 border-[#e2cf9f]"
+                  : theme === "dark"
+                  ? "bg-slate-950/40 border-slate-800/60"
+                  : "bg-slate-50 border-slate-150"
+              }`}>
+                <h4 className="font-bold text-brand-600 dark:text-brand-400 mb-1">🌐 Browser Extensions (In-Page OCR)</h4>
+                <p className="leading-relaxed">
+                  You can install free extensions from the Chrome Web Store:
+                </p>
+                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                  <li><strong>Copyfish Free OCR:</strong> Captures any region on the screen and extracts text instantly.</li>
+                  <li><strong>Blackbox:</strong> Selects text from any webpage, image, or video directly.</li>
+                </ul>
+              </div>
+
+              <div className={`p-3 rounded-xl border ${
+                theme === "sepia"
+                  ? "bg-[#ebd9b3]/50 border-[#e2cf9f]"
+                  : theme === "dark"
+                  ? "bg-slate-950/40 border-slate-800/60"
+                  : "bg-slate-50 border-slate-150"
+              }`}>
+                <h4 className="font-bold text-brand-600 dark:text-brand-400 mb-1">🤖 RAG Book Chat</h4>
+                <p className="leading-relaxed">
+                  You can always chat directly with this book in the <strong>AI Assistant tab</strong> (with Vector Context enabled) to ask broad questions about the whole book without needing to select text!
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-end">
+              <Button size="sm" onClick={() => setShowOcrTips(false)}>
+                Got it
               </Button>
             </div>
           </div>
@@ -1369,71 +1640,47 @@ export default function Reader({ id }: { id: string }) {
         {showDrawer && (
           <>
             {/* Desktop Side Panel */}
-            <aside className="hidden sm:flex w-80 shrink-0 animate-fade-in flex-col border-r border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
+            <aside className={`hidden sm:flex w-80 shrink-0 animate-fade-in flex-col border-r backdrop-blur ${themeSidebarStyle}`}>
               {/* Drawer Tabs */}
-              <div className="flex border-b border-slate-200 p-2 gap-1 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
-              <button
-                onClick={() => setActiveTab("toc")}
-                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                  activeTab === "toc"
-                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                }`}
-              >
-                Outline
-              </button>
-              <button
-                onClick={() => setActiveTab("ai")}
-                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 ${
-                  activeTab === "ai"
-                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                }`}
-              >
-                <SparklesIcon size={12} />
-                AI
-              </button>
-              <button
-                onClick={() => setActiveTab("study")}
-                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                  activeTab === "study"
-                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                }`}
-              >
-                Study
-              </button>
-              <button
-                onClick={() => setActiveTab("bookmarks")}
-                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                  activeTab === "bookmarks"
-                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                }`}
-              >
-                Marks
-              </button>
-              <button
-                onClick={() => setActiveTab("highlights")}
-                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                  activeTab === "highlights"
-                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                }`}
-              >
-                Highlights
-              </button>
-              <button
-                onClick={() => setActiveTab("notes")}
-                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                  activeTab === "notes"
-                    ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                }`}
-              >
-                Notes
-              </button>
-            </div>
+              <div className={`flex border-b p-2 gap-1 ${themeTabsHeaderStyle}`}>
+                <button
+                  onClick={() => setActiveTab("toc")}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("toc")}`}
+                >
+                  Outline
+                </button>
+                <button
+                  onClick={() => setActiveTab("ai")}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 ${getTabButtonStyle("ai")}`}
+                >
+                  <SparklesIcon size={12} />
+                  AI
+                </button>
+                <button
+                  onClick={() => setActiveTab("study")}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("study")}`}
+                >
+                  Study
+                </button>
+                <button
+                  onClick={() => setActiveTab("bookmarks")}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("bookmarks")}`}
+                >
+                  Marks
+                </button>
+                <button
+                  onClick={() => setActiveTab("highlights")}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("highlights")}`}
+                >
+                  Highlights
+                </button>
+                <button
+                  onClick={() => setActiveTab("notes")}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("notes")}`}
+                >
+                  Notes
+                </button>
+              </div>
 
             {/* Drawer Body */}
             <div className="flex-1 overflow-y-auto p-3 flex flex-col">
@@ -1518,39 +1765,51 @@ export default function Reader({ id }: { id: string }) {
                           : `Ask questions about page ${page} or concepts in this book.`}
                       </p>
                     ) : (
-                      chatMessages.map((m, idx) => (
-                        <div
-                          key={idx}
-                          className={`rounded-xl p-2.5 text-xs ${
-                            m.role === "user"
-                              ? "bg-brand-600 text-white ml-6"
-                              : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 mr-2 border border-slate-200/60 dark:border-slate-700/60"
-                          }`}
-                        >
-                          <p className="whitespace-pre-wrap">{m.content}</p>
+                      chatMessages.map((m, idx) => {
+                        const assistantMsgStyle = theme === "sepia"
+                          ? "bg-[#ebd9b3] text-[#5c4b37] border-[#e2cf9f]"
+                          : theme === "dark"
+                          ? "bg-slate-800 text-slate-100 border-slate-700"
+                          : "bg-slate-100 text-slate-800 border-slate-200/60";
 
-                          {/* Source Citations */}
-                          {Array.isArray(m.sources) && m.sources.length > 0 && (
-                            <div className="mt-2.5 border-t border-slate-200/80 pt-2 dark:border-slate-700/80">
-                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                Sources
-                              </p>
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                {m.sources.map((src, sIdx) => (
-                                  <button
-                                    key={sIdx}
-                                    type="button"
-                                    onClick={() => goTo(src.page)}
-                                    className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-950 dark:text-brand-300"
-                                  >
-                                    {src.chapter ? `${src.chapter} — ` : ""}Page {src.page}
-                                  </button>
-                                ))}
+                        return (
+                          <div
+                            key={idx}
+                            className={`rounded-xl p-2.5 text-xs border ${
+                              m.role === "user"
+                                ? "bg-brand-600 text-white ml-6 border-transparent"
+                                : `${assistantMsgStyle} mr-2`
+                            }`}
+                          >
+                            {m.role === "user" ? (
+                              <p className="whitespace-pre-wrap">{m.content}</p>
+                            ) : (
+                              <MarkdownContent content={m.content} theme={theme} />
+                            )}
+
+                            {/* Source Citations */}
+                            {m.role === "assistant" && Array.isArray(m.sources) && m.sources.length > 0 && (
+                              <div className="mt-2.5 border-t border-slate-200/80 pt-2 dark:border-slate-700/80">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                  Sources
+                                </p>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {m.sources.map((src, sIdx) => (
+                                    <button
+                                      key={sIdx}
+                                      type="button"
+                                      onClick={() => goTo(src.page)}
+                                      className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-950 dark:text-brand-300"
+                                    >
+                                      {src.chapter ? `${src.chapter} — ` : ""}Page {src.page}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      ))
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                     {chatLoading && (
                       <div className="flex items-center gap-2 text-xs text-slate-400 p-2">
@@ -1763,83 +2022,59 @@ export default function Reader({ id }: { id: string }) {
 
           {/* Mobile Slide-Up Bottom Sheet */}
           <div className="fixed inset-0 z-50 flex items-end sm:hidden bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="w-full flex flex-col h-[82vh] rounded-t-3xl border-t border-slate-200/80 bg-white shadow-2xl backdrop-blur-2xl dark:border-slate-800 dark:bg-slate-900 animate-fade-in-up">
+            <div className={`w-full flex flex-col h-[82vh] rounded-t-3xl border-t shadow-2xl backdrop-blur-2xl animate-fade-in-up ${themeSidebarStyle}`}>
               {/* Sheet Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 p-3.5 dark:border-slate-800">
+              <div className="flex items-center justify-between border-b p-3.5 border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <BookOpenIcon size={18} className="text-brand-600 dark:text-brand-400" />
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <h4 className="text-xs font-bold">
                     Book Study & AI Assistant
                   </h4>
                 </div>
                 <button
                   onClick={() => setShowDrawer(false)}
-                  className="rounded-full bg-slate-100 p-1 text-slate-400 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                  className="rounded-full bg-slate-100 p-1 text-slate-400 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800"
                 >
                   <XIcon size={16} />
                 </button>
               </div>
 
               {/* Drawer Tabs */}
-              <div className="flex border-b border-slate-200 p-2 gap-1 bg-slate-50 dark:border-slate-800 dark:bg-slate-900">
+              <div className={`flex border-b p-2 gap-1 ${themeTabsHeaderStyle}`}>
                 <button
                   onClick={() => setActiveTab("toc")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                    activeTab === "toc"
-                      ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("toc")}`}
                 >
                   Outline
                 </button>
                 <button
                   onClick={() => setActiveTab("ai")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 ${
-                    activeTab === "ai"
-                      ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 ${getTabButtonStyle("ai")}`}
                 >
                   <SparklesIcon size={12} />
                   AI
                 </button>
                 <button
                   onClick={() => setActiveTab("study")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                    activeTab === "study"
-                      ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("study")}`}
                 >
                   Study
                 </button>
                 <button
                   onClick={() => setActiveTab("bookmarks")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                    activeTab === "bookmarks"
-                      ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("bookmarks")}`}
                 >
                   Marks
                 </button>
                 <button
                   onClick={() => setActiveTab("highlights")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                    activeTab === "highlights"
-                      ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("highlights")}`}
                 >
                   Highlights
                 </button>
                 <button
                   onClick={() => setActiveTab("notes")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
-                    activeTab === "notes"
-                      ? "bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("notes")}`}
                 >
                   Notes
                 </button>
@@ -1924,18 +2159,30 @@ export default function Reader({ id }: { id: string }) {
                             : `Ask questions about page ${page} or concepts in this book.`}
                         </p>
                       ) : (
-                        chatMessages.map((m, idx) => (
-                          <div
-                            key={idx}
-                            className={`rounded-xl p-2.5 text-xs ${
-                              m.role === "user"
-                                ? "bg-brand-600 text-white ml-6"
-                                : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 mr-2 border border-slate-200/60 dark:border-slate-700/60"
-                            }`}
-                          >
-                            <p className="whitespace-pre-wrap">{m.content}</p>
-                          </div>
-                        ))
+                        chatMessages.map((m, idx) => {
+                          const assistantMsgStyle = theme === "sepia"
+                            ? "bg-[#ebd9b3] text-[#5c4b37] border-[#e2cf9f]"
+                            : theme === "dark"
+                            ? "bg-slate-800 text-slate-100 border-slate-700"
+                            : "bg-slate-100 text-slate-800 border-slate-200/60";
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`rounded-xl p-2.5 text-xs border ${
+                                m.role === "user"
+                                  ? "bg-brand-600 text-white ml-6 border-transparent"
+                                  : `${assistantMsgStyle} mr-2`
+                              }`}
+                            >
+                              {m.role === "user" ? (
+                                <p className="whitespace-pre-wrap">{m.content}</p>
+                              ) : (
+                                <MarkdownContent content={m.content} theme={theme} />
+                              )}
+                            </div>
+                          );
+                        })
                       )}
                       {chatLoading && (
                         <div className="flex items-center gap-2 text-xs text-slate-400 p-2">
@@ -2129,6 +2376,12 @@ export default function Reader({ id }: { id: string }) {
                           pageEls={pageEls}
                           dpr={dpr}
                           active={Math.abs(p - renderCenter) <= RENDER_WINDOW}
+                          onGetTextSuccess={(pageNum, hasText) => {
+                            setNonSelectablePages((prev) => {
+                              if (prev[pageNum] === !hasText) return prev;
+                              return { ...prev, [pageNum]: !hasText };
+                            });
+                          }}
                         />
                       );
                     })}
@@ -2141,6 +2394,13 @@ export default function Reader({ id }: { id: string }) {
                   devicePixelRatio={dpr}
                   renderTextLayer={true}
                   renderAnnotationLayer={false}
+                  onGetTextSuccess={(text) => {
+                    const hasText = text.items.length > 0;
+                    setNonSelectablePages((prev) => {
+                      if (prev[page] === !hasText) return prev;
+                      return { ...prev, [page]: !hasText };
+                    });
+                  }}
                   onRenderError={(err) => {
                     if (isAbortError(err)) return;
                     console.error("Page render error:", err);
@@ -2177,22 +2437,36 @@ export default function Reader({ id }: { id: string }) {
           </Button>
         </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const n = parseInt(pageInput, 10);
-            if (!Number.isNaN(n)) goTo(n);
-          }}
-          className="flex items-center gap-1.5 text-xs sm:text-sm"
-        >
-          <input
-            value={pageInput}
-            onChange={(e) => setPageInput(e.target.value)}
-            aria-label="Page number input"
-            className="w-12 sm:w-14 rounded-lg border border-slate-300 bg-white/80 px-2 py-1.5 text-center outline-none transition-colors focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800/80"
-          />
-          <span className="text-slate-500">/ {numPages || "…"}</span>
-        </form>
+        <div className="flex items-center gap-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = parseInt(pageInput, 10);
+              if (!Number.isNaN(n)) goTo(n);
+            }}
+            className="flex items-center gap-1.5 text-xs sm:text-sm"
+          >
+            <input
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value)}
+              aria-label="Page number input"
+              className="w-12 sm:w-14 rounded-lg border border-slate-300 bg-white/80 px-2 py-1.5 text-center outline-none transition-colors focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800/80"
+            />
+            <span className="text-slate-500">/ {numPages || "…"}</span>
+          </form>
+
+          {!currentHasText && (
+            <button
+              type="button"
+              onClick={() => setShowOcrTips(true)}
+              className="flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-500/25 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/30 transition-all shrink-0 animate-pulse"
+              title="Page text not selectable. Click for OCR Tips"
+            >
+              <InfoIcon size={12} />
+              <span>OCR Tips</span>
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           <Button
@@ -2218,6 +2492,7 @@ const ScrollPage = memo(function ScrollPage({
   pageEls,
   dpr,
   active,
+  onGetTextSuccess,
 }: {
   pageNumber: number;
   width?: number;
@@ -2225,6 +2500,7 @@ const ScrollPage = memo(function ScrollPage({
   pageEls: React.MutableRefObject<Map<number, HTMLDivElement>>;
   dpr: number;
   active: boolean;
+  onGetTextSuccess?: (page: number, hasText: boolean) => void;
 }) {
   return (
     <div
@@ -2246,6 +2522,9 @@ const ScrollPage = memo(function ScrollPage({
           devicePixelRatio={dpr}
           renderTextLayer={true}
           renderAnnotationLayer={false}
+          onGetTextSuccess={(text) => {
+            onGetTextSuccess?.(pageNumber, text.items.length > 0);
+          }}
           loading={
             <div className="flex flex-col items-center justify-center w-full min-h-[500px] p-8 space-y-4 bg-white dark:bg-slate-900 animate-pulse">
               <div className="flex items-center gap-2 text-xs font-semibold text-brand-600 dark:text-brand-400">

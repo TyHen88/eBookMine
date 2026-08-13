@@ -412,11 +412,10 @@ export default function BookDetail({ id }: { id: string }) {
                   </div>
                 </div>
               </div>
-
               {/* Stats Widgets Grid */}
               <div className="mt-5 grid grid-cols-2 gap-2 border-t border-slate-200/80 pt-4 dark:border-slate-800/80 sm:grid-cols-4 sm:gap-3">
                 <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-300/90">
                     <BookOpenIcon size={13} className="text-brand-500" />
                     <span>Page Size</span>
                   </div>
@@ -426,7 +425,7 @@ export default function BookDetail({ id }: { id: string }) {
                 </div>
 
                 <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-300/90">
                     <ClockIcon size={13} className="text-indigo-500" />
                     <span>Est. Time</span>
                   </div>
@@ -436,7 +435,7 @@ export default function BookDetail({ id }: { id: string }) {
                 </div>
 
                 <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-300/90">
                     <FileTextIcon size={13} className="text-purple-500" />
                     <span>File Size</span>
                   </div>
@@ -446,7 +445,7 @@ export default function BookDetail({ id }: { id: string }) {
                 </div>
 
                 <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800/60 dark:bg-slate-800/40">
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-300/90">
                     <TagIcon size={13} className="text-amber-500" />
                     <span>Added</span>
                   </div>

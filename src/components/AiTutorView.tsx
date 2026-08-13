@@ -505,9 +505,8 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
           </button>
         </div>
       </div>
-
       {/* Clean Scrollable Messages Feed */}
-      <div className="flex-1 overflow-y-auto space-y-4 py-4 pb-36">
+      <div className={`flex-1 overflow-y-auto space-y-4 py-4 ${propBookId ? "pb-4" : "pb-36"}`}>
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
             <div className="rounded-full bg-brand-100 p-4 text-brand-600 dark:bg-brand-950 dark:text-brand-400 shadow-md">
@@ -550,8 +549,11 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
         <div ref={chatEndRef} />
       </div>
 
-      {/* FLOATING INPUT DOCK */}
-      <div className="fixed bottom-[88px] sm:bottom-[96px] left-1/2 z-30 w-full max-w-4xl -translate-x-1/2 px-4">
+      {/* INPUT DOCK */}
+      <div className={propBookId
+        ? "sticky bottom-0 z-10 w-full pt-2 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800"
+        : "fixed bottom-[88px] sm:bottom-[96px] left-1/2 z-30 w-full max-w-4xl -translate-x-1/2 px-4"
+      }>
         <form
           onSubmit={handleSubmit}
           className="flex items-center gap-2 rounded-3xl border border-slate-200/90 bg-white/95 p-2 shadow-2xl backdrop-blur-2xl transition-all dark:border-slate-800/90 dark:bg-slate-900/95"
@@ -576,7 +578,6 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
             Ask AI
           </Button>
         </form>
-      </div>
-    </div>
+      </div>    </div>
   );
 }
