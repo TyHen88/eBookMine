@@ -41,11 +41,14 @@ import {
   SearchIcon,
   SlidersIcon,
   InfoIcon,
+  MarqueeIcon,
 } from "./ui/icons";
 
 import LearningDashboard from "./LearningDashboard";
+import GoogleTranslateModal from "./GoogleTranslateModal";
 import { useToast } from "./ui/Toast";
 import React from "react";
+
 
 function isAbortError(err: any): boolean {
   if (!err) return false;
@@ -323,6 +326,132 @@ export default function Reader({ id }: { id: string }) {
   const [searchResults, setSearchResults] = useState<{ page: number; snippet: string }[]>([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+
+  // Figma-Style Area Selection Tool State
+  const [isAreaSelectMode, setIsAreaSelectMode] = useState(false);
+  const [areaBox, setAreaBox] = useState<{
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    isDragging: boolean;
+  } | null>(null);
+
+  const handleAreaPointerDown = (e: React.PointerEvent) => {
+    if (!isAreaSelectMode) return;
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
+    setAreaBox({
+      startX: e.clientX,
+      startY: e.clientY,
+      endX: e.clientX,
+      endY: e.clientY,
+      isDragging: true,
+    });
+  };
+
+  const handleAreaPointerMove = (e: React.PointerEvent) => {
+    if (!isAreaSelectMode || !areaBox?.isDragging) return;
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
+    setAreaBox((prev) =>
+      prev ? { ...prev, endX: e.clientX, endY: e.clientY } : null
+    );
+  };
+
+  const extractTextFromBoxRect = (minX: number, minY: number, maxX: number, maxY: number): string => {
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.toString().trim()) {
+      return sel.toString().trim();
+    }
+
+    const textNodes = document.querySelectorAll(
+      ".react-pdf__Page__textLayer *, .react-pdf__Page__textContent *, .textLayer *"
+    );
+    const matched: { text: string; top: number; left: number }[] = [];
+    const seenTexts = new Set<string>();
+
+    textNodes.forEach((node) => {
+      if (node.children.length > 0) return;
+      const txt = node.textContent?.trim();
+      if (!txt) return;
+
+      const rect = node.getBoundingClientRect();
+      if (
+        rect.right >= minX - 15 &&
+        rect.left <= maxX + 15 &&
+        rect.bottom >= minY - 15 &&
+        rect.top <= maxY + 15
+      ) {
+        const key = `${Math.round(rect.top)}-${Math.round(rect.left)}-${txt}`;
+        if (!seenTexts.has(key)) {
+          seenTexts.add(key);
+          matched.push({ text: txt, top: rect.top, left: rect.left });
+        }
+      }
+    });
+
+    if (matched.length > 0) {
+      matched.sort((a, b) => (Math.abs(a.top - b.top) < 8 ? a.left - b.left : a.top - b.top));
+      const resultStr = matched.map((m) => m.text).join(" ");
+      if (resultStr.trim()) return resultStr.trim();
+    }
+
+    return "";
+  };
+
+  const handleAreaPointerUp = async (e: React.PointerEvent) => {
+    if (!isAreaSelectMode || !areaBox?.isDragging) return;
+
+    const minX = Math.min(areaBox.startX, e.clientX);
+    const maxX = Math.max(areaBox.startX, e.clientX);
+    const minY = Math.min(areaBox.startY, e.clientY);
+    const maxY = Math.max(areaBox.startY, e.clientY);
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    if (width > 15 && height > 15) {
+      setAreaBox({
+        startX: minX,
+        startY: minY,
+        endX: maxX,
+        endY: maxY,
+        isDragging: false,
+      });
+
+      let textToUse = extractTextFromBoxRect(minX, minY, maxX, maxY);
+
+      if (!textToUse && pdfDoc) {
+        try {
+          const pdfPage = await pdfDoc.getPage(page);
+          const content = await pdfPage.getTextContent();
+          const pageStr = content.items.map((i: any) => i.str).join(" ").trim();
+          if (pageStr) {
+            textToUse = pageStr;
+          }
+        } catch {}
+      }
+
+      if (!textToUse) {
+        textToUse = `Content on Page ${page}`;
+      }
+
+      try {
+        window.getSelection()?.removeAllRanges();
+      } catch {}
+
+      setSelectedText(textToUse);
+      setSelectionPos({
+        top: minY,
+        left: minX + width / 2,
+      });
+    } else {
+      setAreaBox(null);
+    }
+  };
 
   // Text selection toolbar & AI Modal & Auth Modal
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -840,46 +969,67 @@ export default function Reader({ id }: { id: string }) {
     });
   }, []);
 
-  // Text Selection detection for Floating Toolbar (triggered on mouseup/touchend)
+  // Enhanced Text Selection detection for Mouse Pointer & Touch events
   useEffect(() => {
+    let pointerPos = { top: 0, left: 0 };
+
+    const handlePointerUp = (e: MouseEvent | TouchEvent) => {
+      if ("clientX" in e) {
+        pointerPos = { top: e.clientY, left: e.clientX };
+      } else if (e.changedTouches && e.changedTouches[0]) {
+        pointerPos = { top: e.changedTouches[0].clientY, left: e.changedTouches[0].clientX };
+      }
+      setTimeout(handleSelectionCheck, 30);
+    };
+
     const handleSelectionCheck = () => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        setSelectionPos(null);
-        setSelectedText("");
         return;
       }
 
       const text = sel.toString().trim();
       if (text.length > 0) {
+        setSelectedText(text);
         try {
           const range = sel.getRangeAt(0);
           const rect = range.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            setSelectedText(text);
+          if (rect && rect.width > 0 && rect.height > 0) {
             setSelectionPos({
               top: rect.top,
               left: rect.left + rect.width / 2,
             });
+          } else if (pointerPos.top > 0) {
+            setSelectionPos({
+              top: pointerPos.top,
+              left: pointerPos.left,
+            });
           }
         } catch {
-          // Range might be temporarily unavailable
+          if (pointerPos.top > 0) {
+            setSelectionPos({
+              top: pointerPos.top,
+              left: pointerPos.left,
+            });
+          }
         }
       }
     };
 
-    const handleMouseUp = () => {
-      setTimeout(handleSelectionCheck, 10);
+    const handleSelectionChange = () => {
+      setTimeout(handleSelectionCheck, 100);
     };
 
-    document.addEventListener("mouseup", handleMouseUp);
-    document.addEventListener("touchend", handleMouseUp);
+    document.addEventListener("mouseup", handlePointerUp);
+    document.addEventListener("touchend", handlePointerUp);
     document.addEventListener("keyup", handleSelectionCheck);
+    document.addEventListener("selectionchange", handleSelectionChange);
 
     return () => {
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.removeEventListener("touchend", handleMouseUp);
+      document.removeEventListener("mouseup", handlePointerUp);
+      document.removeEventListener("touchend", handlePointerUp);
       document.removeEventListener("keyup", handleSelectionCheck);
+      document.removeEventListener("selectionchange", handleSelectionChange);
     };
   }, []);
 
@@ -993,7 +1143,7 @@ export default function Reader({ id }: { id: string }) {
     if (actionType === "translate") {
       setAiModal({
         actionType: "translate",
-        title: "Google Translate",
+        title: "eBookMine Translate",
         text,
         content: "",
         loading: true,
@@ -1009,7 +1159,7 @@ export default function Reader({ id }: { id: string }) {
         const d = await res.json();
         setAiModal({
           actionType: "translate",
-          title: "Google Translate",
+          title: "eBookMine Translate",
           text,
           content: d.translatedText || d.error || "Translation failed.",
           provider: "google-translate",
@@ -1019,9 +1169,9 @@ export default function Reader({ id }: { id: string }) {
       } catch {
         setAiModal({
           actionType: "translate",
-          title: "Google Translate",
+          title: "eBookMine Translate",
           text,
-          content: "Failed to communicate with Google Translate service.",
+          content: "Failed to communicate with translation service.",
           loading: false,
         });
       }
@@ -1031,8 +1181,9 @@ export default function Reader({ id }: { id: string }) {
     const titleMap = {
       explain: "AI Explanation",
       simplify: "Simplified Summary",
-      translate: "Google Translate",
+      translate: "eBookMine Translate",
     };
+
 
     setAiModal({
       actionType,
@@ -1261,150 +1412,64 @@ export default function Reader({ id }: { id: string }) {
 
       {/* AI Action Response Modal */}
       {aiModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in">
-          <div className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl ${
-            theme === "sepia"
-              ? "bg-[#f4e4c1] border-[#e2cf9f] text-[#5c4b37]"
-              : theme === "dark"
-              ? "bg-slate-900 border-slate-800 text-slate-100"
-              : "bg-white border-slate-200 text-slate-900"
-          }`}>
-            <div className="mb-4 flex items-center justify-between border-b pb-2.5 border-slate-200/60 dark:border-slate-800/60">
-              <h3 className="flex items-center gap-2 text-base font-bold">
-                <SparklesIcon size={18} className="text-brand-500" />
-                {aiModal.title}
-              </h3>
-              {aiModal.provider && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  aiModal.provider === "google-translate"
-                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                    : "bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300"
-                }`}>
-                  {aiModal.provider === "google-translate" ? "Google Translate" : "AI Provider"}
-                </span>
-              )}
-              <button onClick={() => setAiModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <XIcon size={18} />
-              </button>
-            </div>
-
-            {aiModal.actionType === "translate" ? (
-              <div className="space-y-3.5 mb-4">
-                {/* Original Excerpt Card */}
-                <div className={`rounded-xl border p-3 text-xs ${
-                  theme === "sepia"
-                    ? "bg-[#ebd9b3]/40 border-[#e2cf9f]"
-                    : theme === "dark"
-                    ? "bg-slate-950/60 border-slate-800"
-                    : "bg-slate-50 border-slate-200/80"
-                }`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
-                      Original Text
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(aiModal.text);
-                        showToast("Original text copied!", "info");
-                      }}
-                      className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                  <p className="italic text-slate-700 dark:text-slate-300 max-h-24 overflow-y-auto leading-relaxed">
-                    "{aiModal.text}"
-                  </p>
-                </div>
-
-                {/* Target Language Selection Header */}
-                <div className="flex items-center justify-between gap-2 px-0.5">
-                  <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
-                    Translation
+        aiModal.actionType === "translate" ? (
+          <GoogleTranslateModal
+            initialText={aiModal.text}
+            initialTargetLang={aiModal.targetLang || "km"}
+            theme={theme}
+            onClose={() => setAiModal(null)}
+            onAskAi={(promptText) => handleAiAction("ask", promptText)}
+          />
+        ) : (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in">
+            <div className={`w-full max-w-lg rounded-2xl border p-6 shadow-2xl ${
+              theme === "sepia"
+                ? "bg-[#f4e4c1] border-[#e2cf9f] text-[#5c4b37]"
+                : theme === "dark"
+                ? "bg-slate-900 border-slate-800 text-slate-100"
+                : "bg-white border-slate-200 text-slate-900"
+            }`}>
+              <div className="mb-4 flex items-center justify-between border-b pb-2.5 border-slate-200/60 dark:border-slate-800/60">
+                <h3 className="flex items-center gap-2 text-base font-bold">
+                  <SparklesIcon size={18} className="text-brand-500" />
+                  {aiModal.title}
+                </h3>
+                {aiModal.provider && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300">
+                    AI Provider
                   </span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-slate-400 font-medium">To:</span>
-                    <select
-                      value={aiModal.targetLang || "km"}
-                      onChange={(e) => handleReTranslate(e.target.value)}
-                      disabled={aiModal.loading}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm outline-none transition disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                    >
-                      <option value="km">Khmer (ភាសាខ្មែរ)</option>
-                      <option value="en">English (US/UK)</option>
-                      <option value="es">Spanish (Español)</option>
-                      <option value="fr">French (Français)</option>
-                      <option value="de">German (Deutsch)</option>
-                      <option value="ja">Japanese (日本語)</option>
-                      <option value="zh-CN">Chinese (中文)</option>
-                      <option value="vi">Vietnamese (Tiếng Việt)</option>
-                      <option value="ko">Korean (한국어)</option>
-                      <option value="ru">Russian (Русский)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Translated Result Box */}
-                <div className={`rounded-xl border p-3.5 text-sm sm:text-base border-brand-500/20 ${
-                  theme === "sepia"
-                    ? "bg-[#ebd9b3]/50 border-[#e2cf9f]"
-                    : theme === "dark"
-                    ? "bg-slate-950/80 border-slate-800"
-                    : "bg-brand-50/40 border-brand-200/60"
-                }`}>
-                  {aiModal.loading ? (
-                    <div className="flex h-24 items-center justify-center">
-                      <BookLoader label="Translating with Google Translate..." />
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex justify-end mb-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(aiModal.content);
-                            showToast("Translation copied!", "info");
-                          }}
-                          className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
-                        >
-                          Copy Translation
-                        </button>
-                      </div>
-                      <p className="font-medium leading-relaxed text-slate-900 dark:text-slate-100 max-h-48 overflow-y-auto">
-                        {aiModal.content}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <>
-                {aiModal.loading ? (
-                  <div className="flex h-36 items-center justify-center">
-                    <BookLoader label="AI Assistant Generating Response..." />
-                  </div>
-                ) : (
-                  <div className={`mb-4 max-h-60 overflow-y-auto rounded-xl p-3 text-xs border ${
-                    theme === "sepia"
-                      ? "bg-[#ebd9b3]/40 border-[#e2cf9f]/60"
-                      : theme === "dark"
-                      ? "bg-slate-950/40 border-slate-800/60"
-                      : "bg-slate-50 border-slate-200/60"
-                  }`}>
-                    <MarkdownContent content={aiModal.content} theme={theme} />
-                  </div>
                 )}
-              </>
-            )}
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => setAiModal(null)}>
-                Close
-              </Button>
+                <button onClick={() => setAiModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                  <XIcon size={18} />
+                </button>
+              </div>
+
+              {aiModal.loading ? (
+                <div className="flex h-36 items-center justify-center">
+                  <BookLoader label="AI Assistant Generating Response..." />
+                </div>
+              ) : (
+                <div className={`mb-4 max-h-60 overflow-y-auto rounded-xl p-3 text-xs border ${
+                  theme === "sepia"
+                    ? "bg-[#ebd9b3]/40 border-[#e2cf9f]/60"
+                    : theme === "dark"
+                    ? "bg-slate-950/40 border-slate-800/60"
+                    : "bg-slate-50 border-slate-200/60"
+                }`}>
+                  <MarkdownContent content={aiModal.content} theme={theme} />
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button size="sm" onClick={() => setAiModal(null)}>
+                  Close
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        )
       )}
+
 
       {/* OCR Tips Modal */}
       {showOcrTips && (
@@ -1556,10 +1621,10 @@ export default function Reader({ id }: { id: string }) {
 
           <IconButton
             size="icon-sm"
-            onClick={() => setScale((s) => Math.max(0.75, s - 0.15))}
+            onClick={() => setScale((s) => Math.max(0.4, s - 0.15))}
             aria-label="Zoom out"
             title="Zoom out"
-            disabled={scale <= 0.75}
+            disabled={scale <= 0.4}
           >
             <MinusIcon size={18} />
           </IconButton>
@@ -1570,16 +1635,16 @@ export default function Reader({ id }: { id: string }) {
 
           <IconButton
             size="icon-sm"
-            onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}
+            onClick={() => setScale((s) => Math.min(3.0, s + 0.15))}
             aria-label="Zoom in"
             title="Zoom in"
-            disabled={scale >= 2.5}
+            disabled={scale >= 3.0}
           >
             <PlusIcon size={18} />
           </IconButton>
         </div>
 
-        {/* Right Controls (Desktop: full bar; Mobile: clean options) */}
+        {/* Right Controls */}
         <div className="flex items-center gap-1">
           <IconButton
             size="icon-sm"
@@ -1649,6 +1714,21 @@ export default function Reader({ id }: { id: string }) {
       {/* Floating Action Dock (FAB) for Mobile Reading */}
       <div className="fixed bottom-16 right-4 z-40 flex sm:hidden items-center gap-2 rounded-full border border-slate-200/90 bg-white/90 p-1.5 shadow-2xl backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/90 animate-fade-in">
         <button
+          onClick={() => {
+            setIsAreaSelectMode((v) => !v);
+            if (areaBox) setAreaBox(null);
+          }}
+          className={`flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-200 active:scale-85 hover:scale-110 ${
+            isAreaSelectMode
+              ? "bg-brand-600 text-white shadow-md shadow-brand-500/30 ring-2 ring-brand-400"
+              : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          }`}
+          title="Area Selection Tool"
+        >
+          <MarqueeIcon size={18} />
+        </button>
+
+        <button
           onClick={() => setShowDrawer((v) => !v)}
           className={`flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-200 active:scale-85 hover:scale-110 ${
             showDrawer
@@ -1682,15 +1762,6 @@ export default function Reader({ id }: { id: string }) {
           title="Search PDF"
         >
           <SearchIcon size={18} />
-        </button>
-
-        {/* Fullscreen Trigger on Mobile */}
-        <button
-          onClick={toggleFullscreen}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-transform duration-200 active:scale-85 hover:scale-110"
-          title="Toggle Fullscreen"
-        >
-          <MaximizeIcon size={18} />
         </button>
 
         <button
@@ -1784,20 +1855,24 @@ export default function Reader({ id }: { id: string }) {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setScale((s) => Math.max(0.75, s - 0.15))}
-                  disabled={scale <= 0.75}
+                  onClick={() => setScale((s) => Math.max(0.4, s - 0.15))}
+                  disabled={scale <= 0.4}
                   className="transition-transform active:scale-90"
                 >
                   <MinusIcon size={16} /> Zoom Out
                 </Button>
-                <span className="text-sm font-black text-slate-800 dark:text-slate-100 tabular-nums">
+                <button
+                  onClick={() => setScale(1.0)}
+                  title="Reset Zoom to 100%"
+                  className="text-sm font-black text-slate-800 dark:text-slate-100 tabular-nums hover:text-brand-600 dark:hover:text-brand-400"
+                >
                   {Math.round(scale * 100)}%
-                </span>
+                </button>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}
-                  disabled={scale >= 2.5}
+                  onClick={() => setScale((s) => Math.min(3.0, s + 0.15))}
+                  disabled={scale >= 3.0}
                   className="transition-transform active:scale-90"
                 >
                   <PlusIcon size={16} /> Zoom In
@@ -1805,17 +1880,11 @@ export default function Reader({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* Download & Fullscreen Actions */}
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <button
-                onClick={toggleFullscreen}
-                className="flex items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 py-3 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-all active:scale-95"
-              >
-                <MaximizeIcon size={15} /> Fullscreen
-              </button>
+            {/* Download Action */}
+            <div className="pt-2">
               <a
                 href={downloadUrl}
-                className="flex items-center justify-center gap-1.5 rounded-2xl bg-brand-600 py-3 text-xs font-bold text-white shadow-lg shadow-brand-500/20 transition-all active:scale-95"
+                className="flex w-full items-center justify-center gap-1.5 rounded-2xl bg-brand-600 py-3 text-xs font-bold text-white shadow-lg shadow-brand-500/20 transition-all active:scale-95"
               >
                 <DownloadIcon size={15} /> Download PDF
               </a>
@@ -2115,7 +2184,7 @@ export default function Reader({ id }: { id: string }) {
 
               {activeTab === "study" && (
                 <div className="flex-1 overflow-y-auto">
-                  <LearningDashboard bookId={id} onNavigatePage={goTo} />
+                  <LearningDashboard bookId={id} page={page} onNavigatePage={goTo} />
                 </div>
               )}
 
@@ -2501,7 +2570,7 @@ export default function Reader({ id }: { id: string }) {
 
                 {activeTab === "study" && (
                   <div className="flex-1 overflow-y-auto">
-                    <LearningDashboard bookId={id} onNavigatePage={(p) => { goTo(p); setShowDrawer(false); }} />
+                    <LearningDashboard bookId={id} page={page} onNavigatePage={(p) => { goTo(p); setShowDrawer(false); }} />
                   </div>
                 )}
 
@@ -2585,8 +2654,56 @@ export default function Reader({ id }: { id: string }) {
         {/* PDF Viewport */}
         <div
           ref={viewportRef}
-          className="flex min-w-0 flex-1 flex-col items-center overflow-auto py-6"
+          onPointerDown={handleAreaPointerDown}
+          onPointerMove={handleAreaPointerMove}
+          onPointerUp={handleAreaPointerUp}
+          className={`flex min-w-0 flex-1 flex-col items-center overflow-auto py-6 relative ${
+            isAreaSelectMode ? "cursor-crosshair select-none" : ""
+          }`}
         >
+          {/* Active Area Select Mode Floating Badge Indicator */}
+          {isAreaSelectMode && (
+            <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-500 bg-brand-600 px-3 py-1 text-xs font-bold text-white shadow-xl animate-fade-in">
+              <MarqueeIcon size={14} />
+              <span>Area Select Active</span>
+              <button
+                onClick={() => {
+                  setIsAreaSelectMode(false);
+                  setAreaBox(null);
+                }}
+                className="ml-1 rounded-full p-0.5 hover:bg-white/20"
+                title="Exit Area Select Mode"
+              >
+                <XIcon size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Figma Live Selection Box Overlay */}
+          {areaBox && (
+            <div
+              style={{
+                position: "fixed",
+                left: `${Math.min(areaBox.startX, areaBox.endX)}px`,
+                top: `${Math.min(areaBox.startY, areaBox.endY)}px`,
+                width: `${Math.abs(areaBox.endX - areaBox.startX)}px`,
+                height: `${Math.abs(areaBox.endY - areaBox.startY)}px`,
+                pointerEvents: "none",
+              }}
+              className="z-40 border-2 border-brand-500 bg-brand-500/15 shadow-2xl ring-2 ring-brand-400/40 rounded-lg animate-fade-in"
+            >
+              {/* Figma Corner Handles */}
+              <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+              <div className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+              <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+              <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+              
+              {/* Dimensions Badge */}
+              <div className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
+                <span>Box ({Math.round(Math.abs(areaBox.endX - areaBox.startX))}×{Math.round(Math.abs(areaBox.endY - areaBox.startY))})</span>
+              </div>
+            </div>
+          )}
           {status === "loading" ? (
             <div className="mt-24">
               <BookLoader label="Initializing PDF Reader..." />

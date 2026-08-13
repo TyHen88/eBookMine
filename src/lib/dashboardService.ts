@@ -11,6 +11,8 @@ export interface DashboardData {
     currentStreak: number;
     longestStreak: number;
     weeklyActivity: boolean[];
+    dailyPagesRead: number[];
+    dailyDaysLabels: string[];
     avgQuizScore: number;
     flashcardsReviewed: number;
   };
@@ -170,15 +172,36 @@ export async function getUserDashboardData(userId: string): Promise<DashboardDat
     checkDate.setDate(checkDate.getDate() - 1);
   }
 
-  // Weekly Activity (Mon - Sun of current week)
+  // Weekly Activity & Daily Pages Read (Past 7 days ending today)
   const weeklyActivity: boolean[] = [false, false, false, false, false, false, false];
+  const dailyPagesRead: number[] = [0, 0, 0, 0, 0, 0, 0];
+  const dailyDaysLabels: string[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
   const now = new Date();
   const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0, Sun=6
+
   for (let i = 0; i < 7; i++) {
     const d = new Date(now);
     d.setDate(now.getDate() - dayOfWeek + i);
     const dStr = d.toISOString().split("T")[0];
+    const isPastOrToday = d <= now;
+
     weeklyActivity[i] = logDates.has(dStr);
+    dailyDaysLabels[i] = d.toLocaleDateString("en-US", { weekday: "short" });
+
+    // Calculate real pages read on that specific date
+    if (isPastOrToday) {
+      const log = readingLogs.find((l) => new Date(l.date).toISOString().split("T")[0] === dStr);
+      if (log && log.pagesRead > 0) {
+        dailyPagesRead[i] = log.pagesRead;
+      } else {
+        // Fallback: Sum pages for books updated on that exact date
+        const matchingProgressPages = progresses
+          .filter((p) => new Date(p.lastReadAt).toISOString().split("T")[0] === dStr)
+          .reduce((sum, p) => sum + p.currentPage, 0);
+        dailyPagesRead[i] = matchingProgressPages;
+      }
+    }
   }
 
   // Recommendations: match user's top categories & authors
@@ -219,6 +242,8 @@ export async function getUserDashboardData(userId: string): Promise<DashboardDat
       currentStreak: Math.max(currentStreak, logDates.has(todayStr) ? 1 : 0),
       longestStreak: Math.max(longestStreak, currentStreak),
       weeklyActivity,
+      dailyPagesRead,
+      dailyDaysLabels,
       avgQuizScore,
       flashcardsReviewed: flashcardCount,
     },

@@ -56,11 +56,12 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant, size, className, type = "button", ...props }, ref) => (
+  ({ variant, size, className, type = "button", disabled, ...props }, ref) => (
     <button
       ref={ref}
       type={type}
       className={buttonClass({ variant, size, className })}
+      disabled={disabled ? true : undefined}
       {...props}
     />
   )
@@ -71,11 +72,12 @@ Button.displayName = "Button";
 export const IconButton = forwardRef<
   HTMLButtonElement,
   ButtonProps & { size?: Extract<ButtonSize, "icon" | "icon-sm"> }
->(({ variant = "ghost", size = "icon", className, type = "button", ...props }, ref) => (
+>(({ variant = "ghost", size = "icon", className, type = "button", disabled, ...props }, ref) => (
   <button
     ref={ref}
     type={type}
     className={buttonClass({ variant, size, className })}
+    disabled={disabled ? true : undefined}
     {...props}
   />
 ));

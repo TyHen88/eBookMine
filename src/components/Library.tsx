@@ -17,12 +17,28 @@ import {
   StarIcon,
 } from "./ui/icons";
 
+import { useToast } from "./ui/Toast";
+import { useSession } from "next-auth/react";
+import BookThumbnailImg from "./BookThumbnailImg";
+
 const PAGE_SIZE = 12;
 
 type ShelfTab = "all" | "reading" | "unread" | "completed" | "favorites";
 type SortOption = "recent" | "last_read" | "title" | "author" | "progress";
 
+const TAB_LABELS: Record<ShelfTab, string> = {
+  all: "All",
+  reading: "Reading",
+  unread: "Unread",
+  completed: "Done",
+  favorites: "Favorites",
+};
+
 export default function Library() {
+  const { showToast } = useToast();
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === "ADMIN" || (session as any)?.isOwner === true;
+
   const [books, setBooks] = useState<BookMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -106,6 +122,11 @@ export default function Library() {
       prev.map((b) => (b.id === book.id ? { ...b, favorite: nextFav } : b))
     );
 
+    showToast(
+      nextFav ? `Added "${book.title}" to favorites` : `Removed "${book.title}" from favorites`,
+      nextFav ? "success" : "info"
+    );
+
     await fetch(`/api/books/${book.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -114,7 +135,7 @@ export default function Library() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-4 py-6">
+    <div className="mx-auto max-w-6xl space-y-8 px-4 pt-6 pb-28 md:pb-12">
       {/* Library Title Banner */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -126,63 +147,65 @@ export default function Library() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <ImportFromDrive onImported={() => window.location.reload()} />
-          <Button size="sm" onClick={() => setShowUpload(true)}>
-            <PlusIcon size={16} />
-            Upload PDF
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <ImportFromDrive onImported={() => window.location.reload()} />
+            <Button size="sm" onClick={() => setShowUpload(true)}>
+              <PlusIcon size={16} />
+              Upload PDF
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Continue Reading Hero Banner */}
+      {/* Continue Reading Hero Banner (Compact & Mobile-Optimized) */}
       {topContinue ? (
-        <div className="group relative overflow-hidden rounded-3xl border border-brand-200/80 bg-gradient-to-r from-brand-600 to-brand-500 p-6 text-white shadow-xl shadow-brand-500/20">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              {topContinue.book.cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={topContinue.book.cover}
-                  alt={topContinue.book.title}
-                  className="h-24 w-16 rounded-xl object-cover shadow-lg ring-2 ring-white/30"
-                />
-              ) : (
-                <div className="flex h-24 w-16 items-center justify-center rounded-xl bg-white/20 font-bold text-xs text-white">
-                  eBook
-                </div>
-              )}
+        <div className="group relative overflow-hidden rounded-2xl border border-brand-400/40 bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 p-3 sm:p-4 text-white shadow-lg shadow-brand-500/15">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <BookThumbnailImg
+                bookId={topContinue.book.id}
+                cover={topContinue.book.cover}
+                title={topContinue.book.title}
+                className="h-16 w-11 sm:h-18 sm:w-13 shrink-0 rounded-xl shadow-md ring-2 ring-white/30"
+              />
 
-              <div className="space-y-1">
-                <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold text-white backdrop-blur-md">
-                  <BookOpenIcon size={12} /> Continue Reading
-                </span>
-                <h2 className="line-clamp-1 text-lg font-bold text-white">
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-extrabold text-white backdrop-blur-md">
+                    <BookOpenIcon size={11} /> Continue Reading
+                  </span>
+                  <span className="text-[10px] font-bold text-brand-100">
+                    {topContinue.progress.progressPercentage}%
+                  </span>
+                </div>
+
+                <h2 className="line-clamp-1 text-sm sm:text-base font-bold text-white leading-snug">
                   {topContinue.book.title}
                 </h2>
-                <p className="text-xs text-brand-100">{topContinue.book.author || "Unknown Author"}</p>
-                <div className="pt-2 flex items-center gap-3 text-xs">
-                  <span className="font-semibold">
+
+                <div className="flex items-center gap-2 text-[11px] text-brand-100">
+                  <span className="truncate max-w-[140px] sm:max-w-none">{topContinue.book.author || "Unknown"}</span>
+                  <span>•</span>
+                  <span className="font-semibold text-white">
                     Page {topContinue.progress.currentPage} / {topContinue.progress.totalPages}
                   </span>
-                  <span>•</span>
-                  <span className="font-bold">{topContinue.progress.progressPercentage}% Completed</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0 justify-end">
               <Link
                 href={`/read/${topContinue.book.id}`}
-                className="flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-brand-700 shadow-md transition-all hover:bg-brand-50 hover:shadow-lg active:scale-95"
+                className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-bold text-brand-700 shadow-sm transition-all hover:bg-brand-50 hover:shadow-md active:scale-95"
               >
-                <BookOpenIcon size={16} /> Continue Reading
+                <BookOpenIcon size={14} /> Continue
               </Link>
               <Link
                 href={`/book/${topContinue.book.id}`}
-                className="flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-md transition-all hover:bg-white/20"
+                className="flex items-center gap-1 rounded-xl bg-white/15 px-3 py-2 text-xs font-bold text-white backdrop-blur-md transition-all hover:bg-white/25"
               >
-                <SparklesIcon size={15} /> Ask AI
+                <SparklesIcon size={14} /> Ask AI
               </Link>
             </div>
           </div>
@@ -211,67 +234,84 @@ export default function Library() {
         </div>
       )}
 
-      {/* Filter Tabs & Search Bar */}
-      <div className="space-y-4">
-        {/* Shelf Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800">
-          <div className="flex items-center gap-1 overflow-x-auto">
+      {/* Filter Tabs & Search Toolbar */}
+      <div className="space-y-3.5">
+        {/* Shelf Tabs & View Mode Segmented Pill */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3 dark:border-slate-800/80">
+          <div className="flex items-center gap-1.5 overflow-x-auto [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 flex-1">
             {(["all", "reading", "unread", "completed", "favorites"] as ShelfTab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setActiveTab(t)}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition-all capitalize ${
+                className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
                   activeTab === t
                     ? "bg-brand-600 text-white shadow-md shadow-brand-500/20"
-                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/70"
                 }`}
               >
-                {t === "all" ? "All Books" : t === "reading" ? "Currently Reading" : t}
+                {TAB_LABELS[t]}
               </button>
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Segmented View Switcher (Grid / List) */}
+          <div className="flex items-center rounded-xl bg-slate-100/90 p-1 dark:bg-slate-800/90 shrink-0">
             <button
               onClick={() => setView("grid")}
-              className={`rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                view === "grid" ? "text-brand-600 bg-brand-50 dark:bg-brand-950" : ""
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                view === "grid"
+                  ? "bg-white text-brand-600 shadow-sm dark:bg-slate-900 dark:text-brand-400"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
+              title="Grid View"
             >
-              <GridIcon size={16} />
+              <GridIcon size={14} />
+              <span className="hidden sm:inline">Grid</span>
             </button>
             <button
               onClick={() => setView("list")}
-              className={`rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 ${
-                view === "list" ? "text-brand-600 bg-brand-50 dark:bg-brand-950" : ""
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
+                view === "list"
+                  ? "bg-white text-brand-600 shadow-sm dark:bg-slate-900 dark:text-brand-400"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
+              title="List View"
             >
-              <ListIcon size={16} />
+              <ListIcon size={14} />
+              <span className="hidden sm:inline">List</span>
             </button>
           </div>
         </div>
 
-        {/* Search Input & Select Filters */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <SearchInput
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search books, authors, or topics..."
-          />
+        {/* Search Input & Inline Filter Dropdowns */}
+        <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
+          <div className="relative min-w-0 flex-1">
+            <SearchInput
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search books, authors, or topics..."
+            />
+          </div>
 
-          <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">All Categories</option>
-            {categoriesList.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </Select>
+          <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
+            <div className="w-full md:w-44">
+              <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="">All Categories</option>
+                {categoriesList.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
+            </div>
 
-          <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}>
-            <option value="recent">Sort by Recently Added</option>
-            <option value="progress">Sort by Progress %</option>
-            <option value="title">Sort by Title</option>
-            <option value="author">Sort by Author</option>
-          </Select>
+            <div className="w-full md:w-48">
+              <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}>
+                <option value="recent">Recently Added</option>
+                <option value="progress">Highest Progress</option>
+                <option value="title">Title (A-Z)</option>
+                <option value="author">Author Name</option>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
 

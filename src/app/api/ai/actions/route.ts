@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (response) return response;
 
   try {
-    const { action, text, page, bookTitle, author, targetLang } = await req.json();
+    const { action, text, page, bookTitle, author, targetLang, targetLangName } = await req.json();
     if (!action || typeof action !== "string") {
       return NextResponse.json({ error: "Action is required" }, { status: 400 });
     }
@@ -34,19 +34,35 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case "explain": {
-        const prompt = `Provide a precise, meaningful, and well-structured explanation of the following excerpt from "${bookTitle || "the book"}":
+        const langNames: Record<string, string> = {
+          km: "Khmer",
+          en: "English",
+          es: "Spanish",
+          fr: "French",
+          de: "German",
+          ja: "Japanese",
+          "zh-CN": "Chinese",
+          vi: "Vietnamese",
+          ko: "Korean",
+        };
+        const targetName = (targetLangName && typeof targetLangName === "string" ? targetLangName : langNames[targetLang || "km"]) || "Target Language";
 
-"${text}"
 
-EXPLANATION REQUIREMENTS:
-- **Core Meaning**: Begin with a 1-2 sentence clear overview of what this passage means.
-- **Key Concept Breakdown**: Use 2-3 bullet points to explain essential terms, arguments, or ideas.
-- **Practical Takeaway**: Conclude with a brief summary of why this concept matters.
-- **Length**: Balanced and focused (120–220 words). Not too long, not too short.`;
+        const prompt = `Provide a clear, dual-language AI explanation of the following word, phrase, or text in BOTH English AND ${targetName}:
+
+TEXT: "${text}"
+
+REQUIREMENTS FOR EACH LANGUAGE:
+1. Core Meaning & Definition
+2. Real-World Example Sentences
+
+CRITICAL FORMAT REQUIREMENT: Output the English explanation first, followed by the separator line "===SPLIT_LANG_EXPLANATION===", followed by the complete ${targetName} explanation.`;
 
         const result = await aiProvider.generateText(prompt, context);
         return NextResponse.json({ result });
       }
+
+
       case "simplify": {
         const prompt = `Rephrase and simplify the following passage into plain, easy-to-understand language while preserving its exact core meaning:
 

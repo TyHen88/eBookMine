@@ -101,30 +101,24 @@ export function Spinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   );
 }
 
-/** Animated Book flipping & pulse loader with message badge. */
-export function BookLoader({ label = "Loading eBooks & AI Assets..." }: { label?: string }) {
+/** Modern glowing dual-ring book loader with clean label. */
+export function BookLoader({ label = "Loading eBooks & AI..." }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center p-8 space-y-4 text-center">
-      <div className="relative flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-tr from-brand-600 via-brand-500 to-indigo-600 text-white shadow-xl shadow-brand-500/30 animate-pulse">
-        <div className="animate-book-flip">
-          <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <div className="flex flex-col items-center justify-center p-6 space-y-3 text-center">
+      <div className="relative flex h-12 w-12 items-center justify-center">
+        {/* Outer glowing spinning ring */}
+        <div className="absolute inset-0 rounded-full border-2 border-brand-500/20 border-t-brand-600 animate-spin" />
+        {/* Center icon badge */}
+        <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400 shadow-sm">
+          <svg className="h-4 w-4 animate-bounce" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
         </div>
-        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-          <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-amber-500" />
-        </span>
       </div>
-      <div className="space-y-1">
-        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight animate-pulse">
-          {label}
-        </p>
-        <p className="text-[10px] text-slate-400 dark:text-slate-500">
-          Preparing high-speed cache & vector index
-        </p>
-      </div>
+      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 tracking-tight">
+        {label}
+      </p>
     </div>
   );
 }

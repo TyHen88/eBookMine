@@ -96,10 +96,10 @@ export default function ImportFromDrive({
         variant="secondary"
         onClick={openPicker}
         disabled={busy}
-        title="Import existing PDFs from your Google Drive"
+        title="Import existing PDFs from cloud storage"
       >
         <FolderIcon size={16} />
-        {busy ? "Opening…" : "Import from Drive"}
+        {busy ? "Opening…" : "Import Cloud Books"}
       </Button>
       {error && <span className="mt-1 text-xs text-red-500">{error}</span>}
     </div>

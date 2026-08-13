@@ -24,8 +24,8 @@ type AuthTab = "signin" | "signup" | "forgot";
 const SHOWCASE_ITEMS = [
   {
     icon: CloudIcon,
-    title: "PostgreSQL & Google Drive",
-    desc: "Your eBooks stay in your private Google Drive while metadata is synced with Neon PostgreSQL.",
+    title: "PostgreSQL Cloud Sync",
+    desc: "Your eBooks and reading metadata stay seamlessly synchronized in private cloud storage.",
   },
   {
     icon: BookmarkIcon,

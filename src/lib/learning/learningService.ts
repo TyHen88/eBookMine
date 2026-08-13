@@ -23,14 +23,41 @@ export async function generateBookQuiz(
   if (!book) throw new Error("Book not found");
 
   const chunks = await retrieveRelevantChunks(
-    book.id,
-    title || `Page ${page || 1} core concepts`,
-    3
-  );
+    book.title,
+    title || (page ? `Page ${page}` : "core concepts"),
+    6
+  ).catch(() => []);
 
-  const contextText = chunks.map((c) => c.content).join("\n\n");
+  const pageChunks = page ? chunks.filter((c) => c.page === page) : [];
+  let contextText = (pageChunks.length > 0 ? pageChunks : chunks).map((c) => c.content).join("\n\n");
 
-  const quizTitle = title || (page ? `Page ${page} Knowledge Check` : `"${book.title}" Knowledge Check`);
+  if (!contextText.trim() && page) {
+    const pageHighlights = await prisma.highlight.findMany({
+      where: { bookId: book.id, page },
+      take: 6,
+    }).catch(() => []);
+
+    if (pageHighlights.length > 0) {
+      contextText = pageHighlights.map((h) => h.selectedText).join("\n\n");
+    }
+  }
+
+  if (!contextText.trim()) {
+    contextText = chunks.map((c) => c.content).join("\n\n") || `Book Title: "${book.title}".`;
+  }
+
+  const generatedQuestions = await aiProvider.generateQuiz(contextText, 5);
+
+  const quizTitle = title || (page ? `Page ${page} Knowledge Check` : `"${book.title}" Quiz`);
+
+  const questionsData = generatedQuestions.map((q, idx) => ({
+    type: "multiple_choice",
+    question: q.question,
+    options: JSON.stringify(q.options),
+    correctAnswer: q.answer,
+    explanation: q.explanation || "Correct answer based on book content.",
+    page: page || chunks[idx]?.page || 1,
+  }));
 
   const quiz = await prisma.quiz.create({
     data: {
@@ -39,37 +66,7 @@ export async function generateBookQuiz(
       title: quizTitle,
       page: page || null,
       questions: {
-        create: [
-          {
-            type: "multiple_choice",
-            question: `Based on page ${page || 1}, what is the central concept discussed?`,
-            options: JSON.stringify([
-              "Core principles and relationships",
-              "Unrelated historical facts",
-              "Alternative hypotheses",
-              "Statistical outliers",
-            ]),
-            correctAnswer: "Core principles and relationships",
-            explanation: "The text emphasizes foundational principles and their logical relationships.",
-            page: page || 1,
-          },
-          {
-            type: "true_false",
-            question: `True or False: The concepts introduced on page ${page || 1} build sequentially upon earlier sections.`,
-            options: JSON.stringify(["True", "False"]),
-            correctAnswer: "True",
-            explanation: "The material follows a structured, sequential framework.",
-            page: page || 1,
-          },
-          {
-            type: "short_answer",
-            question: `In 1-2 sentences, summarize the key takeaway from this reading selection.`,
-            options: null,
-            correctAnswer: "Focus on understanding foundational concepts and their practical applications.",
-            explanation: "Concise summaries solidify memory retention.",
-            page: page || 1,
-          },
-        ],
+        create: questionsData,
       },
     },
     include: {
@@ -102,7 +99,6 @@ export async function submitQuizAttempt(
     const submitted = answers.find((a) => a.questionId === q.id);
     const userAnswer = submitted?.userAnswer || "";
 
-    // Normalize comparison for grading
     const isCorrect =
       userAnswer.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase() ||
       q.type === "short_answer";
@@ -150,29 +146,42 @@ export async function generateFlashcardsFromBook(
 
   if (!book) throw new Error("Book not found");
 
-  const card1 = await prisma.flashcard.create({
-    data: {
-      userId,
-      bookId: book.id,
-      page: page || 1,
-      question: `What is the core definition presented on page ${page || 1}?`,
-      answer: `Page ${page || 1} establishes foundational definitions and principles relevant to "${book.title}".`,
-      difficulty: "medium",
-    },
-  });
+  const chunks = await retrieveRelevantChunks(
+    book.title,
+    page ? `Page ${page} key concepts` : "summary",
+    5
+  ).catch(() => []);
 
-  const card2 = await prisma.flashcard.create({
-    data: {
-      userId,
-      bookId: book.id,
-      page: page || 1,
-      question: `How does the material on page ${page || 1} connect to key chapter themes?`,
-      answer: `It provides critical context and practical applications for chapter objectives.`,
-      difficulty: "easy",
-    },
-  });
+  const contextText = chunks.map((c) => c.content).join("\n\n") || `Book Title: "${book.title}"`;
+  const generated = await aiProvider.generateQuiz(contextText, 5).catch(() => []);
 
-  return [card1, card2];
+  const cardsToCreate = generated.length > 0
+    ? generated.map((g) => ({
+        userId,
+        bookId: book.id,
+        page: page || 1,
+        question: g.question,
+        answer: g.explanation || g.answer,
+        difficulty: "medium",
+      }))
+    : [
+        {
+          userId,
+          bookId: book.id,
+          page: page || 1,
+          question: `What is the key takeaway on Page ${page || 1}?`,
+          answer: `Page ${page || 1} covers foundational principles for "${book.title}".`,
+          difficulty: "medium",
+        },
+      ];
+
+  const createdCards = [];
+  for (const cardData of cardsToCreate) {
+    const card = await prisma.flashcard.create({ data: cardData });
+    createdCards.push(card);
+  }
+
+  return createdCards;
 }
 
 /**

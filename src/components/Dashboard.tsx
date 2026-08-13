@@ -7,6 +7,7 @@ import { DashboardData } from "@/lib/dashboardService";
 import { Button, buttonClass, Spinner, BookLoader } from "./ui";
 import { useToast } from "./ui/Toast";
 import AuthPromptModal from "./AuthPromptModal";
+import BookThumbnailImg from "./BookThumbnailImg";
 import {
   BookmarkIcon,
   BookOpenIcon,
@@ -110,10 +111,10 @@ export default function Dashboard() {
   const goalCurrentVal = activeGoal?.current || Math.min(data?.statistics.pagesRead || 0, goalTargetVal);
   const goalPct = Math.min(100, Math.round((goalCurrentVal / goalTargetVal) * 100));
 
-  // Dummy weekly activity for visual bar chart
-  const weeklyDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const activityData = [12, 24, 18, 30, 15, 42, goalCurrentVal || 20];
-  const maxPages = Math.max(...activityData, 30);
+  // Weekly reading activity calculated from real user data
+  const weeklyDays = data?.statistics.dailyDaysLabels || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const activityData = data?.statistics.dailyPagesRead || [0, 0, 0, 0, 0, 0, 0];
+  const maxPages = Math.max(...activityData, 10);
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -134,8 +135,8 @@ export default function Dashboard() {
             </h1>
             <p className="mt-2 max-w-xl text-xs text-brand-100/90 sm:text-sm">
               {isAuthenticated
-                ? "Track reading goals, review AI flashcards, and build daily study streaks in your personal Drive space."
-                : "Sign in with Google to sync your PDFs directly with PostgreSQL metadata and interact with AI RAG study tools."}
+                ? "Track reading goals, review AI flashcards, and build daily study streaks in your personal library."
+                : "Sign in to sync your library, save progress, and interact with AI RAG study tools."}
             </p>
           </div>
 
@@ -170,7 +171,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Unlock Full AI Study Features & Drive Sync
+                  Unlock Full AI Study Features & Library Sync
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Sign in to save highlights, personal notes, chapter quiz scores, and daily streaks.
@@ -338,18 +339,12 @@ export default function Dashboard() {
                 key={item.book.id}
                 className="group relative flex items-center gap-4 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900"
               >
-                {item.book.cover ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.book.cover}
-                    alt={item.book.title}
-                    className="h-20 w-14 shrink-0 rounded-xl object-cover shadow-sm group-hover:scale-105 transition-transform"
-                  />
-                ) : (
-                  <div className="flex h-20 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-100 to-brand-200 font-extrabold text-xs text-brand-700 dark:from-brand-950 dark:to-slate-800 dark:text-brand-300 shadow-inner">
-                    PDF
-                  </div>
-                )}
+                <BookThumbnailImg
+                  bookId={item.book.id}
+                  cover={item.book.cover}
+                  title={item.book.title}
+                  className="h-20 w-14 shrink-0 rounded-xl shadow-sm group-hover:scale-105 transition-transform"
+                />
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate text-xs font-bold text-slate-900 dark:text-slate-100">
                     {item.book.title}

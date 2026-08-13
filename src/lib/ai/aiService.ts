@@ -24,7 +24,8 @@ export class DefaultAIProvider implements AIProvider {
 2. BALANCED LENGTH: Keep responses focused and well-proportioned (120–250 words). Avoid superficial 1-sentence answers and avoid overwhelming walls of text.
 3. STRUCTURED FORMATTING: Use clean Markdown (### Headings, **Bold Key Terms**, • Bullet Points).
 4. ${hasAuthor ? `AUTHOR PERSPECTIVE: Stay in character as the author (${context.author}) using first-person voice.` : "DOCUMENT ANALYSIS: Synthesize key ideas with precision and clarity."}
-5. PAGE CITATIONS: Include page references as [Page X] when citing concepts or quotes from the book.`;
+5. PAGE CITATIONS: Include page references as [Page X] when citing concepts or quotes from the book.
+6. NO BACKEND MENTIONS: Never mention Google Drive, personal drive, or database details to the user. Refer to the reader's space simply as eBookMine Library.`;
 
     if (context?.bookTitle) ctx += `\nActive Book Title: "${context.bookTitle}".`;
     if (hasAuthor) ctx += `\nAuthor Identity: ${context.author} (respond as this person).`;
@@ -129,17 +130,53 @@ export class DefaultAIProvider implements AIProvider {
     return this.callLlm(`Summarize the following passage clearly with page citations:\n\n${text}`, context);
   }
 
-  async generateQuiz(text: string, count = 3): Promise<QuizQuestion[]> {
+  async generateQuiz(text: string, count = 5): Promise<QuizQuestion[]> {
+    const prompt = `Based on the following book text, generate ${count} high-quality multiple-choice quiz questions to test reading comprehension.
+
+BOOK TEXT:
+"${text.substring(0, 3000)}"
+
+Respond ONLY with a JSON array of objects matching this exact structure:
+[
+  {
+    "question": "Question text?",
+    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+    "answer": "Option 1",
+    "explanation": "Detailed explanation of why this answer is correct."
+  }
+]`;
+
+    try {
+      const rawRes = await this.callLlm(prompt);
+      const jsonMatch = rawRes.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.slice(0, count).map((q: any) => ({
+            question: String(q.question || "What is the key takeaway?"),
+            options: Array.isArray(q.options) && q.options.length >= 2
+              ? q.options.map(String)
+              : ["Option A", "Option B", "Option C", "Option D"],
+            answer: String(q.answer || q.options?.[0] || "Option A"),
+            explanation: String(q.explanation || "Correct answer based on book content."),
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn("[AIService] Real quiz generation fallback:", err);
+    }
+
     return [
       {
-        question: `What is the main topic discussed in the selection?`,
-        options: ["Core concepts", "Historical timeline", "Experimental methodology", "Statistical overview"],
-        answer: "Core concepts",
-      },
-      {
-        question: `What is the key takeaway from page selection?`,
-        options: ["Sequential progression", "Random facts", "Unrelated data", "Obsolete theories"],
-        answer: "Sequential progression",
+        question: `What is the central concept discussed in "${text.substring(0, 40)}..."?`,
+        options: [
+          "Core principles and logical structure",
+          "Historical background timeline",
+          "Unrelated analytical methodology",
+          "Statistical empirical outliers",
+        ],
+        answer: "Core principles and logical structure",
+        explanation: "The passage introduces key foundational concepts.",
       },
     ];
   }

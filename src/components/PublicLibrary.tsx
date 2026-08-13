@@ -77,7 +77,7 @@ export default function PublicLibrary() {
             <span className="text-xl">📚</span>
             <div>
               <span className="block text-sm font-black text-white">{books.length} eBooks</span>
-              <span className="block text-[10px] text-brand-100 font-medium">Available in Drive</span>
+              <span className="block text-[10px] text-brand-100 font-medium">Available in eBookMine</span>
             </div>
           </div>
         </div>

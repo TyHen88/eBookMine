@@ -8,16 +8,26 @@ import VerticalNav from "@/components/VerticalNav";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "eBookMine — Your PDF library in Google Drive",
+  title: "eBookMine — Read, Understand & Remember Books with AI",
   description:
-    "A personal eBook library. Sign in with Google and keep your PDFs in your own Drive.",
+    "Your personal eBook library powered by AI. Read, analyze, search multi-page vector embeddings, and master topics with smart flashcards.",
+  openGraph: {
+    title: "eBookMine — Read, Understand & Remember Books with AI",
+    description:
+      "Your personal eBook library powered by AI. Read, analyze, search multi-page vector embeddings, and master topics with smart flashcards.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "eBookMine — Read, Understand & Remember Books with AI",
+    description:
+      "Your personal eBook library powered by AI. Read, analyze, search multi-page vector embeddings, and master topics with smart flashcards.",
+  },
   appleWebApp: {
     capable: true,
     title: "eBookMine",
     statusBarStyle: "default",
   },
-  // Favicon (src/app/icon.svg) and the Apple touch icon (src/app/apple-icon.tsx)
-  // are picked up automatically via the App Router file conventions.
 };
 
 export const viewport: Viewport = {

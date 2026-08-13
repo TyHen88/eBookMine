@@ -10,7 +10,7 @@ export default function Header() {
   const userName = session?.user?.name || session?.user?.email?.split("@")[0] || "User";
 
   return (
-    <header className="sticky top-0 z-30 w-full animate-fade-in-down border-b border-slate-200/50 bg-white/80 backdrop-blur-2xl transition-all duration-300 dark:border-slate-800/50 dark:bg-slate-950/80 shadow-sm shadow-slate-900/5">
+    <header className="sticky top-0 z-30 w-full bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60 shadow-sm shadow-slate-900/5 transition-colors duration-200" style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}>
       <div className="w-full flex items-center justify-between gap-4 px-4 py-3 sm:px-8 md:pl-24 md:pr-10">
         {/* Brand Logo & Title Badge */}
         <Link
@@ -21,10 +21,10 @@ export default function Header() {
           <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand-600 via-brand-500 to-brand-400 text-white shadow-lg shadow-brand-500/30 ring-1 ring-white/20 transition-all duration-300 group-hover:rotate-6 group-hover:scale-105 group-hover:shadow-brand-500/50">
             <LogoIcon size={20} />
             <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-950" />
             </span>
           </div>
+
 
           <div className="leading-tight">
             <div className="flex items-center gap-2">
@@ -37,7 +37,7 @@ export default function Header() {
               </span>
             </div>
             <span className="hidden text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:block">
-              Personal eBooks & Drive Library
+              Personal eBook Library
             </span>
           </div>
         </Link>

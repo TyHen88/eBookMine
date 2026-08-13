@@ -90,8 +90,13 @@ export default function BookDetail({ id }: { id: string }) {
   const book = useMemo(() => books.find((b) => b.id === id), [books, id]);
 
   useEffect(() => {
-    if (book) {
+    if (book && book.title && typeof window !== "undefined") {
       setIsFavorite(Boolean(book.favorite));
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("title") !== book.title) {
+        url.searchParams.set("title", book.title);
+        window.history.replaceState(null, "", url.toString());
+      }
     }
   }, [book]);
 
@@ -188,9 +193,10 @@ export default function BookDetail({ id }: { id: string }) {
     : "#";
 
   const handleShare = () => {
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.href);
-      showToast("Link copied to clipboard!", "success");
+    if (typeof window !== "undefined" && book) {
+      const shareUrl = `${window.location.origin}/book/${book.id}?title=${encodeURIComponent(book.title)}`;
+      navigator.clipboard.writeText(shareUrl);
+      showToast(`Copied share link for "${book.title}"!`, "success");
     }
   };
 

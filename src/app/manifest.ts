@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "eBookMine — Your PDF library in Google Drive",
+    name: "eBookMine — Read, Understand & Remember Books with AI",
     short_name: "eBookMine",
     description:
-      "A personal eBook library. Sign in with Google and keep your PDFs in your own Drive.",
+      "Your personal eBook library. Read PDFs, converse with AI book author, test comprehension, and retain knowledge.",
     start_url: "/",
     display: "standalone",
     background_color: "#eef2ff",

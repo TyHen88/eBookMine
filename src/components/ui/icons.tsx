@@ -370,4 +370,59 @@ export const DotsVerticalIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const CopyIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </Svg>
+);
+
+export const TranslateIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m5 8 6 6" />
+    <path d="m4 14 6-6 2 2" />
+    <path d="M2 5h12" />
+    <path d="M7 2v3" />
+    <path d="M22 22l-5-10-5 10" />
+    <path d="M14 18h6" />
+  </Svg>
+);
+
+export const MarqueeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 7V4h3" />
+    <path d="M17 4h3v3" />
+    <path d="M20 17v3h-3" />
+    <path d="M7 20H4v-3" />
+    <path d="M9 4h6" />
+    <path d="M20 9v6" />
+    <path d="M15 20H9" />
+    <path d="M4 15V9" />
+  </Svg>
+);
+
+export const VolumeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+  </Svg>
+);
+
+export const SwapIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m16 3 4 4-4 4" />
+    <path d="M20 7H4" />
+    <path d="m8 21-4-4 4-4" />
+    <path d="M4 17h16" />
+  </Svg>
+);
+
+export const GoogleTranslateLogo = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z" fill="#4285F4"/>
+  </svg>
+);
+
+
 

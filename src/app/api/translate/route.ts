@@ -13,16 +13,19 @@ export async function POST(req: NextRequest) {
   if (response) return response;
 
   try {
-    const { text, to = "en" } = await req.json();
+    const { text, to = "en", from = "auto" } = await req.json();
 
     if (!text || typeof text !== "string") {
       return NextResponse.json({ error: "Text string is required" }, { status: 400 });
     }
 
-    const res = await translateText(text, to);
+    const res = await translateText(text, to, from);
 
     return NextResponse.json({
       translatedText: res.translatedText,
+      detectedSourceLang: res.detectedSourceLang,
+      detectedSourceLangName: res.detectedSourceLangName,
+      definitions: res.definitions,
       provider: "google-translate",
     });
   } catch (err: any) {
@@ -32,3 +35,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
