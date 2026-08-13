@@ -6,7 +6,13 @@ import { useSession } from "next-auth/react";
 import { BookMeta } from "@/lib/types";
 import { Button, Spinner } from "./ui";
 import { useToast } from "./ui/Toast";
-import { SparklesIcon, CheckIcon, RefreshIcon } from "./ui/icons";
+import {
+  SparklesIcon,
+  SearchIcon,
+  BookOpenIcon,
+  XIcon,
+  CheckIcon,
+} from "./ui/icons";
 
 interface Message {
   id: string;
@@ -20,7 +26,7 @@ interface AiTutorViewProps {
   bookId?: string;
 }
 
-// Custom Markdown Renderer Component
+// Custom Markdown Renderer Component with Adobe Acrobat AI Style Page Citations
 function MarkdownContent({ content }: { content: string }) {
   const parsedElements = useMemo(() => {
     if (!content) return null;
@@ -29,11 +35,9 @@ function MarkdownContent({ content }: { content: string }) {
     const elements: React.ReactNode[] = [];
     let inCodeBlock = false;
     let codeBuffer: string[] = [];
-    let tableRows: string[] = [];
 
     const processInlineText = (text: string) => {
-      // Split by bold (**text**), italic (*text*), and inline code (`code`)
-      const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
+      const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[Page\s*[^\]]+\])/g);
       return parts.map((part, idx) => {
         if (part.startsWith("**") && part.endsWith("**")) {
           return (
@@ -59,12 +63,21 @@ function MarkdownContent({ content }: { content: string }) {
             </code>
           );
         }
+        if (part.startsWith("[Page") && part.endsWith("]")) {
+          return (
+            <span
+              key={idx}
+              className="inline-flex items-center gap-1 rounded-md bg-brand-100 px-1.5 py-0.5 text-[10px] font-extrabold text-brand-800 dark:bg-brand-950 dark:text-brand-300 shadow-sm mx-0.5"
+            >
+              📖 {part.slice(1, -1)}
+            </span>
+          );
+        }
         return part;
       });
     };
 
     lines.forEach((line, index) => {
-      // Handle Code Blocks
       if (line.trim().startsWith("```")) {
         if (inCodeBlock) {
           elements.push(
@@ -90,7 +103,6 @@ function MarkdownContent({ content }: { content: string }) {
 
       const trimmed = line.trim();
 
-      // Handle Headings
       if (trimmed.startsWith("### ")) {
         elements.push(
           <h4
@@ -102,84 +114,56 @@ function MarkdownContent({ content }: { content: string }) {
         );
         return;
       }
-      if (trimmed.startsWith("## ") || trimmed.startsWith("# ")) {
+
+      if (trimmed.startsWith("## ")) {
         elements.push(
           <h3
             key={index}
-            className="mt-4 mb-1.5 text-sm font-extrabold text-slate-900 dark:text-white"
+            className="mt-3 mb-1 text-sm font-extrabold tracking-tight text-slate-900 dark:text-white"
           >
-            {processInlineText(trimmed.replace(/^#+\s*/, ""))}
+            {processInlineText(trimmed.slice(3))}
           </h3>
         );
         return;
       }
 
-      // Handle Bullet Points
-      if (
-        trimmed.startsWith("• ") ||
-        trimmed.startsWith("- ") ||
-        trimmed.startsWith("* ")
-      ) {
-        const bulletText = trimmed.replace(/^[•\-\*]\s*/, "");
+      if (trimmed.startsWith("• ") || trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
         elements.push(
-          <div key={index} className="my-1 flex items-start gap-2 text-xs leading-relaxed">
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
-            <div className="flex-1 text-slate-800 dark:text-slate-200">
-              {processInlineText(bulletText)}
-            </div>
-          </div>
-        );
-        return;
-      }
-
-      // Handle Numbered Lists
-      const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
-      if (numMatch) {
-        elements.push(
-          <div key={index} className="my-1 flex items-start gap-2 text-xs leading-relaxed">
-            <span className="font-mono font-bold text-brand-600 dark:text-brand-400">
-              {numMatch[1]}.
-            </span>
-            <div className="flex-1 text-slate-800 dark:text-slate-200">
-              {processInlineText(numMatch[2])}
-            </div>
-          </div>
-        );
-        return;
-      }
-
-      // Handle Blockquotes
-      if (trimmed.startsWith("> ")) {
-        elements.push(
-          <blockquote
-            key={index}
-            className="my-2 border-l-3 border-brand-500 bg-brand-50/50 py-1.5 pl-3 text-xs italic text-slate-700 dark:bg-brand-950/40 dark:text-slate-300"
-          >
+          <li key={index} className="ml-4 list-disc text-xs sm:text-sm my-0.5 leading-relaxed">
             {processInlineText(trimmed.slice(2))}
-          </blockquote>
+          </li>
         );
         return;
       }
 
-      // Handle Paragraphs
+      if (/^\d+\.\s/.test(trimmed)) {
+        const match = trimmed.match(/^(\d+\.\s)(.*)/);
+        if (match) {
+          elements.push(
+            <li key={index} className="ml-4 list-decimal text-xs sm:text-sm my-0.5 leading-relaxed">
+              {processInlineText(match[2])}
+            </li>
+          );
+          return;
+        }
+      }
+
       if (trimmed.length > 0) {
         elements.push(
-          <p key={index} className="my-1 text-xs sm:text-sm leading-relaxed text-slate-800 dark:text-slate-200">
+          <p key={index} className="my-1.5 leading-relaxed text-xs sm:text-sm">
             {processInlineText(line)}
           </p>
         );
-      } else {
-        elements.push(<div key={index} className="h-1.5" />);
       }
     });
 
     return elements;
   }, [content]);
 
-  return <div className="space-y-0.5">{parsedElements}</div>;
+  return <div className="space-y-1">{parsedElements}</div>;
 }
 
-// Single Message Card Component (Typewriter animation for latest assistant message)
+// Single Message Card Component
 function MessageCard({
   message,
   isLatest,
@@ -221,12 +205,11 @@ function MessageCard({
         message.role === "user" ? "items-end" : "items-start"
       }`}
     >
-      {/* Clean Message Card Without Avatars */}
       <div
-        className={`max-w-[90%] sm:max-w-[82%] rounded-2xl px-4 py-3 text-xs sm:text-sm ${
+        className={`max-w-[90%] sm:max-w-[85%] rounded-2xl px-4 py-3 text-xs sm:text-sm ${
           message.role === "user"
             ? "bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 text-white font-medium shadow-md"
-            : "bg-white/80 text-slate-800 dark:bg-slate-900/80 dark:text-slate-100"
+            : "bg-white/80 text-slate-800 dark:bg-slate-900/80 dark:text-slate-100 border border-slate-200/60 dark:border-slate-800/60 shadow-sm"
         }`}
       >
         {message.role === "assistant" ? (
@@ -236,7 +219,7 @@ function MessageCard({
         )}
 
         <div
-          className={`mt-1.5 flex items-center justify-between text-[10px] ${
+          className={`mt-2 flex items-center justify-between text-[10px] ${
             message.role === "user"
               ? "text-white/70 justify-end"
               : "text-slate-400 justify-between"
@@ -248,7 +231,7 @@ function MessageCard({
               onClick={() => onCopy(message.content)}
               className="ml-3 text-[10px] text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-brand-600 dark:hover:text-brand-400"
             >
-              Copy
+              Copy Response
             </button>
           )}
         </div>
@@ -264,80 +247,69 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
   const searchParamBookId = searchParams.get("bookId");
   const { showToast } = useToast();
 
-  const [activeBookId] = useState<string | undefined>(
+  // Scenario Check: Came directly from Book Details ("Ask Author AI") vs Direct Menu ("AI Tutor")
+  const isDirectFromBookDetail = Boolean(propBookId || searchParamBookId);
+
+  const [activeBookId, setActiveBookId] = useState<string | undefined>(
     propBookId || searchParamBookId || undefined
   );
 
   const [books, setBooks] = useState<BookMeta[]>([]);
+  const [selectedBook, setSelectedBook] = useState<any | null>(null);
+
+  // Search Modal & Debounced Query State for Direct Menu Users
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // Load books list
+  // Load initial books list
   useEffect(() => {
     const apiBase = isOwner ? "/api/books" : "/api/public/books";
     fetch(apiBase)
-      .then((r) => r.json())
-      .then((d) => setBooks((d.books as BookMeta[]) ?? []))
-      .catch(() => setBooks([]));
-  }, [isOwner]);
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => {
+        const list = Array.isArray(d) ? d : [];
+        setBooks(list);
+        if (activeBookId) {
+          const match = list.find((b: any) => b.id === activeBookId || b.driveFileId === activeBookId);
+          if (match) setSelectedBook(match);
+        }
+      })
+      .catch(() => {});
+  }, [isOwner, activeBookId]);
 
-  const activeBook = useMemo(
-    () => (activeBookId ? books.find((b) => b.id === activeBookId) : books[0]),
-    [books, activeBookId]
-  );
-
-  // Initial welcome message scoped to active book
+  // Debounced Search API query (300ms) to prevent DB spam / N+1 hits
   useEffect(() => {
-    if (activeBook) {
-      setMessages([
-        {
-          id: "welcome",
-          role: "assistant",
-          content: `Hello! I am your AI Tutor 🎓.\n\nI am currently scoped to **"${activeBook.title}"** ${
-            activeBook.author ? `by ${activeBook.author}` : ""
-          }.\n\nAsk me any question about key principles, concepts, or chapter topics in this book!`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          isTyping: false,
-        },
-      ]);
-    } else {
-      setMessages([
-        {
-          id: "welcome-general",
-          role: "assistant",
-          content:
-            "Hello! I am your eBookMine AI Tutor 🎓.\n\nAsk me any question about your reading, chapter concepts, or study notes!",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          isTyping: false,
-        },
-      ]);
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
     }
-  }, [activeBook]);
+
+    const timer = setTimeout(() => {
+      setSearching(true);
+      fetch(`/api/public/books/search?q=${encodeURIComponent(searchQuery.trim())}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.ok) setSearchResults(d.books || []);
+        })
+        .catch(() => {})
+        .finally(() => setSearching(false));
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Auto-scroll to bottom of chat feed when messages update
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
-
-  const samplePrompts = useMemo(() => {
-    if (activeBook) {
-      return [
-        `Summarize the main themes of ${activeBook.title}`,
-        `Generate a 5-question quiz for ${activeBook.title}`,
-        `Explain core concepts in simple terms`,
-        `Create 3 study flashcards for this book`,
-      ];
-    }
-    return [
-      "Summarize key concepts in my recent reading",
-      "Generate a 5-question multiple choice quiz",
-      "Explain difficult terms in simple language",
-      "Create 3 flashcards for revision",
-    ];
-  }, [activeBook]);
 
   const handleSendPrompt = async (text: string) => {
     if (!text.trim() || loading) return;
@@ -358,9 +330,9 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bookId: activeBook?.id,
-          bookTitle: activeBook?.title,
-          author: activeBook?.author,
+          bookId: selectedBook?.id || activeBookId,
+          bookTitle: selectedBook?.title,
+          author: selectedBook?.author,
           message: text.trim(),
         }),
       });
@@ -368,7 +340,7 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
       const replyText =
         d.reply ||
         d.answer ||
-        `Study Analysis for "${activeBook?.title || "your book"}":\n\n• **Core Concept:** Focus on key principles in your reading.\n• **Key Takeaway:** Highlight important passages and review your flashcards to reinforce memory.`;
+        `### Document Synthesis for "${selectedBook?.title || "your book"}" [Page 1]\n\n• **Core Concept:** Breakdown of fundamental principles.\n• **Key Takeaway:** Review relevant passages and test memory with study flashcards.\n\n**Suggested Follow-ups:**\n- Summarize main points\n- Create practice quiz`;
 
       setMessages((prev) => [
         ...prev,
@@ -386,7 +358,7 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
         {
           id: Math.random().toString(36).substring(2, 9),
           role: "assistant",
-          content: `Study Summary for "${text.trim()}":\n\n1. **Key Insight:** Break down complex topics into digestible sections.\n2. **Practice:** Test your memory with multiple-choice questions.`,
+          content: `### Document Analysis for "${text.trim()}" [Page 1]\n\n1. **Insight:** Key principles synthesized from reading metadata.\n2. **Practice:** Test memory with study questions.\n\n**Suggested Follow-ups:**\n- Simplify core ideas\n- Generate flashcards`,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           isTyping: true,
         },
@@ -403,39 +375,155 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    showToast("Message copied to clipboard!", "success");
+    showToast("Response copied to clipboard!", "success");
   };
 
   return (
     <div className="relative flex flex-col min-h-[calc(100vh-140px)] mx-auto max-w-4xl px-2 sm:px-4">
-      {/* Clean Header Bar */}
-      <div className="flex items-center justify-between py-2 border-b border-slate-200/60 dark:border-slate-800/60">
-        <div className="flex items-center gap-2">
-          <SparklesIcon size={18} className="text-brand-600 dark:text-brand-400" />
-          <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-            {activeBook ? `AI Tutor • ${activeBook.title}` : "AI Tutor Companion"}
+      {/* Book Search & Attachment Modal (Allowed ONLY when navigated from Direct Menu) */}
+      {showSearchModal && !isDirectFromBookDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md">
+          <div className="w-full max-w-md space-y-4 rounded-3xl border border-slate-200/80 bg-white/95 p-5 shadow-2xl backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/95 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-200/60 pb-3 dark:border-slate-800/60">
+              <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <BookOpenIcon size={16} className="text-brand-600" />
+                Attach Book to AI Session
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSearchModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <XIcon size={18} />
+              </button>
+            </div>
+
+            <div className="relative">
+              <SearchIcon
+                size={15}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by book title or author name..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 py-2.5 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                autoFocus
+              />
+              {searching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Spinner size="sm" />
+                </div>
+              )}
+            </div>
+
+            {/* Debounced Search Results List */}
+            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+              {searchResults.length === 0 ? (
+                <p className="py-6 text-center text-xs font-semibold text-slate-400">
+                  {searchQuery ? "No matching books found." : "Type a book title or author to search..."}
+                </p>
+              ) : (
+                searchResults.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => {
+                      setSelectedBook(b);
+                      setActiveBookId(b.id);
+                      setShowSearchModal(false);
+                      showToast(`Attached "${b.title}"`, "success");
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl p-2.5 text-left text-xs transition-colors hover:bg-brand-50/60 dark:hover:bg-slate-800/60 border border-transparent hover:border-brand-200 dark:hover:border-slate-700"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="font-extrabold text-slate-900 dark:text-slate-100 truncate">
+                        {b.title}
+                      </p>
+                      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        By {b.author}
+                      </p>
+                    </div>
+                    {selectedBook?.id === b.id && (
+                      <CheckIcon size={16} className="text-brand-600 dark:text-brand-400 shrink-0" />
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header Bar */}
+      <div className="flex flex-col gap-2 py-3 border-b border-slate-200/60 dark:border-slate-800/60 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <SparklesIcon size={18} className="text-brand-600 dark:text-brand-400 shrink-0" />
+          <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 truncate">
+            {selectedBook
+              ? `AI Assistant • ${selectedBook.title}`
+              : "Document Understanding AI Assistant"}
           </span>
+
+          {/* Locked Pill if came from Book Detail, or Attach Button if came from Direct Menu */}
+          {isDirectFromBookDetail ? (
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-600 dark:bg-slate-800 dark:text-slate-300 shrink-0 border border-slate-200 dark:border-slate-700">
+              🔒 Attached Context
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowSearchModal(true)}
+              className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[10px] font-extrabold text-brand-700 hover:bg-brand-100 dark:bg-brand-950 dark:text-brand-300 shrink-0 border border-brand-200 dark:border-brand-900/60 transition-colors"
+            >
+              {selectedBook ? "🔄 Change Book" : "🔍 Attach Book"}
+            </button>
+          )}
         </div>
 
-        {/* Quick Sample Suggestions Pill Toolbar */}
-        {messages.length <= 1 && (
-          <div className="hidden sm:flex items-center gap-1">
-            {samplePrompts.slice(0, 2).map((p, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSendPrompt(p)}
-                disabled={loading}
-                className="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:bg-slate-800 dark:text-slate-300"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Quick Adobe Acrobat AI Assistant Action Toolbar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <button
+            onClick={() => handleSendPrompt(`Summarize key insights of "${selectedBook?.title || "this book"}" with page citations`)}
+            disabled={loading}
+            className="rounded-lg bg-brand-50 px-2.5 py-1 text-[10px] font-bold text-brand-700 hover:bg-brand-100 dark:bg-brand-950/60 dark:text-brand-300 shrink-0"
+          >
+            📌 Summarize Book
+          </button>
+          <button
+            onClick={() => handleSendPrompt(`Extract the top 5 key takeaways and concepts from "${selectedBook?.title || "this book"}"`)}
+            disabled={loading}
+            className="rounded-lg bg-indigo-50 px-2.5 py-1 text-[10px] font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300 shrink-0"
+          >
+            🔑 Key Takeaways
+          </button>
+          <button
+            onClick={() => handleSendPrompt(`Generate a 5-question study quiz based on "${selectedBook?.title || "this book"}"`)}
+            disabled={loading}
+            className="rounded-lg bg-purple-50 px-2.5 py-1 text-[10px] font-bold text-purple-700 hover:bg-purple-100 dark:bg-purple-950/60 dark:text-purple-300 shrink-0"
+          >
+            ❓ Practice Quiz
+          </button>
+        </div>
       </div>
 
-      {/* Clean Scrollable Messages Feed (No Heavy Outer Borders or Shadows) */}
+      {/* Clean Scrollable Messages Feed */}
       <div className="flex-1 overflow-y-auto space-y-4 py-4 pb-36">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+            <div className="rounded-full bg-brand-100 p-4 text-brand-600 dark:bg-brand-950 dark:text-brand-400 shadow-md">
+              <SparklesIcon size={28} />
+            </div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">
+              {selectedBook ? `Ready to analyze "${selectedBook.title}"` : "Document Intelligence Ready"}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
+              {isDirectFromBookDetail
+                ? `Context locked for "${selectedBook?.title || "this book"}". Ask questions or click quick tools to analyze.`
+                : "Ask questions, or click 'Attach Book' to select a specific book from your library."}
+            </p>
+          </div>
+        )}
+
         {messages.map((m, idx) => (
           <MessageCard
             key={m.id}
@@ -447,14 +535,14 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
 
         {/* Sleek Animated AI Thinking State */}
         {loading && (
-          <div className="flex items-center gap-2 rounded-2xl bg-white/60 p-3 dark:bg-slate-900/60 w-fit">
+          <div className="flex items-center gap-2 rounded-2xl bg-white/60 p-3 dark:bg-slate-900/60 w-fit border border-slate-200/50 dark:border-slate-800/50">
             <div className="flex items-center gap-1 text-brand-600 dark:text-brand-400">
               <span className="h-2 w-2 rounded-full bg-brand-500 animate-ping" />
               <span className="h-2 w-2 rounded-full bg-indigo-500 animate-ping delay-150" />
               <span className="h-2 w-2 rounded-full bg-purple-500 animate-ping delay-300" />
             </div>
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              AI Tutor is analyzing and generating response...
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+              Document Assistant is analyzing page citations and generating insights...
             </span>
           </div>
         )}
@@ -462,7 +550,7 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
         <div ref={chatEndRef} />
       </div>
 
-      {/* FLOATING INPUT DOCK (Pinned to Bottom with space above Navigation Bar) */}
+      {/* FLOATING INPUT DOCK */}
       <div className="fixed bottom-[88px] sm:bottom-[96px] left-1/2 z-30 w-full max-w-4xl -translate-x-1/2 px-4">
         <form
           onSubmit={handleSubmit}
@@ -473,9 +561,9 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
-              activeBook
-                ? `Ask AI anything about "${activeBook.title}"...`
-                : "Ask AI Tutor anything about your books..."
+              selectedBook
+                ? `Ask Document Assistant about "${selectedBook.title}"...`
+                : "Ask Document Assistant about your books..."
             }
             className="flex-1 bg-transparent px-4 py-2 text-xs sm:text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white"
           />

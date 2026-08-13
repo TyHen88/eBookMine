@@ -414,12 +414,12 @@ export default function Dashboard() {
                 <select
                   value={goalType}
                   onChange={(e) => setGoalType(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-semibold text-slate-900 outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
-                  <option value="daily_pages">Daily Pages Target</option>
-                  <option value="daily_minutes">Daily Reading Minutes</option>
-                  <option value="weekly_pages">Weekly Pages Target</option>
-                  <option value="monthly_books">Monthly Books Target</option>
+                  <option value="daily_pages" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white">Daily Pages Target</option>
+                  <option value="daily_minutes" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white">Daily Reading Minutes</option>
+                  <option value="weekly_pages" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white">Weekly Pages Target</option>
+                  <option value="monthly_books" className="bg-white text-slate-900 dark:bg-slate-800 dark:text-white">Monthly Books Target</option>
                 </select>
               </div>
               <div>
@@ -430,7 +430,7 @@ export default function Dashboard() {
                   min={1}
                   value={goalTarget}
                   onChange={(e) => setGoalTarget(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-semibold text-slate-900 outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
               <Button type="submit" className="w-full py-2.5 text-xs mt-2" disabled={submittingGoal}>

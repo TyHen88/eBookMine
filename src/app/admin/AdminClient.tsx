@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Button, buttonClass, Spinner } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
@@ -11,25 +11,62 @@ import {
   SearchIcon,
   CheckIcon,
   XIcon,
+  DotsVerticalIcon,
   BookOpenIcon,
-  TagIcon,
-  ClockIcon,
-  FileTextIcon,
-  StarIcon,
-  GridIcon,
-  LockIcon,
 } from "@/components/ui/icons";
 
 interface AdminClientProps {
   initialBooks: any[];
+  initialBookCounts?: {
+    totalBooks: number;
+    publishedCount: number;
+    draftCount: number;
+    driveSyncedCount: number;
+  };
   initialUsers: any[];
   initialCategories: any[];
   initialAuthors: any[];
   aiUsageCount: number;
 }
 
+const PROVIDER_MODELS: Record<string, Array<{ value: string; label: string }>> = {
+  openrouter: [
+    { value: "google/gemini-2.5-flash", label: "Google Gemini 2.5 Flash" },
+    { value: "google/gemini-1.5-pro", label: "Google Gemini 1.5 Pro" },
+    { value: "openai/gpt-4o", label: "OpenAI GPT-4o" },
+    { value: "openai/gpt-4o-mini", label: "OpenAI GPT-4o Mini" },
+    { value: "anthropic/claude-3.5-sonnet", label: "Anthropic Claude 3.5 Sonnet" },
+    { value: "deepseek/deepseek-chat", label: "DeepSeek Chat V3" },
+  ],
+  google: [
+    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash Direct" },
+    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro Direct" },
+    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash Direct" },
+  ],
+  openai: [
+    { value: "gpt-4o", label: "GPT-4o Direct" },
+    { value: "gpt-4o-mini", label: "GPT-4o Mini Direct" },
+    { value: "gpt-4-turbo", label: "GPT-4 Turbo Direct" },
+  ],
+  anthropic: [
+    { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet Direct" },
+    { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku Direct" },
+  ],
+  deepseek: [
+    { value: "deepseek-chat", label: "DeepSeek V3 Chat Direct" },
+    { value: "deepseek-coder", label: "DeepSeek Coder Direct" },
+  ],
+  ollama: [
+    { value: "llama3.2", label: "Llama 3.2 (Local Ollama)" },
+    { value: "mistral", label: "Mistral 7B (Local Ollama)" },
+    { value: "gemma2", label: "Gemma 2 (Local Ollama)" },
+    { value: "phi3", label: "Phi 3 (Local Ollama)" },
+  ],
+};
+
 export default function AdminClient({
   initialBooks,
+  initialBookCounts,
   initialUsers,
   initialCategories,
   initialAuthors,
@@ -45,10 +82,32 @@ export default function AdminClient({
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // Search & Filter state for Books
+  // Exact Book Counts from PostgreSQL
+  const [bookCounts, setBookCounts] = useState({
+    totalBooks: initialBookCounts?.totalBooks || initialBooks.length,
+    publishedCount:
+      initialBookCounts?.publishedCount || initialBooks.filter((b) => b.published).length,
+    draftCount:
+      initialBookCounts?.draftCount || initialBooks.filter((b) => !b.published).length,
+    driveSyncedCount:
+      initialBookCounts?.driveSyncedCount || initialBooks.filter((b) => b.driveFileId).length,
+  });
+
+  // Server-side Pagination & Filter State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
   const [bookSearch, setBookSearch] = useState("");
   const [bookStatusFilter, setBookStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [totalMatching, setTotalMatching] = useState(
+    initialBookCounts?.totalBooks || initialBooks.length
+  );
+  const [totalPages, setTotalPages] = useState(
+    Math.ceil((initialBookCounts?.totalBooks || initialBooks.length) / 25) || 1
+  );
+  const [fetchingBooks, setFetchingBooks] = useState(false);
+
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
+  const [openMenuBookId, setOpenMenuBookId] = useState<string | null>(null);
 
   // Search state for Users
   const [userSearch, setUserSearch] = useState("");
@@ -61,34 +120,97 @@ export default function AdminClient({
   const [editDescription, setEditDescription] = useState("");
   const [editVisibility, setEditVisibility] = useState<"PUBLIC" | "PRIVATE" | "PROTECTED">("PUBLIC");
 
-  // AI Configuration State
-  const [selectedAiModel, setSelectedAiModel] = useState(
-    process.env.NEXT_PUBLIC_AI_MODEL || "google/gemini-2.5-flash"
-  );
+  // Dynamic AI Configuration State
+  const [aiProviderName, setAiProviderName] = useState("openrouter");
+  const [selectedAiModel, setSelectedAiModel] = useState("google/gemini-2.5-flash");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState(
     "You are eBookMine AI Tutor, an intelligent reading companion. Answer questions concisely using vector chunks and book context."
   );
   const [chunkSize, setChunkSize] = useState(500);
   const [chunkOverlap, setChunkOverlap] = useState(50);
+  const [dailyTokenLimit, setDailyTokenLimit] = useState(100000);
+  const [temperature, setTemperature] = useState(0.7);
+
+  const [loadingAiConfig, setLoadingAiConfig] = useState(true);
+  const [savingAiConfig, setSavingAiConfig] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+
   const [indexingBookId, setIndexingBookId] = useState<string | null>(null);
 
-  // Filtered Books
-  const filteredBooks = useMemo(() => {
-    return books.filter((b) => {
-      const matchQuery =
-        !bookSearch.trim() ||
-        b.title.toLowerCase().includes(bookSearch.toLowerCase()) ||
-        (b.author && b.author.toLowerCase().includes(bookSearch.toLowerCase())) ||
-        (b.category && b.category.toLowerCase().includes(bookSearch.toLowerCase()));
+  // Close dropdown menu when clicking anywhere else
+  useEffect(() => {
+    const handleOutsideClick = () => setOpenMenuBookId(null);
+    window.addEventListener("click", handleOutsideClick);
+    return () => window.removeEventListener("click", handleOutsideClick);
+  }, []);
 
-      const matchStatus =
-        bookStatusFilter === "all" ||
-        (bookStatusFilter === "published" && b.published) ||
-        (bookStatusFilter === "draft" && !b.published);
+  // Server-side Paginated Fetching
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFetchingBooks(true);
+      fetch(
+        `/api/admin/books?page=${page}&limit=${limit}&search=${encodeURIComponent(
+          bookSearch
+        )}&status=${bookStatusFilter}`
+      )
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.ok) {
+            setBooks(d.books);
+            setTotalPages(d.pagination.totalPages);
+            setTotalMatching(d.pagination.totalMatching);
+            if (d.counts) {
+              setBookCounts(d.counts);
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => setFetchingBooks(false));
+    }, 250);
 
-      return matchQuery && matchStatus;
-    });
-  }, [books, bookSearch, bookStatusFilter]);
+    return () => clearTimeout(timer);
+  }, [page, limit, bookSearch, bookStatusFilter]);
+
+  // Available models for current selected provider
+  const availableModels = useMemo(() => {
+    return PROVIDER_MODELS[aiProviderName] || PROVIDER_MODELS.openrouter;
+  }, [aiProviderName]);
+
+  // Load AI Configuration from backend API on mount
+  useEffect(() => {
+    fetch("/api/admin/config")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.config) {
+          const prov = d.config.provider || "openrouter";
+          setAiProviderName(prov);
+          setSelectedAiModel(d.config.model || "google/gemini-2.5-flash");
+          setAiApiKey(d.config.apiKey || "");
+          setSystemPrompt(d.config.systemPrompt || "");
+          setChunkSize(d.config.chunkSize || 500);
+          setChunkOverlap(d.config.chunkOverlap || 50);
+          setDailyTokenLimit(d.config.dailyTokenLimit || 100000);
+          setTemperature(d.config.temperature || 0.7);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingAiConfig(false));
+  }, []);
+
+  // Handle Provider Change -> Auto-select default model for provider
+  const handleProviderChange = (newProvider: string) => {
+    setAiProviderName(newProvider);
+    const models = PROVIDER_MODELS[newProvider] || PROVIDER_MODELS.openrouter;
+    if (models.length > 0) {
+      setSelectedAiModel(models[0].value);
+    }
+  };
 
   // Filtered Users
   const filteredUsers = useMemo(() => {
@@ -102,6 +224,25 @@ export default function AdminClient({
     });
   }, [users, userSearch]);
 
+  // Refresh Books
+  const refreshBooks = () => {
+    fetch(
+      `/api/admin/books?page=${page}&limit=${limit}&search=${encodeURIComponent(
+        bookSearch
+      )}&status=${bookStatusFilter}`
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) {
+          setBooks(d.books);
+          setTotalPages(d.pagination.totalPages);
+          setTotalMatching(d.pagination.totalMatching);
+          if (d.counts) setBookCounts(d.counts);
+        }
+      })
+      .catch(() => {});
+  };
+
   // Handle Book Publishing Toggle
   const handleTogglePublish = async (bookId: string, currentStatus: boolean) => {
     setLoading(true);
@@ -112,9 +253,7 @@ export default function AdminClient({
         body: JSON.stringify({ published: !currentStatus }),
       });
       if (res.ok) {
-        setBooks((prev) =>
-          prev.map((b) => (b.id === bookId ? { ...b, published: !currentStatus } : b))
-        );
+        refreshBooks();
         showToast(
           !currentStatus ? "Book published to library" : "Book changed to draft",
           "info"
@@ -138,8 +277,8 @@ export default function AdminClient({
     try {
       const res = await fetch(`/api/books/${bookId}`, { method: "DELETE" });
       if (res.ok) {
-        setBooks((prev) => prev.filter((b) => b.id !== bookId));
         setSelectedBookIds((prev) => prev.filter((id) => id !== bookId));
+        refreshBooks();
         showToast("Book metadata deleted", "info");
       }
     } finally {
@@ -171,20 +310,9 @@ export default function AdminClient({
         }
       }
 
-      if (action === "publish" || action === "unpublish") {
-        setBooks((prev) =>
-          prev.map((b) =>
-            selectedBookIds.includes(b.id)
-              ? { ...b, published: action === "publish" }
-              : b
-          )
-        );
-        showToast(`Updated ${selectedBookIds.length} books`, "success");
-      } else {
-        setBooks((prev) => prev.filter((b) => !selectedBookIds.includes(b.id)));
-        setSelectedBookIds([]);
-        showToast(`Deleted ${selectedBookIds.length} books`, "info");
-      }
+      setSelectedBookIds([]);
+      refreshBooks();
+      showToast(`Updated ${selectedBookIds.length} books`, "success");
     } finally {
       setLoading(false);
     }
@@ -219,9 +347,10 @@ export default function AdminClient({
       const res = await fetch("/api/import", { method: "POST" });
       const d = await res.json();
       setStatusMsg(`Drive Sync completed! ${d.imported?.length || 0} books synced.`);
+      refreshBooks();
       showToast(`Synced ${d.imported?.length || 0} books from Drive`, "success");
     } catch {
-      setStatusMsg("Drive Sync failed. Check server logs.");
+      setStatusMsg("Drive Sync failed.");
       showToast("Drive sync failed", "error");
     } finally {
       setLoading(false);
@@ -246,21 +375,8 @@ export default function AdminClient({
         }),
       });
       if (res.ok) {
-        setBooks((prev) =>
-          prev.map((b) =>
-            b.id === editingBook.id
-              ? {
-                  ...b,
-                  title: editTitle,
-                  author: editAuthor,
-                  category: editCategory,
-                  description: editDescription,
-                  visibility: editVisibility,
-                }
-              : b
-          )
-        );
         setEditingBook(null);
+        refreshBooks();
         showToast("Book metadata updated", "success");
       }
     } finally {
@@ -289,9 +405,74 @@ export default function AdminClient({
     }
   };
 
-  // Save AI Config
-  const handleSaveAiConfig = () => {
-    showToast(`AI Model updated to ${selectedAiModel}`, "success");
+  // Save AI Config via API POST /api/admin/config
+  const handleSaveAiConfig = async () => {
+    setSavingAiConfig(true);
+    try {
+      const res = await fetch("/api/admin/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: aiProviderName,
+          model: selectedAiModel,
+          apiKey: aiApiKey,
+          systemPrompt,
+          chunkSize,
+          chunkOverlap,
+          dailyTokenLimit,
+          temperature,
+        }),
+      });
+
+      if (res.ok) {
+        showToast("AI Configuration saved successfully!", "success");
+      } else {
+        showToast("Failed to save AI config", "error");
+      }
+    } catch {
+      showToast("Failed to save AI settings", "error");
+    } finally {
+      setSavingAiConfig(false);
+    }
+  };
+
+  // Test AI Connection via API POST /api/admin/config/test
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin/config/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: aiProviderName,
+          model: selectedAiModel,
+          apiKey: aiApiKey,
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        setTestResult({
+          ok: true,
+          message: d.message || `✓ Connection Successful! Model '${selectedAiModel}' responded in ${d.latencyMs}ms`,
+        });
+        showToast("Connection Test Successful!", "success");
+      } else {
+        setTestResult({
+          ok: false,
+          message: d.error || "✕ Connection Failed. Please check your API key.",
+        });
+        showToast("Connection Test Failed", "error");
+      }
+    } catch (err: any) {
+      setTestResult({
+        ok: false,
+        message: err?.message || "✕ Connection Test Failed due to a network error.",
+      });
+      showToast("Connection Test Failed", "error");
+    } finally {
+      setTestingConnection(false);
+    }
   };
 
   return (
@@ -365,9 +546,9 @@ export default function AdminClient({
                   onChange={(e) => setEditVisibility(e.target.value as any)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
-                  <option value="PUBLIC">Public (Accessible by all users)</option>
-                  <option value="PROTECTED">Protected (Registered users only)</option>
-                  <option value="PRIVATE">Private (Owner only)</option>
+                  <option value="PUBLIC">Public</option>
+                  <option value="PROTECTED">Protected</option>
+                  <option value="PRIVATE">Private</option>
                 </select>
               </div>
 
@@ -380,7 +561,7 @@ export default function AdminClient({
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={3}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  placeholder="eBook summary and key takeaways..."
+                  placeholder="eBook summary..."
                 />
               </div>
             </div>
@@ -395,7 +576,7 @@ export default function AdminClient({
                 Cancel
               </Button>
               <Button type="submit" size="sm" disabled={loading}>
-                Save Metadata Changes
+                Save Changes
               </Button>
             </div>
           </form>
@@ -403,7 +584,7 @@ export default function AdminClient({
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 px-4 py-3.5 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 px-4 md:pl-24 py-3.5 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className={buttonClass({ variant: "ghost", size: "icon-sm" })}>
@@ -432,12 +613,12 @@ export default function AdminClient({
       </header>
 
       {/* Navigation Tabs */}
-      <div className="border-b border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto pt-2">
+      <div className="border-b border-slate-200 bg-white px-4 md:pl-24 dark:border-slate-800 dark:bg-slate-900">
+        <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto pt-2 no-scrollbar scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {(
             [
-              { id: "books", label: `Manage Books (${books.length})` },
-              { id: "ai", label: "AI Config & Vector Store" },
+              { id: "books", label: `Manage Books (${bookCounts.totalBooks.toLocaleString()})` },
+              { id: "ai", label: "AI Settings & Models" },
               { id: "users", label: `User Management (${users.length})` },
               { id: "drive", label: "Google Drive Storage" },
               { id: "settings", label: "System Diagnostics" },
@@ -459,18 +640,18 @@ export default function AdminClient({
       </div>
 
       {/* Main Body Content */}
-      <main className="mx-auto max-w-7xl p-4 sm:p-6 space-y-6 pb-28">
+      <main className="mx-auto max-w-7xl p-4 sm:p-6 md:pl-24 space-y-6 pb-28">
         {/* ==================== TAB 1: MANAGE BOOKS ==================== */}
         {activeTab === "books" && (
           <div className="space-y-4">
-            {/* Top Metrics Cards */}
+            {/* Top Exact Metrics Cards */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                  Total Library Books
+                  Total Books
                 </span>
                 <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
-                  {books.length}
+                  {bookCounts.totalBooks.toLocaleString()}
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -478,7 +659,7 @@ export default function AdminClient({
                   Published Books
                 </span>
                 <p className="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                  {books.filter((b) => b.published).length}
+                  {bookCounts.publishedCount.toLocaleString()}
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -486,15 +667,15 @@ export default function AdminClient({
                   Draft Books
                 </span>
                 <p className="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
-                  {books.filter((b) => !b.published).length}
+                  {bookCounts.draftCount.toLocaleString()}
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                  Google Drive Files
+                  Drive Synced
                 </span>
                 <p className="mt-1 text-2xl font-black text-brand-600 dark:text-brand-400">
-                  {books.filter((b) => b.driveFileId).length}
+                  {bookCounts.driveSyncedCount.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -510,7 +691,10 @@ export default function AdminClient({
                   <input
                     type="text"
                     value={bookSearch}
-                    onChange={(e) => setBookSearch(e.target.value)}
+                    onChange={(e) => {
+                      setBookSearch(e.target.value);
+                      setPage(1);
+                    }}
                     placeholder="Search by title, author, or category..."
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
@@ -518,13 +702,18 @@ export default function AdminClient({
 
                 <select
                   value={bookStatusFilter}
-                  onChange={(e) => setBookStatusFilter(e.target.value as any)}
+                  onChange={(e) => {
+                    setBookStatusFilter(e.target.value as any);
+                    setPage(1);
+                  }}
                   className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   <option value="all">All Statuses</option>
                   <option value="published">Published</option>
                   <option value="draft">Drafts Only</option>
                 </select>
+
+                {fetchingBooks && <Spinner size="sm" />}
               </div>
 
               {/* Bulk Actions Controls */}
@@ -555,54 +744,53 @@ export default function AdminClient({
               )}
             </div>
 
-            {/* Books Table */}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                   <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:border-slate-800 dark:bg-slate-800/50">
                     <tr>
-                      <th className="p-3 w-8 text-center">
+                      <th className="p-3.5 w-10 text-center">
                         <input
                           type="checkbox"
                           checked={
-                            filteredBooks.length > 0 &&
-                            selectedBookIds.length === filteredBooks.length
+                            books.length > 0 && selectedBookIds.length === books.length
                           }
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedBookIds(filteredBooks.map((b) => b.id));
+                              setSelectedBookIds(books.map((b) => b.id));
                             } else {
                               setSelectedBookIds([]);
                             }
                           }}
                         />
                       </th>
-                      <th className="p-3">Title</th>
-                      <th className="p-3">Author</th>
-                      <th className="p-3">Category</th>
-                      <th className="p-3">Visibility</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3 text-right">Actions</th>
+                      <th className="p-3.5">Title</th>
+                      <th className="p-3.5">Author</th>
+                      <th className="p-3.5">Category</th>
+                      <th className="p-3.5">Visibility</th>
+                      <th className="p-3.5">Status</th>
+                      <th className="p-3.5 text-right w-16">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {filteredBooks.length === 0 ? (
+                    {books.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="p-8 text-center text-slate-400 font-semibold">
                           No books found matching search query.
                         </td>
                       </tr>
                     ) : (
-                      filteredBooks.map((b) => (
+                      books.map((b) => (
                         <tr
                           key={b.id}
-                          className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors ${
+                          className={`hover:bg-slate-50/70 dark:hover:bg-slate-800/50 transition-colors ${
                             selectedBookIds.includes(b.id)
-                              ? "bg-brand-50/40 dark:bg-brand-950/20"
+                              ? "bg-brand-50/30 dark:bg-brand-950/20"
                               : ""
                           }`}
                         >
-                          <td className="p-3 text-center">
+                          <td className="p-3.5 text-center">
                             <input
                               type="checkbox"
                               checked={selectedBookIds.includes(b.id)}
@@ -617,21 +805,21 @@ export default function AdminClient({
                               }}
                             />
                           </td>
-                          <td className="p-3 font-bold text-slate-900 dark:text-slate-100 max-w-xs truncate">
+                          <td className="p-3.5 font-bold text-slate-900 dark:text-slate-100 max-w-xs truncate">
                             {b.title}
                           </td>
-                          <td className="p-3 text-slate-500 font-medium">{b.author}</td>
-                          <td className="p-3">
+                          <td className="p-3.5 text-slate-500 font-medium">{b.author || "Unknown"}</td>
+                          <td className="p-3.5">
                             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                              {b.category}
+                              {b.category || "General"}
                             </span>
                           </td>
-                          <td className="p-3">
+                          <td className="p-3.5">
                             <span className="text-[10px] font-extrabold uppercase text-slate-400">
                               {b.visibility || "PUBLIC"}
                             </span>
                           </td>
-                          <td className="p-3">
+                          <td className="p-3.5">
                             <span
                               className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${
                                 b.published
@@ -642,9 +830,135 @@ export default function AdminClient({
                               {b.published ? "Published" : "Draft"}
                             </span>
                           </td>
-                          <td className="p-3 text-right space-x-2">
+                          {/* 3-Dots Floating Menu Action */}
+                          <td className="p-3.5 text-right relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuBookId(openMenuBookId === b.id ? null : b.id);
+                              }}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                            >
+                              <DotsVerticalIcon size={16} />
+                            </button>
+
+                            {openMenuBookId === b.id && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute right-3 top-10 z-40 w-44 rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-2xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900 text-left animate-fade-in space-y-0.5"
+                              >
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuBookId(null);
+                                    setEditingBook(b);
+                                    setEditTitle(b.title);
+                                    setEditAuthor(b.author);
+                                    setEditCategory(b.category);
+                                    setEditDescription(b.description || "");
+                                    setEditVisibility(b.visibility || "PUBLIC");
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                >
+                                  ✏️ Edit Metadata
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuBookId(null);
+                                    handleTogglePublish(b.id, b.published);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                >
+                                  {b.published ? "👁️ Unpublish" : "👁️ Publish"}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuBookId(null);
+                                    handleTriggerIngestion(b.id);
+                                  }}
+                                  disabled={indexingBookId === b.id}
+                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-950/40"
+                                >
+                                  ⚡ AI Vector Index
+                                </button>
+                                <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuBookId(null);
+                                    handleDeleteBookMetadata(b.id);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                                >
+                                  🗑️ Delete Book
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Card List View (No horizontal overflow) */}
+            <div className="block md:hidden space-y-3">
+              {books.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-xs font-semibold text-slate-400 dark:border-slate-800 dark:bg-slate-900">
+                  No books found matching search query.
+                </div>
+              ) : (
+                books.map((b) => (
+                  <div
+                    key={b.id}
+                    className="relative rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedBookIds.includes(b.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedBookIds((prev) => [...prev, b.id]);
+                            } else {
+                              setSelectedBookIds((prev) =>
+                                prev.filter((id) => id !== b.id)
+                              );
+                            }
+                          }}
+                          className="mt-1"
+                        />
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                            {b.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                            By {b.author || "Unknown"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 3-Dots Menu Button */}
+                      <div className="relative shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuBookId(openMenuBookId === b.id ? null : b.id);
+                          }}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                          <DotsVerticalIcon size={16} />
+                        </button>
+
+                        {openMenuBookId === b.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-8 z-40 w-44 rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-2xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900 text-left space-y-0.5"
+                          >
                             <button
                               onClick={() => {
+                                setOpenMenuBookId(null);
                                 setEditingBook(b);
                                 setEditTitle(b.title);
                                 setEditAuthor(b.author);
@@ -652,35 +966,136 @@ export default function AdminClient({
                                 setEditDescription(b.description || "");
                                 setEditVisibility(b.visibility || "PUBLIC");
                               }}
-                              className="text-xs font-bold text-brand-600 hover:underline dark:text-brand-400"
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
-                              Edit
+                              ✏️ Edit Metadata
                             </button>
                             <button
-                              onClick={() => handleTogglePublish(b.id, b.published)}
-                              className="text-xs font-bold text-slate-600 hover:underline dark:text-slate-300"
+                              onClick={() => {
+                                setOpenMenuBookId(null);
+                                handleTogglePublish(b.id, b.published);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
-                              {b.published ? "Unpublish" : "Publish"}
+                              {b.published ? "👁️ Unpublish" : "👁️ Publish"}
                             </button>
                             <button
-                              onClick={() => handleTriggerIngestion(b.id)}
+                              onClick={() => {
+                                setOpenMenuBookId(null);
+                                handleTriggerIngestion(b.id);
+                              }}
                               disabled={indexingBookId === b.id}
-                              className="text-xs font-bold text-purple-600 hover:underline dark:text-purple-400"
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-950/40"
                             >
-                              {indexingBookId === b.id ? "Indexing..." : "AI Vector Index"}
+                              ⚡ AI Vector Index
                             </button>
+                            <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
                             <button
-                              onClick={() => handleDeleteBookMetadata(b.id)}
-                              className="text-xs font-bold text-red-500 hover:underline"
+                              onClick={() => {
+                                setOpenMenuBookId(null);
+                                handleDeleteBookMetadata(b.id);
+                              }}
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                             >
-                              Delete
+                              🗑️ Delete Book
                             </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        {b.category || "General"}
+                      </span>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-400">
+                          {b.visibility || "PUBLIC"}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                            b.published
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                          }`}
+                        >
+                          {b.published ? "Published" : "Draft"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Pagination Controls Hub */}
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Showing{" "}
+                <span className="font-extrabold text-slate-900 dark:text-white">
+                  {totalMatching === 0 ? 0 : (page - 1) * limit + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-extrabold text-slate-900 dark:text-white">
+                  {Math.min(page * limit, totalMatching)}
+                </span>{" "}
+                of{" "}
+                <span className="font-extrabold text-brand-600 dark:text-brand-400">
+                  {totalMatching.toLocaleString()}
+                </span>{" "}
+                Books
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={limit}
+                  onChange={(e) => {
+                    setLimit(parseInt(e.target.value, 10));
+                    setPage(1);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                >
+                  <option value={25}>25 per page</option>
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                </select>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(1)}
+                    disabled={page === 1}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    « First
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    ‹ Prev
+                  </button>
+
+                  <span className="px-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Page {page} of {totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    onClick={() => setPage(totalPages)}
+                    disabled={page >= totalPages}
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Last »
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -695,13 +1110,12 @@ export default function AdminClient({
                 <div className="flex items-center gap-2">
                   <SparklesIcon size={18} className="text-brand-600 dark:text-brand-400" />
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                    Total AI Queries Logged
+                    Total AI Queries
                   </span>
                 </div>
                 <p className="mt-2 text-3xl font-black text-brand-600 dark:text-brand-400">
                   {aiUsageCount}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-1">Logged in PostgreSQL AIUsage store</p>
               </div>
 
               <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -709,91 +1123,173 @@ export default function AdminClient({
                   Daily Quota Per User
                 </span>
                 <p className="mt-2 text-3xl font-black text-emerald-600 dark:text-emerald-400">
-                  100,000 Tokens
+                  {dailyTokenLimit.toLocaleString()} Tokens
                 </p>
-                <p className="text-[10px] text-slate-400 mt-1">Enforced by checkAndTrackUsage()</p>
               </div>
 
               <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                  Active Model Architecture
+                  Active Model
                 </span>
                 <p className="mt-2 text-base font-extrabold text-slate-900 dark:text-white truncate">
                   {selectedAiModel}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-1">Provider: OpenRouter / Server-side LLM</p>
+                <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">
+                  Provider: {aiProviderName}
+                </p>
               </div>
             </div>
 
-            {/* AI Model & System Prompt Tuning */}
+            {/* AI Model & Key Configuration GUI */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-              <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
-                AI Model & Persona Configuration
-              </h3>
+              <div className="flex items-center justify-between border-b border-slate-200/60 pb-3 dark:border-slate-800/60">
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+                  AI Model & API Key Configuration
+                </h3>
+                {loadingAiConfig && <Spinner size="sm" />}
+              </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Active LLM Model Choice
+                    AI Provider Service
+                  </label>
+                  <select
+                    value={aiProviderName}
+                    onChange={(e) => handleProviderChange(e.target.value)}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="openrouter">OpenRouter API</option>
+                    <option value="google">Google Gemini AI Direct</option>
+                    <option value="openai">OpenAI Direct</option>
+                    <option value="anthropic">Anthropic Direct</option>
+                    <option value="deepseek">DeepSeek Direct</option>
+                    <option value="ollama">Local Ollama</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Model for {aiProviderName.toUpperCase()}
                   </label>
                   <select
                     value={selectedAiModel}
                     onChange={(e) => setSelectedAiModel(e.target.value)}
                     className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   >
-                    <option value="google/gemini-2.5-flash">
-                      Google Gemini 2.5 Flash (Recommended - Ultra Fast)
-                    </option>
-                    <option value="google/gemini-1.5-pro">
-                      Google Gemini 1.5 Pro (High Reasoning)
-                    </option>
-                    <option value="openai/gpt-4o">OpenAI GPT-4o (Premium Accuracy)</option>
-                    <option value="anthropic/claude-3.5-sonnet">
-                      Anthropic Claude 3.5 Sonnet
-                    </option>
+                    {availableModels.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Provider Routing
-                  </label>
-                  <input
-                    type="text"
-                    value="OpenRouter API Key (Configured in .env.local)"
-                    disabled
-                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-100 p-2.5 text-xs font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400"
-                  />
                 </div>
               </div>
 
+              {/* Dynamic API Key Input */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  AI Tutor System Persona Prompt
-                </label>
-                <textarea
-                  value={systemPrompt}
-                  onChange={(e) => setSystemPrompt(e.target.value)}
-                  rows={3}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    API Key
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="text-[11px] font-bold text-brand-600 hover:underline dark:text-brand-400"
+                  >
+                    {showApiKey ? "Hide Key" : "Show Key"}
+                  </button>
+                </div>
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  value={aiApiKey}
+                  onChange={(e) => setAiApiKey(e.target.value)}
+                  placeholder="Paste API key here..."
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
 
-              <div className="flex justify-end">
-                <Button size="sm" onClick={handleSaveAiConfig}>
-                  Save AI Model & Persona Settings
+              {/* System Persona & Parameters */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    AI System Persona Prompt
+                  </label>
+                  <textarea
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    rows={3}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Daily Token Limit
+                    </label>
+                    <input
+                      type="number"
+                      value={dailyTokenLimit}
+                      onChange={(e) => setDailyTokenLimit(parseInt(e.target.value, 10) || 100000)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Temperature ({temperature})
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={temperature}
+                      onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                      className="mt-2 w-full accent-brand-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Hub: Test Connection & Save Settings */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/60 dark:border-slate-800/60">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleTestConnection}
+                  disabled={testingConnection}
+                >
+                  {testingConnection ? <Spinner size="sm" /> : <RefreshIcon size={14} />}
+                  {testingConnection ? "Testing Connection..." : "Test Connection"}
+                </Button>
+
+                <Button size="sm" onClick={handleSaveAiConfig} disabled={savingAiConfig}>
+                  {savingAiConfig ? "Saving..." : "Save AI Settings"}
                 </Button>
               </div>
+
+              {/* Connection Test Feedback Result Card */}
+              {testResult && (
+                <div
+                  className={`rounded-xl p-3.5 text-xs font-bold transition-all animate-fade-in border ${
+                    testResult.ok
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                  }`}
+                >
+                  {testResult.message}
+                </div>
+              )}
             </div>
 
             {/* Vector RAG Ingestion Controls */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
               <h3 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
-                Vector Store & RAG Chunking Control
+                Vector Store Chunking
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Extracted eBook page texts are segmented into chunk vectors and indexed in Neon PostgreSQL using `pgvector` embeddings.
-              </p>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -907,7 +1403,7 @@ export default function AdminClient({
         {activeTab === "drive" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-400">
-              Google Drive Cloud Storage Health
+              Google Drive Cloud Storage
             </h2>
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-800/40 space-y-4">
               <div className="flex items-center justify-between">
@@ -915,9 +1411,6 @@ export default function AdminClient({
                   <h3 className="text-xs font-extrabold text-slate-900 dark:text-white">
                     Folder Location: `eBookMine/PDFs`
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    PDF binaries are stored in your Google Drive cloud account. Neon PostgreSQL maintains fast metadata indexes.
-                  </p>
                 </div>
 
                 <a
@@ -932,7 +1425,7 @@ export default function AdminClient({
 
               <Button size="sm" onClick={handleTriggerDriveSync} disabled={loading}>
                 <RefreshIcon size={14} />
-                Run Full Idempotent Drive Sync
+                Run Full Drive Sync
               </Button>
             </div>
           </div>
@@ -942,7 +1435,7 @@ export default function AdminClient({
         {activeTab === "settings" && (
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-400">
-              System Health & Service Diagnostics
+              System Diagnostics
             </h2>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -951,7 +1444,6 @@ export default function AdminClient({
                   <h4 className="text-xs font-bold text-slate-900 dark:text-white">
                     Neon PostgreSQL Database
                   </h4>
-                  <p className="text-[10px] text-slate-400">Database server & connection pool</p>
                 </div>
                 <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                   Connected
@@ -963,7 +1455,6 @@ export default function AdminClient({
                   <h4 className="text-xs font-bold text-slate-900 dark:text-white">
                     OTP Auth Provider
                   </h4>
-                  <p className="text-[10px] text-slate-400">6-digit email verification service</p>
                 </div>
                 <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                   Active
@@ -973,9 +1464,8 @@ export default function AdminClient({
               <div className="rounded-xl border border-slate-200/80 p-3.5 dark:border-slate-800 flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                    pgvector Vector Extension
+                    pgvector Extension
                   </h4>
-                  <p className="text-[10px] text-slate-400">Cosine similarity vector index</p>
                 </div>
                 <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                   Enabled
@@ -985,9 +1475,8 @@ export default function AdminClient({
               <div className="rounded-xl border border-slate-200/80 p-3.5 dark:border-slate-800 flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                    PDF.js Standalone Worker
+                    PDF.js Web Worker
                   </h4>
-                  <p className="text-[10px] text-slate-400">Client-side rendering worker v4.4</p>
                 </div>
                 <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                   Active

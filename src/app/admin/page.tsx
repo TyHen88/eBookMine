@@ -13,31 +13,59 @@ export default async function AdminPage() {
     redirect("/");
   }
 
-  // Server-side initial data fetch
-  const [books, users, categories, authors, aiUsageCount] = await Promise.all([
-    prisma.book.findMany({
-      include: {
-        authors: { include: { author: true } },
-        categories: { include: { category: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }),
-    prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        role: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.category.findMany({ orderBy: { name: "asc" } }),
-    prisma.author.findMany({ orderBy: { name: "asc" } }),
-    prisma.aIUsage.count(),
-  ]);
+  // Server-side initial data fetch with exact count metrics
+  let totalBooksCount = 0;
+  let publishedCount = 0;
+  let draftCount = 0;
+  let driveSyncedCount = 0;
+  let books: any[] = [];
+  let users: any[] = [];
+  let categories: any[] = [];
+  let authors: any[] = [];
+  let aiUsageCount = 0;
+
+  try {
+    const results = await Promise.all([
+      prisma.book.count(),
+      prisma.book.count({ where: { published: true } }),
+      prisma.book.count({ where: { published: false } }),
+      prisma.book.count({ where: { driveFileId: { not: null } } }),
+      prisma.book.findMany({
+        take: 25,
+        include: {
+          authors: { include: { author: true } },
+          categories: { include: { category: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.user.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          role: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.category.findMany({ orderBy: { name: "asc" } }),
+      prisma.author.findMany({ orderBy: { name: "asc" } }),
+      prisma.aIUsage.count(),
+    ]);
+
+    totalBooksCount = results[0];
+    publishedCount = results[1];
+    draftCount = results[2];
+    driveSyncedCount = results[3];
+    books = results[4];
+    users = results[5];
+    categories = results[6];
+    authors = results[7];
+    aiUsageCount = results[8];
+  } catch (err: any) {
+    console.error("AdminPage DB load warning (will retry on next navigation):", err?.message || err);
+  }
 
   return (
     <AdminClient
@@ -51,6 +79,12 @@ export default async function AdminPage() {
         visibility: b.visibility,
         published: b.published,
       }))}
+      initialBookCounts={{
+        totalBooks: totalBooksCount,
+        publishedCount,
+        draftCount,
+        driveSyncedCount,
+      }}
       initialUsers={users}
       initialCategories={categories}
       initialAuthors={authors}
@@ -58,3 +92,4 @@ export default async function AdminPage() {
     />
   );
 }
+

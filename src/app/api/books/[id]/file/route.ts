@@ -1,25 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessToken } from "@/lib/session";
-import { downloadFile } from "@/lib/drive";
+import { downloadFile, downloadPublicFile } from "@/lib/drive";
 import { prisma } from "@/lib/db";
+import { requireBookAccess } from "@/lib/authHelpers";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/books/[id]/file — stream the PDF binary back to the browser
- * so pdf.js can render it without exposing the Drive token client-side.
+ * so pdf.js can render it. Handles both OAuth token and public Drive download fallbacks.
  */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const token = await getAccessToken();
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { id } = await params;
+  const { allowed, response } = await requireBookAccess(id);
+  if (!allowed && response) return response;
+
   let driveFileId = id;
-  const dbBook = await prisma.book.findUnique({
-    where: { id },
+  const dbBook = await prisma.book.findFirst({
+    where: { OR: [{ id }, { driveFileId: id }] },
     select: { driveFileId: true },
   }).catch(() => null);
 
@@ -30,7 +31,14 @@ export async function GET(
   // Forward the browser's Range header so pdf.js can fetch large PDFs
   // page-by-page (206 responses) instead of loading the whole file into memory.
   const range = req.headers.get("range") ?? undefined;
-  const driveRes = await downloadFile(token, driveFileId, range);
+  const token = await getAccessToken();
+
+  let driveRes: Response;
+  if (token) {
+    driveRes = await downloadFile(token, driveFileId, range);
+  } else {
+    driveRes = await downloadPublicFile(driveFileId, range);
+  }
 
   if (!driveRes.ok) {
     return new NextResponse(null, { status: driveRes.status });
@@ -47,3 +55,4 @@ export async function GET(
 
   return new NextResponse(driveRes.body, { status: driveRes.status, headers });
 }
+

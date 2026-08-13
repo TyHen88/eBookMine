@@ -23,12 +23,12 @@ export default function VerticalNav() {
   const [folderLink, setFolderLink] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOwner) return;
+    if (status !== "authenticated" || !isOwner) return;
     fetch("/api/folder")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d?.webViewLink && setFolderLink(d.webViewLink))
       .catch(() => {});
-  }, [isOwner]);
+  }, [status, isOwner]);
 
   // Don't render vertical nav inside reader view to preserve reader viewport space
   if (pathname?.startsWith("/read/")) {

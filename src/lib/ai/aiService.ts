@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getAIConfig } from "@/lib/aiConfig";
 import {
   AIProvider,
   BookContext,
@@ -6,86 +7,114 @@ import {
   QuizQuestion,
   Flashcard,
 } from "./aiProvider";
-
-const DAILY_TOKEN_LIMIT = 100000;
+import { retrieveRelevantChunks } from "@/lib/rag/retriever";
 
 export class DefaultAIProvider implements AIProvider {
-  private provider: string;
-  private model: string;
-  private apiKey: string;
+  private buildSystemPrompt(basePrompt: string, context?: BookContext): string {
+    let ctx =
+      basePrompt ||
+      "You are eBookMine AI Assistant (built with multi-page document understanding intelligence similar to Adobe Acrobat AI Assistant).";
 
-  constructor() {
-    this.provider = process.env.AI_PROVIDER || "openrouter";
-    this.model = process.env.AI_MODEL || "google/gemini-2.5-flash";
-    this.apiKey = process.env.AI_API_KEY || "";
-  }
+    ctx += `\n\nADOBE ACROBAT AI MULTI-PAGE DOCUMENT DIRECTIVES:
+1. Act as an expert PDF & eBook Document Analyst capable of synthesizing the full multi-page book.
+2. Provide executive summaries, key takeaways, and structured insights using clean Markdown formatting (### Headings, **Bold Key Terms**, • Bullet Points, and Markdown Tables).
+3. Always cite specific multi-page references clearly as [Page X], [Page Y], or [Page X-Y] across the entire book when referencing concepts or quotes.
+4. Conclude responses with 2 actionable follow-up questions formatted as:
+\n\n**Suggested Follow-ups:**\n- [Follow-up question 1]\n- [Follow-up question 2]`;
 
-  private buildSystemPrompt(context?: BookContext): string {
-    let ctx = "You are eBookMine AI, an intelligent reading and study assistant.";
-    if (context?.bookTitle) ctx += ` Book: "${context.bookTitle}".`;
-    if (context?.author && context.author !== "Unknown") ctx += ` Author: ${context.author}.`;
-    if (context?.page) ctx += ` Page: ${context.page}.`;
-    if (context?.selectedText) ctx += ` Selected Quote: "${context.selectedText}".`;
+    if (context?.bookTitle) ctx += `\nActive Book Title: "${context.bookTitle}".`;
+    if (context?.author && context.author !== "Unknown") ctx += `\nAuthor: ${context.author}.`;
+    if (context?.page) ctx += `\nCurrent Reader Location: Page ${context.page}.`;
+    if (context?.selectedText) ctx += `\nHighlighted Excerpt: "${context.selectedText}".`;
+
     return ctx;
   }
 
   private async callLlm(prompt: string, context?: BookContext): Promise<string> {
-    if (!this.apiKey) {
-      return this.generateFallbackResponse(prompt, context);
+    const config = await getAIConfig();
+    const apiKey = (config.apiKey || process.env.AI_API_KEY || "").trim();
+    const model = config.model || process.env.AI_MODEL || "google/gemini-2.5-flash";
+    const provider = config.provider || "openrouter";
+
+    if (!apiKey && provider !== "ollama") {
+      throw new Error(
+        "Missing AI API Key. Please open Admin Panel → AI Settings to enter your API key."
+      );
     }
 
-    try {
-      const systemPrompt = this.buildSystemPrompt(context);
-      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://ebookmine.app",
-          "X-Title": "eBookMine Reader",
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: prompt },
-          ],
-        }),
-      });
+    let endpoint = "https://openrouter.ai/api/v1/chat/completions";
+    let fetchHeaders: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://ebookmine.app",
+      "X-Title": "eBookMine Reader",
+    };
 
-      if (!res.ok) {
-        throw new Error(`AI API error status ${res.status}`);
-      }
+    let requestBody: any = {
+      model,
+      temperature: config.temperature || 0.7,
+      messages: [
+        { role: "system", content: this.buildSystemPrompt(config.systemPrompt, context) },
+        { role: "user", content: prompt },
+      ],
+    };
 
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content || this.generateFallbackResponse(prompt, context);
-    } catch (err) {
-      console.error("AI Provider call error:", err);
-      return this.generateFallbackResponse(prompt, context);
-    }
-  }
-
-  private generateFallbackResponse(prompt: string, context?: BookContext): string {
-    const p = prompt.toLowerCase();
-    const quote = context?.selectedText ? `\n\nExcerpt: "${context.selectedText}"` : "";
-
-    if (p.includes("summary") || p.includes("simplify")) {
-      return `### Summary & Insights\n\nThis section discusses fundamental concepts relevant to ${
-        context?.bookTitle ? `*"${context.bookTitle}"*` : "the reading material"
-      }${context?.page ? ` (Page ${context.page})` : ""}.${quote}\n\n• **Core Idea:** Provides structured explanations for better comprehension.\n• **Takeaway:** Focus on key terms and relationships described in the text.`;
-    }
-
-    if (p.includes("explain")) {
-      return `### Concept Explanation\n\nHere is an analysis of the selection:${quote}\n\n1. **Context:** The passage establishes key principles on page ${context?.page || 1}.\n2. **Breakdown:** Key ideas are introduced logically to build thematic understanding.\n3. **Application:** Consider how this relates to chapter objectives.`;
+    if (provider === "openai") {
+      endpoint = "https://api.openai.com/v1/chat/completions";
+      fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
+    } else if (provider === "google") {
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      delete fetchHeaders["Authorization"];
+      requestBody = {
+        contents: [
+          {
+            parts: [
+              { text: this.buildSystemPrompt(config.systemPrompt, context) + "\n\n" + prompt },
+            ],
+          },
+        ],
+      };
+    } else if (provider === "ollama") {
+      endpoint = "http://localhost:11434/api/generate";
+      delete fetchHeaders["Authorization"];
+      requestBody = {
+        model,
+        prompt: this.buildSystemPrompt(config.systemPrompt, context) + "\n\n" + prompt,
+        stream: false,
+      };
     }
 
-    if (p.includes("translate")) {
-      return `### Translation\n\n"${context?.selectedText || prompt}"\n\n*(English Translation generated by eBookMine AI engine).*`;
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: fetchHeaders,
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const errDetail =
+        errData.error?.message ||
+        errData.message ||
+        (res.status === 401
+          ? "HTTP 401 Unauthorized — Invalid API Key. Check API Key in Admin Panel."
+          : `HTTP ${res.status}`);
+
+      throw new Error(`AI Provider Call Error: ${errDetail}`);
     }
 
-    return `### eBookMine AI Assistant\n\nRegarding your question about ${
-      context?.bookTitle ? `*"${context.bookTitle}"*` : "this book"
-    }${context?.page ? ` (Page ${context.page})` : ""}:\n\n"${prompt}"\n\nKey analysis points:\n• **Context:** Evaluated against page ${context?.page || 1} metadata.\n• **Insight:** The reading highlights important principles relevant to your study goals.`;
+    const data = await res.json();
+
+    if (provider === "google") {
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) return text;
+    } else if (provider === "ollama") {
+      if (data.response) return data.response;
+    } else {
+      const reply = data.choices?.[0]?.message?.content;
+      if (reply) return reply;
+    }
+
+    return "No text generated by provider.";
   }
 
   async generateText(prompt: string, context?: BookContext): Promise<string> {
@@ -93,15 +122,10 @@ export class DefaultAIProvider implements AIProvider {
   }
 
   async generateSummary(text: string, context?: BookContext): Promise<string> {
-    return this.callLlm(`Summarize the following passage clearly:\n\n${text}`, context);
+    return this.callLlm(`Summarize the following passage clearly with page citations:\n\n${text}`, context);
   }
 
   async generateQuiz(text: string, count = 3): Promise<QuizQuestion[]> {
-    const raw = await this.callLlm(
-      `Generate ${count} multiple-choice quiz questions based on this text:\n\n${text}`,
-      {}
-    );
-
     return [
       {
         question: `What is the main topic discussed in the selection?`,
@@ -130,16 +154,31 @@ export class DefaultAIProvider implements AIProvider {
     history: ChatHistoryMessage[],
     context?: BookContext
   ): Promise<string> {
+    // Retrieve multi-page chunks from PostgreSQL if book is specified
+    let ragContext = "";
+    if (context?.bookTitle) {
+      try {
+        const chunks = await retrieveRelevantChunks(context.bookTitle, question, 5);
+        if (chunks.length > 0) {
+          const pageCitations = Array.from(new Set(chunks.map((c) => c.page))).sort((a, b) => a - b);
+          ragContext = `\nRetrieved Multi-Page Context (Pages: ${pageCitations.map((p) => `Page ${p}`).join(", ")}):\n` +
+            chunks.map((c) => `[Page ${c.page}]: "${c.content}"`).join("\n\n");
+        }
+      } catch {
+        /* fallback */
+      }
+    }
+
     const historyText = history
       .slice(-4)
       .map((h) => `${h.role}: ${h.content}`)
       .join("\n");
-    const prompt = `Conversation history:\n${historyText}\n\nUser Question: ${question}`;
+
+    const prompt = `Conversation History:\n${historyText}\n${ragContext}\n\nUser Question: ${question}`;
     return this.callLlm(prompt, context);
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    // Basic mock 64-dim unit embedding vector
     const vector = new Array(64).fill(0).map((_, i) => Math.sin(i + text.length));
     return vector;
   }
@@ -161,9 +200,11 @@ export async function checkAndTrackUsage(
     where: { userId, createdAt: { gte: since } },
   });
 
+  const config = await getAIConfig();
+  const limit = config.dailyTokenLimit || 100000;
   const totalTokens = usageRecords.reduce((sum, u) => sum + u.tokens, 0);
-  if (totalTokens >= DAILY_TOKEN_LIMIT) {
-    throw new Error("Daily AI usage limit reached (100,000 tokens/day). Please try again tomorrow.");
+  if (totalTokens >= limit) {
+    throw new Error(`Daily AI usage limit reached (${limit.toLocaleString()} tokens/day). Please try again tomorrow.`);
   }
 
   await prisma.aIUsage.create({
@@ -177,82 +218,93 @@ export async function checkAndTrackUsage(
 
 /**
  * Retrieve or create an active AI Conversation for user and book.
+ * Safely resolves bookId (whether passed as PostgreSQL ID or driveFileId) to the Book primary key.
  */
 export async function getOrCreateConversation(
   userId: string,
   bookId?: string
 ) {
-  let dbBookId: string | null = null;
-  if (bookId) {
-    const book = await prisma.book.findFirst({
-      where: { OR: [{ driveFileId: bookId }, { id: bookId }] },
-    });
-    if (book) dbBookId = book.id;
+  let resolvedBookId: string | null = null;
+  if (bookId && bookId.trim()) {
+    const dbBook = await prisma.book.findFirst({
+      where: {
+        OR: [{ id: bookId.trim() }, { driveFileId: bookId.trim() }],
+      },
+      select: { id: true },
+    }).catch(() => null);
+
+    if (dbBook) {
+      resolvedBookId = dbBook.id;
+    }
   }
 
-  let conv = await prisma.aIConversation.findFirst({
+  let conversation = await prisma.aIConversation.findFirst({
     where: {
       userId,
-      bookId: dbBookId,
+      bookId: resolvedBookId,
     },
     include: {
-      messages: { orderBy: { createdAt: "asc" } },
+      messages: {
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
-  if (!conv) {
-    conv = await prisma.aIConversation.create({
+  if (!conversation) {
+    conversation = await prisma.aIConversation.create({
       data: {
         userId,
-        bookId: dbBookId,
-        title: "Book Assistant Chat",
+        bookId: resolvedBookId,
+        title: resolvedBookId ? "Book Discussion" : "General Tutor",
       },
       include: {
-        messages: { orderBy: { createdAt: "asc" } },
+        messages: {
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
   }
 
-  return conv;
+  return conversation;
 }
 
 /**
- * Save an AI chat message to PostgreSQL.
+ * Save a message in the active AI Conversation.
  */
 export async function saveAiMessage(
   conversationId: string,
-  role: "user" | "assistant" | "system",
+  role: "user" | "assistant",
   content: string,
   page?: number,
-  selectedText?: string,
-  tokensUsed = 100
+  selectedText?: string
 ) {
   return prisma.aIMessage.create({
     data: {
       conversationId,
       role,
       content,
-      page: page || null,
-      selectedText: selectedText || null,
-      tokensUsed,
+      page,
+      selectedText,
     },
   });
 }
 
 /**
- * Clear a conversation's chat history.
+ * Clear all messages in a conversation.
  */
 export async function clearConversationHistory(
   userId: string,
   conversationId: string
 ) {
-  const conv = await prisma.aIConversation.findFirst({
+  const conversation = await prisma.aIConversation.findFirst({
     where: { id: conversationId, userId },
   });
-  if (!conv) return false;
+
+  if (!conversation) return false;
 
   await prisma.aIMessage.deleteMany({
     where: { conversationId },
   });
+
   return true;
 }

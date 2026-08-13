@@ -37,32 +37,37 @@ export async function getAIConfig(): Promise<AIConfigData> {
   if (cachedConfig) return cachedConfig;
 
   try {
-    // Try reading from database SystemSetting table
-    const dbRecord = await prisma.systemSetting.findUnique({
-      where: { key: "AI_CONFIG" },
-    });
-    if (dbRecord && dbRecord.value) {
-      const parsed = JSON.parse(dbRecord.value);
-      cachedConfig = { ...DEFAULT_CONFIG, ...parsed };
-      return cachedConfig!;
+    // Try reading from database SystemSetting table with optional chaining safety
+    if ((prisma as any).systemSetting) {
+      const dbRecord = await (prisma as any).systemSetting.findUnique({
+        where: { key: "AI_CONFIG" },
+      });
+      if (dbRecord && dbRecord.value) {
+        const parsed = JSON.parse(dbRecord.value);
+        const res: AIConfigData = { ...DEFAULT_CONFIG, ...parsed };
+        cachedConfig = res;
+        return res;
+      }
     }
   } catch {
-    /* fallback to file or defaults if DB table not migrated */
+    /* fallback to file or defaults */
   }
 
   try {
     if (fs.existsSync(CONFIG_FILE_PATH)) {
       const fileData = fs.readFileSync(CONFIG_FILE_PATH, "utf-8");
       const parsed = JSON.parse(fileData);
-      cachedConfig = { ...DEFAULT_CONFIG, ...parsed };
-      return cachedConfig!;
+      const res: AIConfigData = { ...DEFAULT_CONFIG, ...parsed };
+      cachedConfig = res;
+      return res;
     }
   } catch {
     /* fallback to defaults */
   }
 
-  cachedConfig = { ...DEFAULT_CONFIG };
-  return cachedConfig;
+  const res: AIConfigData = { ...DEFAULT_CONFIG };
+  cachedConfig = res;
+  return res;
 }
 
 /**
@@ -75,15 +80,17 @@ export function getAIConfigSync(): AIConfigData {
     if (fs.existsSync(CONFIG_FILE_PATH)) {
       const fileData = fs.readFileSync(CONFIG_FILE_PATH, "utf-8");
       const parsed = JSON.parse(fileData);
-      cachedConfig = { ...DEFAULT_CONFIG, ...parsed };
-      return cachedConfig;
+      const res: AIConfigData = { ...DEFAULT_CONFIG, ...parsed };
+      cachedConfig = res;
+      return res;
     }
   } catch {
     /* fallback */
   }
 
-  cachedConfig = { ...DEFAULT_CONFIG };
-  return cachedConfig;
+  const res: AIConfigData = { ...DEFAULT_CONFIG };
+  cachedConfig = res;
+  return res;
 }
 
 /**
@@ -111,13 +118,15 @@ export async function saveAIConfig(
     console.warn("Could not save AI config file:", err);
   }
 
-  // 2. Save to DB SystemSetting table
+  // 2. Save to DB SystemSetting table safely
   try {
-    await prisma.systemSetting.upsert({
-      where: { key: "AI_CONFIG" },
-      update: { value: JSON.stringify(updated) },
-      create: { key: "AI_CONFIG", value: JSON.stringify(updated) },
-    });
+    if ((prisma as any).systemSetting) {
+      await (prisma as any).systemSetting.upsert({
+        where: { key: "AI_CONFIG" },
+        update: { value: JSON.stringify(updated) },
+        create: { key: "AI_CONFIG", value: JSON.stringify(updated) },
+      });
+    }
   } catch (err) {
     console.warn("Could not upsert SystemSetting table:", err);
   }

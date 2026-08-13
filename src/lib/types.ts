@@ -8,6 +8,7 @@ export interface Bookmark {
 
 export interface BookMeta {
   id: string;
+  driveFileId?: string;
   title: string;
   author: string;
   fileName: string;

@@ -18,6 +18,8 @@ npm-debug.log*
 # local env files
 .env*.local
 .env
+.gemini/
+
 
 # typescript
 *.tsbuildinfo
