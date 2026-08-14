@@ -5,8 +5,12 @@ import { Readable } from "stream";
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "books");
 
 export function ensureUploadDir(): string {
-  if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    }
+  } catch {
+    /* Read-only filesystem in serverless environments like Vercel */
   }
   return UPLOAD_DIR;
 }
@@ -23,10 +27,13 @@ export async function saveLocalBookFile(
 }
 
 export function getLocalBookFilePath(fileId: string): string | null {
-  const dir = ensureUploadDir();
-  const filePath = path.join(dir, `${fileId}.pdf`);
-  if (fs.existsSync(filePath)) {
-    return filePath;
+  try {
+    const filePath = path.join(UPLOAD_DIR, `${fileId}.pdf`);
+    if (fs.existsSync(filePath)) {
+      return filePath;
+    }
+  } catch {
+    /* Read-only filesystem in serverless environments like Vercel */
   }
   return null;
 }
