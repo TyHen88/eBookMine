@@ -3,12 +3,13 @@ import { getAccessToken } from "@/lib/session";
 import { downloadFile, downloadPublicFile } from "@/lib/drive";
 import { prisma } from "@/lib/db";
 import { requireBookAccess } from "@/lib/authHelpers";
+import { getLocalBookFilePath, streamLocalFile } from "@/lib/localStorage";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/books/[id]/file — stream the PDF binary back to the browser
- * so pdf.js can render it. Handles both OAuth token and public Drive download fallbacks.
+ * so pdf.js can render it. Handles local storage, OAuth Drive, and public Drive downloads.
  */
 export async function GET(
   req: NextRequest,
@@ -31,8 +32,15 @@ export async function GET(
   // Forward the browser's Range header so pdf.js can fetch large PDFs
   // page-by-page (206 responses) instead of loading the whole file into memory.
   const range = req.headers.get("range") ?? undefined;
-  const token = await getAccessToken();
 
+  // 1. Check if stored locally on disk
+  const localPath = getLocalBookFilePath(driveFileId) || getLocalBookFilePath(id);
+  if (localPath) {
+    return streamLocalFile(localPath, range);
+  }
+
+  // 2. Fetch from Google Drive
+  const token = await getAccessToken();
   let driveRes: Response;
   if (token) {
     driveRes = await downloadFile(token, driveFileId, range);

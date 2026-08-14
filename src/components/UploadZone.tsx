@@ -57,7 +57,16 @@ export default function UploadZone({
           form.append("meta", JSON.stringify(meta));
 
           const res = await fetch("/api/books", { method: "POST", body: form });
-          if (!res.ok) throw new Error(await res.text());
+          if (!res.ok) {
+            let errorMsg = "Upload failed";
+            try {
+              const errData = await res.json();
+              errorMsg = errData.error || errorMsg;
+            } catch {
+              errorMsg = (await res.text()) || `Upload failed (${res.status})`;
+            }
+            throw new Error(errorMsg);
+          }
           const { book } = await res.json();
           onUploaded(book);
           update({ status: "done" });

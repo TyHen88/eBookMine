@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { downloadPublicFile } from "@/lib/drive";
 import { prisma } from "@/lib/db";
+import { getLocalBookFilePath, streamLocalFile } from "@/lib/localStorage";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/public/books/[id]/file — stream a book from the owner's publicly-
- * shared Drive to any visitor, using only the API key. Add ?download=1 to force
- * a download (Content-Disposition: attachment).
+ * GET /api/public/books/[id]/file — stream a book from local storage or publicly-shared Drive.
+ * Add ?download=1 to force a download (Content-Disposition: attachment).
  */
 export async function GET(
   req: NextRequest,
@@ -30,6 +30,18 @@ export async function GET(
     }
 
     const range = download ? undefined : req.headers.get("range") ?? undefined;
+
+    // 1. Check if stored locally on disk
+    const localPath = getLocalBookFilePath(driveFileId) || getLocalBookFilePath(id);
+    if (localPath) {
+      const response = streamLocalFile(localPath, range);
+      if (download) {
+        response.headers.set("Content-Disposition", `attachment; filename="${safeName}"`);
+      }
+      return response;
+    }
+
+    // 2. Fetch from Google Drive
     const driveRes = await downloadPublicFile(driveFileId, range);
 
     if (!driveRes.ok) {

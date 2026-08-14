@@ -13,7 +13,9 @@ import {
   XIcon,
   DotsVerticalIcon,
   BookOpenIcon,
+  PlusIcon,
 } from "@/components/ui/icons";
+import SyncProgressModal from "@/components/SyncProgressModal";
 
 interface AdminClientProps {
   initialBooks: any[];
@@ -112,9 +114,20 @@ export default function AdminClient({
 
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
   const [openMenuBookId, setOpenMenuBookId] = useState<string | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Search state for Users
   const [userSearch, setUserSearch] = useState("");
+
+  // Create Book Modal State
+  const [isCreatingBook, setIsCreatingBook] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newAuthor, setNewAuthor] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newVisibility, setNewVisibility] = useState<"PUBLIC" | "PRIVATE" | "PROTECTED">("PUBLIC");
+  const [newPublished, setNewPublished] = useState(true);
+  const [newCoverUrl, setNewCoverUrl] = useState("");
 
   // Edit Book Modal State
   const [editingBook, setEditingBook] = useState<any | null>(null);
@@ -123,6 +136,7 @@ export default function AdminClient({
   const [editCategory, setEditCategory] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editVisibility, setEditVisibility] = useState<"PUBLIC" | "PRIVATE" | "PROTECTED">("PUBLIC");
+  const [editPublished, setEditPublished] = useState(true);
 
   // Dynamic AI Configuration State
   const [aiProviderName, setAiProviderName] = useState("openrouter");
@@ -329,6 +343,81 @@ export default function AdminClient({
     }
   };
 
+  // Handle Save Edited Book
+  const handleSaveEditBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBook) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/books/${editingBook.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle,
+          author: editAuthor,
+          category: editCategory,
+          description: editDescription,
+          visibility: editVisibility,
+          published: editPublished,
+        }),
+      });
+      if (res.ok) {
+        setEditingBook(null);
+        refreshBooks();
+        showToast("Book updated successfully", "success");
+      } else {
+        const d = await res.json();
+        showToast(d.error || "Failed to update book", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Failed to update book", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Create New Book
+  const handleCreateBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) {
+      showToast("Book title is required", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTitle,
+          author: newAuthor,
+          category: newCategory,
+          description: newDescription,
+          visibility: newVisibility,
+          published: newPublished,
+          coverUrl: newCoverUrl,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok && d.ok) {
+        setIsCreatingBook(false);
+        setNewTitle("");
+        setNewAuthor("");
+        setNewCategory("");
+        setNewDescription("");
+        setNewCoverUrl("");
+        refreshBooks();
+        showToast("New book created successfully", "success");
+      } else {
+        showToast(d.error || "Failed to create book", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.message || "Failed to create book", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle User Role Toggle
   const handleToggleUserRole = async (userId: string, currentRole: string) => {
     const newRole = currentRole === "ADMIN" ? "USER" : "ADMIN";
@@ -353,16 +442,19 @@ export default function AdminClient({
   // Handle Google Drive Sync
   const handleTriggerDriveSync = async () => {
     setLoading(true);
-    setStatusMsg("Syncing Google Drive metadata with Neon PostgreSQL...");
+    setStatusMsg("Scanning Google Drive and synchronizing books into PostgreSQL...");
     try {
-      const res = await fetch("/api/import", { method: "POST" });
+      const res = await fetch("/api/books/sync", { method: "POST" });
       const d = await res.json();
-      setStatusMsg(`Drive Sync completed! ${d.imported?.length || 0} books synced.`);
+      if (!res.ok) throw new Error(d.error || "Drive sync failed");
+      const createdCount = d.stats?.created || 0;
+      const totalSynced = d.stats?.synced || 0;
+      setStatusMsg(`Drive Sync completed! ${createdCount} new books added (${totalSynced} verified).`);
       refreshBooks();
-      showToast(`Synced ${d.imported?.length || 0} books from Drive`, "success");
-    } catch {
+      showToast(`Drive Sync completed! ${createdCount} new books added`, "success");
+    } catch (err: any) {
       setStatusMsg("Drive Sync failed.");
-      showToast("Drive sync failed", "error");
+      showToast(err?.message || "Drive sync failed", "error");
     } finally {
       setLoading(false);
     }
@@ -618,10 +710,6 @@ export default function AdminClient({
                 {statusMsg}
               </span>
             )}
-            <Button size="sm" variant="secondary" onClick={handleTriggerDriveSync} disabled={loading}>
-              <RefreshIcon size={14} />
-              Sync Drive
-            </Button>
           </div>
         </div>
       </header>
@@ -726,6 +814,39 @@ export default function AdminClient({
                   <option value="published">Published</option>
                   <option value="draft">Drafts Only</option>
                 </select>
+
+                <SyncProgressModal
+                  isOpen={showSyncModal}
+                  onClose={() => setShowSyncModal(false)}
+                  onFinished={() => refreshBooks()}
+                />
+
+                <button
+                  onClick={() => setShowSyncModal(true)}
+                  className="flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-brand-500/20 hover:bg-brand-700 active:scale-95 transition"
+                  title="Scan Google Drive and import all new PDF books into PostgreSQL"
+                >
+                  <RefreshIcon size={14} />
+                  <span>Sync Drive</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setNewTitle("");
+                    setNewAuthor("");
+                    setNewCategory("");
+                    setNewDescription("");
+                    setNewCoverUrl("");
+                    setNewVisibility("PUBLIC");
+                    setNewPublished(true);
+                    setIsCreatingBook(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 active:scale-95 transition"
+                  title="Create new book record in library"
+                >
+                  <PlusIcon size={14} />
+                  <span>Add Book</span>
+                </button>
 
                 {fetchingBooks && <Spinner size="sm" />}
               </div>
@@ -834,15 +955,18 @@ export default function AdminClient({
                             </span>
                           </td>
                           <td className="p-3.5">
-                            <span
-                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePublish(b.id, b.published)}
+                              title="Click to toggle between Published and Draft"
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold transition-all hover:scale-105 active:scale-95 cursor-pointer ${
                                 b.published
-                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                                  : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                  ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300"
                               }`}
                             >
                               {b.published ? "Published" : "Draft"}
-                            </span>
+                            </button>
                           </td>
                           {/* 3-Dots Floating Menu Action */}
                           <td className="p-3.5 text-right relative">
@@ -1027,15 +1151,18 @@ export default function AdminClient({
                         <span className="text-[10px] font-extrabold uppercase text-slate-400">
                           {b.visibility || "PUBLIC"}
                         </span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePublish(b.id, b.published)}
+                          title="Click to toggle publish status"
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold transition-all hover:scale-105 active:scale-95 cursor-pointer ${
                             b.published
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                              : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                              ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-300"
                           }`}
                         >
                           {b.published ? "Published" : "Draft"}
-                        </span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1560,6 +1687,270 @@ export default function AdminClient({
                   Active
                 </span>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== CREATE BOOK MODAL ==================== */}
+        {isCreatingBook && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div
+              onClick={() => setIsCreatingBook(false)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-md animate-fade-in"
+            />
+            <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-2xl dark:border-slate-800/90 dark:bg-slate-900 animate-scale-in">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
+                    <PlusIcon size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">Add New Book</h3>
+                    <p className="text-[11px] text-slate-400">Create a new book record in PostgreSQL</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsCreatingBook(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                >
+                  <XIcon size={16} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateBook} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Book Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    placeholder="e.g. Clean Architecture"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Author
+                    </label>
+                    <input
+                      type="text"
+                      value={newAuthor}
+                      onChange={(e) => setNewAuthor(e.target.value)}
+                      placeholder="e.g. Robert C. Martin"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Category
+                    </label>
+                    <input
+                      type="text"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      placeholder="e.g. Software Engineering"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Brief summary or description of the book..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Visibility
+                    </label>
+                    <select
+                      value={newVisibility}
+                      onChange={(e) => setNewVisibility(e.target.value as any)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="PUBLIC">Public (All Visitors)</option>
+                      <option value="PROTECTED">Protected (Users Only)</option>
+                      <option value="PRIVATE">Private (Admin Only)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={newPublished ? "published" : "draft"}
+                      onChange={(e) => setNewPublished(e.target.value === "published")}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="published">Published</option>
+                      <option value="draft">Draft (Hidden)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingBook(false)}
+                    className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-brand-500/20 hover:bg-brand-700 active:scale-95 transition disabled:opacity-50"
+                  >
+                    {loading ? "Creating..." : "Create Book"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== EDIT BOOK MODAL ==================== */}
+        {editingBook && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div
+              onClick={() => setEditingBook(null)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-md animate-fade-in"
+            />
+            <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-2xl dark:border-slate-800/90 dark:bg-slate-900 animate-scale-in">
+              <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400">
+                    <BookOpenIcon size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">Edit Book Metadata</h3>
+                    <p className="text-[11px] text-slate-400">Update book information and publishing status</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setEditingBook(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                >
+                  <XIcon size={16} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditBook} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Book Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Author
+                    </label>
+                    <input
+                      type="text"
+                      value={editAuthor}
+                      onChange={(e) => setEditAuthor(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Category
+                    </label>
+                    <input
+                      type="text"
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Visibility
+                    </label>
+                    <select
+                      value={editVisibility}
+                      onChange={(e) => setEditVisibility(e.target.value as any)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="PUBLIC">Public</option>
+                      <option value="PROTECTED">Protected</option>
+                      <option value="PRIVATE">Private</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={editPublished ? "published" : "draft"}
+                      onChange={(e) => setEditPublished(e.target.value === "published")}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="published">Published</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingBook(null)}
+                    className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-brand-500/20 hover:bg-brand-700 active:scale-95 transition disabled:opacity-50"
+                  >
+                    {loading ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

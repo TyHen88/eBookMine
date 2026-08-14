@@ -3,6 +3,7 @@ import { getOrCreateAppFolder, uploadFile } from "@/lib/drive";
 import { getMergedBooks, createDbBook } from "@/lib/booksService";
 import { requireAuth } from "@/lib/authHelpers";
 import { bookCreateSchema } from "@/lib/validation";
+import { saveLocalBookFile } from "@/lib/localStorage";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -25,15 +26,12 @@ export async function GET() {
 }
 
 /**
- * POST /api/books — upload a new PDF to Google Drive & create record in PostgreSQL.
+ * POST /api/books — upload a new PDF (Google Drive or Local Storage) & create record in PostgreSQL.
  * Expects multipart/form-data: `file` (the PDF) + `meta` (JSON string).
  */
 export async function POST(req: NextRequest) {
   const { session, response } = await requireAuth();
   if (response) return response;
-
-  const token = session.accessToken;
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const form = await req.formData();
@@ -59,33 +57,57 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const folderId = await getOrCreateAppFolder(token);
     const bytes = await file.arrayBuffer();
+    const token = session.accessToken;
+    let driveFileId: string | null = null;
+    let fileSize = bytes.byteLength;
 
-    const uploaded = await uploadFile(
-      token,
-      folderId,
-      file.name,
-      "application/pdf",
-      bytes
-    );
+    // 1. Try Google Drive if an OAuth access token is available
+    if (token) {
+      try {
+        const folderId = await getOrCreateAppFolder(token);
+        const uploaded = await uploadFile(
+          token,
+          folderId,
+          file.name,
+          "application/pdf",
+          bytes
+        );
+        if (uploaded?.id) {
+          driveFileId = uploaded.id;
+          if (uploaded.size) fileSize = parseInt(uploaded.size, 10);
+        }
+      } catch (driveErr) {
+        logger.warn("Google Drive upload failed, falling back to local storage", {
+          error: driveErr instanceof Error ? driveErr.message : String(driveErr),
+        });
+      }
+    }
+
+    // 2. Fallback to Local File Storage if Drive is unavailable or session lacks OAuth token
+    if (!driveFileId) {
+      const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      await saveLocalBookFile(localId, bytes);
+      driveFileId = localId;
+    }
 
     const book = await createDbBook({
-      driveFileId: uploaded.id,
-      title: meta.title || file.name,
+      driveFileId,
+      title: meta.title || file.name.replace(/\.pdf$/i, ""),
       fileName: file.name,
       author: meta.author,
       category: meta.category,
       pageCount: meta.pageCount || 0,
-      sizeBytes: uploaded.size ? parseInt(uploaded.size, 10) : bytes.byteLength,
+      sizeBytes: fileSize,
       coverUrl: meta.cover || null,
       userId: session.user?.id,
     });
 
-    logger.info("Book created", { bookId: book.id, title: book.title });
+    logger.info("Book created successfully", { bookId: book.id, title: book.title, driveFileId });
     return NextResponse.json({ book });
   } catch (err) {
     logger.error("POST /api/books failed", err);
-    return NextResponse.json({ error: "Book upload failed" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Book upload failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

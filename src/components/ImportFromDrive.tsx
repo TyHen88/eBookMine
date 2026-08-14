@@ -34,13 +34,16 @@ function loadPicker(): Promise<void> {
   return pickerLoading;
 }
 
+import SyncProgressModal from "./SyncProgressModal";
+
 export default function ImportFromDrive({
   onImported,
 }: {
-  onImported: (ids: string[]) => void | Promise<void>;
+  onImported: (ids?: string[]) => void | Promise<void>;
 }) {
   const { data: session } = useSession();
   const [busy, setBusy] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const token = (session as any)?.accessToken as string | undefined;
@@ -52,7 +55,8 @@ export default function ImportFromDrive({
       return;
     }
     if (!token) {
-      setError("No Google access token in session — sign out and back in.");
+      // If no Google OAuth token, open smooth sync modal
+      setShowSyncModal(true);
       return;
     }
 
@@ -73,10 +77,26 @@ export default function ImportFromDrive({
         .setDeveloperKey(API_KEY)
         .addView(view)
         .setTitle("Select PDFs to add to eBookMine")
-        .setCallback((data: any) => {
+        .setCallback(async (data: any) => {
           if (data.action === google.picker.Action.PICKED) {
             const ids = (data.docs ?? []).map((d: any) => d.id);
-            if (ids.length) onImported(ids);
+            if (ids.length) {
+              setBusy(true);
+              try {
+                const res = await fetch("/api/import", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ ids }),
+                });
+                const resData = await res.json();
+                if (!res.ok) throw new Error(resData.error || "Import failed");
+                await onImported(ids);
+              } catch (err: any) {
+                setError(err?.message || "Import failed");
+              } finally {
+                setBusy(false);
+              }
+            }
           }
         });
 
@@ -91,17 +111,26 @@ export default function ImportFromDrive({
   }, [token, onImported]);
 
   return (
-    <div className="flex flex-col items-end">
+    <div className="flex items-center gap-2">
+      {/* Animated Sync Progress Modal */}
+      <SyncProgressModal
+        isOpen={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        onFinished={() => onImported()}
+      />
+
       <Button
         variant="secondary"
-        onClick={openPicker}
+        size="sm"
+        onClick={() => setShowSyncModal(true)}
         disabled={busy}
-        title="Import existing PDFs from cloud storage"
+        title="Scan Google Drive folder and sync newly added PDFs into database"
       >
-        <FolderIcon size={16} />
-        {busy ? "Opening…" : "Import Cloud Books"}
+        <FolderIcon size={15} />
+        <span>Sync Drive</span>
       </Button>
-      {error && <span className="mt-1 text-xs text-red-500">{error}</span>}
+
+      {error && <span className="text-xs text-red-500">{error}</span>}
     </div>
   );
 }

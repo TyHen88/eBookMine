@@ -112,3 +112,78 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
+
+/**
+ * POST /api/admin/books — Create a new book record in PostgreSQL.
+ */
+export async function POST(req: NextRequest) {
+  const { response } = await requireAdmin();
+  if (response) return response;
+
+  try {
+    const body = await req.json();
+    const { title, author, category, description, visibility, published, coverUrl, driveFileId } = body;
+
+    if (!title || !title.trim()) {
+      return NextResponse.json({ ok: false, error: "Title is required" }, { status: 400 });
+    }
+
+    const authorName = author && author.trim() ? author.trim() : "Unknown";
+    const catName = category && category.trim() ? category.trim() : "General";
+
+    // 1. Author upsert
+    const dbAuthor = await prisma.author.upsert({
+      where: { name: authorName },
+      update: {},
+      create: { name: authorName },
+    });
+
+    // 2. Category upsert
+    const catSlug = catName.toLowerCase().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").trim() || "general";
+    const dbCategory = await prisma.category.upsert({
+      where: { slug: catSlug },
+      update: { name: catName },
+      create: { name: catName, slug: catSlug },
+    });
+
+    // 3. Create Book
+    const dbBook = await prisma.book.create({
+      data: {
+        title: title.trim(),
+        description: description?.trim() || null,
+        fileName: `${title.trim()}.pdf`,
+        coverUrl: coverUrl?.trim() || null,
+        visibility: visibility || "PUBLIC",
+        published: published !== false,
+        driveFileId: driveFileId?.trim() || null,
+      },
+    });
+
+    // 4. Link relations
+    await prisma.bookAuthor.create({
+      data: { bookId: dbBook.id, authorId: dbAuthor.id },
+    });
+    await prisma.bookCategory.create({
+      data: { bookId: dbBook.id, categoryId: dbCategory.id },
+    });
+
+    memoryCache.invalidate();
+    logger.info("Admin created book", { bookId: dbBook.id, title: dbBook.title });
+
+    return NextResponse.json({
+      ok: true,
+      book: {
+        id: dbBook.id,
+        title: dbBook.title,
+        author: dbAuthor.name,
+        category: dbCategory.name,
+        visibility: dbBook.visibility,
+        published: dbBook.published,
+      },
+    });
+  } catch (err: unknown) {
+    logger.error("POST /api/admin/books failed", err);
+    const msg = err instanceof Error ? err.message : "Failed to create book";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  }
+}

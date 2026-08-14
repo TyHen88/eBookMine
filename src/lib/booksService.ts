@@ -105,7 +105,6 @@ export async function getMergedBooks(
     let dbBooks = await prisma.book.findMany({
       include: LEAN_BOOK_INCLUDE,
       orderBy: { createdAt: "desc" },
-      take: 200,
     });
 
     // If database is empty, sync from Google Drive on first request
@@ -116,7 +115,6 @@ export async function getMergedBooks(
         dbBooks = await prisma.book.findMany({
           include: LEAN_BOOK_INCLUDE,
           orderBy: { createdAt: "desc" },
-          take: 200,
         });
       } catch (syncErr) {
         console.error("Initial Drive sync error:", syncErr);
@@ -148,7 +146,6 @@ export async function getPublicBooks(folderId: string): Promise<BookMeta[]> {
       },
       include: LEAN_BOOK_INCLUDE,
       orderBy: { createdAt: "desc" },
-      take: 200,
     });
 
     if (dbBooks.length === 0 && folderId) {
@@ -158,7 +155,6 @@ export async function getPublicBooks(folderId: string): Promise<BookMeta[]> {
           where: { published: true },
           include: LEAN_BOOK_INCLUDE,
           orderBy: { createdAt: "desc" },
-          take: 200,
         });
       } catch (syncErr) {
         console.error("Public drive sync error:", syncErr);

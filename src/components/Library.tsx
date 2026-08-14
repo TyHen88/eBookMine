@@ -4,15 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BookMeta } from "@/lib/types";
 import BookCard from "./BookCard";
-import UploadZone from "./UploadZone";
 import BookDetailModal from "./BookDetailModal";
-import ImportFromDrive from "./ImportFromDrive";
 import { Button, SearchInput, Select, Spinner } from "./ui";
 import {
   BookOpenIcon,
   GridIcon,
   ListIcon,
-  PlusIcon,
   SparklesIcon,
   StarIcon,
 } from "./ui/icons";
@@ -47,7 +44,6 @@ export default function Library() {
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [editing, setEditing] = useState<BookMeta | null>(null);
-  const [showUpload, setShowUpload] = useState(false);
   const [visible, setVisible] = useState(PAGE_SIZE);
   const [continueItems, setContinueItems] = useState<any[]>([]);
 
@@ -153,16 +149,6 @@ export default function Library() {
             Your personal reading space • Read, understand, and remember.
           </p>
         </div>
-
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <ImportFromDrive onImported={() => window.location.reload()} />
-            <Button size="sm" onClick={() => setShowUpload(true)}>
-              <PlusIcon size={16} />
-              Upload PDF
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Continue Reading Hero Banner (Compact & Mobile-Optimized) */}
@@ -227,17 +213,6 @@ export default function Library() {
           <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
             Choose a book from your library and eBookMine will help you read, understand, and remember it.
           </p>
-        </div>
-      )}
-
-      {/* Upload Zone Drawer */}
-      {showUpload && (
-        <div className="rounded-3xl border border-brand-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Upload New Book to Library</h3>
-            <button onClick={() => setShowUpload(false)} className="text-xs text-slate-400 hover:text-slate-600">Close</button>
-          </div>
-          <UploadZone onUploaded={() => { setShowUpload(false); window.location.reload(); }} />
         </div>
       )}
 

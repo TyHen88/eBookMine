@@ -114,6 +114,48 @@ body.area-select-active *,
   @apply bg-brand-500/25;
 }
 
+@keyframes sync-pulse-glow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.75;
+  }
+}
+
+@keyframes sync-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-sync-glow {
+  animation: sync-pulse-glow 2.5s ease-in-out infinite;
+}
+
+.animate-sync-float {
+  animation: sync-float 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
 @keyframes fade-in-up {
   from {
     opacity: 0;
