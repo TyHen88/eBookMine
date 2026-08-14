@@ -60,7 +60,7 @@ export async function GET(
     }
 
     if (!driveRes.ok) {
-      if (download && driveFileId) {
+      if (driveFileId) {
         return NextResponse.redirect(
           `https://drive.usercontent.google.com/download?id=${driveFileId}&export=download&authuser=0&confirm=t`,
           307
@@ -84,13 +84,10 @@ export async function GET(
     return new NextResponse(driveRes.body, { status: driveRes.status, headers });
   } catch (err) {
     console.error("Error streaming book file:", err);
-    if (download) {
-      return NextResponse.redirect(
-        `https://drive.usercontent.google.com/download?id=${id}&export=download&authuser=0&confirm=t`,
-        307
-      );
-    }
-    return new NextResponse(null, { status: 500 });
+    return NextResponse.redirect(
+      `https://drive.usercontent.google.com/download?id=${id}&export=download&authuser=0&confirm=t`,
+      307
+    );
   }
 }
 

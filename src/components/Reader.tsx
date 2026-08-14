@@ -620,7 +620,14 @@ export default function Reader({ id }: { id: string }) {
   const pageWidth = baseWidth ? baseWidth * scale : undefined;
   const estHeight = pageWidth ? Math.round(pageWidth * 1.4) : 900;
 
-  const fileUrl = useMemo(() => `${apiBase}/${id}/file`, [apiBase, id]);
+  const [useDirectFallback, setUseDirectFallback] = useState(false);
+  const fileUrl = useMemo(() => {
+    if (useDirectFallback) {
+      return `https://drive.usercontent.google.com/download?id=${id}&export=download&authuser=0&confirm=t`;
+    }
+    return `${apiBase}/${id}/file`;
+  }, [apiBase, id, useDirectFallback]);
+
   const downloadUrl = useMemo(
     () =>
       `${apiBase}/${id}/file?download=1` +
@@ -2915,6 +2922,11 @@ export default function Reader({ id }: { id: string }) {
                 options={PDF_OPTIONS}
                 onLoadSuccess={onDocumentLoadSuccess}
                 onLoadError={(err) => {
+                  if (!useDirectFallback) {
+                    console.warn("Retrying with direct CDN fallback for PDF:", err);
+                    setUseDirectFallback(true);
+                    return;
+                  }
                   if (err?.name === "MissingPDFException" || err?.message?.includes("Missing PDF")) {
                     setLoadError(true);
                     return;
