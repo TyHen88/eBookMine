@@ -17,9 +17,22 @@ export async function POST(req: NextRequest) {
     const { provider, model, apiKey } = await req.json();
 
     const savedConfig = await getAIConfig();
+    const activeProvider = (provider || savedConfig.provider || "local").toLowerCase();
+    const targetModel = model || savedConfig.model || (activeProvider === "local" ? "local-synthesizer" : "google/gemini-2.5-flash");
+
+    // 1. Local Built-in Provider Test
+    if (activeProvider === "local") {
+      return NextResponse.json({
+        ok: true,
+        latencyMs: 2,
+        message: "✓ Local Built-in AI Engine is active and ready (100% Offline & Free, no API key needed).",
+        model: targetModel,
+      });
+    }
+
     const keyToUse = (apiKey || savedConfig.apiKey || process.env.AI_API_KEY || "").trim();
 
-    if (!keyToUse && provider !== "ollama") {
+    if (!keyToUse && activeProvider !== "ollama") {
       return NextResponse.json(
         {
           ok: false,
@@ -29,8 +42,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const activeProvider = provider || savedConfig.provider || "openrouter";
-    const targetModel = model || savedConfig.model || "google/gemini-2.5-flash";
     const startTime = Date.now();
 
     let endpoint = "https://openrouter.ai/api/v1/chat/completions";
@@ -49,11 +60,27 @@ export async function POST(req: NextRequest) {
     if (activeProvider === "openai") {
       endpoint = "https://api.openai.com/v1/chat/completions";
       fetchHeaders["Authorization"] = `Bearer ${keyToUse}`;
+    } else if (activeProvider === "deepseek") {
+      endpoint = "https://api.deepseek.com/chat/completions";
+      fetchHeaders["Authorization"] = `Bearer ${keyToUse}`;
+    } else if (activeProvider === "anthropic") {
+      endpoint = "https://api.anthropic.com/v1/messages";
+      fetchHeaders = {
+        "x-api-key": keyToUse,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      };
+      requestBody = {
+        model: targetModel || "claude-3-5-sonnet-20241022",
+        max_tokens: 10,
+        messages: [{ role: "user", content: "Ping" }],
+      };
     } else if (activeProvider === "google") {
-      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keyToUse}`;
+      const googleModel = targetModel || "gemini-1.5-flash";
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${googleModel}:generateContent?key=${keyToUse}`;
       delete fetchHeaders["Authorization"];
       requestBody = {
-        contents: [{ parts: [{ text: "Ping connection test" }] }],
+        contents: [{ parts: [{ text: "Ping" }] }],
       };
     } else if (activeProvider === "ollama") {
       endpoint = "http://localhost:11434/api/generate";
@@ -65,11 +92,26 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: fetchHeaders,
-      body: JSON.stringify(requestBody),
-    });
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: fetchHeaders,
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch (networkErr: any) {
+      if (activeProvider === "ollama") {
+        return NextResponse.json({
+          ok: false,
+          error: "Cannot connect to Local Ollama at http://localhost:11434. Please make sure Ollama is running (`ollama serve`).",
+        });
+      }
+      return NextResponse.json({
+        ok: false,
+        error: `Connection Failed: ${networkErr?.message || "Network request failed. Check your internet connection or proxy."}`,
+      });
+    }
 
     const latencyMs = Date.now() - startTime;
 

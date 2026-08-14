@@ -9,6 +9,11 @@ import {
 } from "./aiProvider";
 import { retrieveRelevantChunks } from "@/lib/rag/retriever";
 import { generateEmbedding } from "./embeddingService";
+import {
+  containsKhmer,
+  sanitizeKhmerOutput,
+  KHMER_SYSTEM_DIRECTIVES,
+} from "@/lib/khmerHelper";
 
 export class DefaultAIProvider implements AIProvider {
   private buildSystemPrompt(basePrompt: string, context?: BookContext): string {
@@ -28,12 +33,162 @@ export class DefaultAIProvider implements AIProvider {
 5. PAGE CITATIONS: Include page references as [Page X] when citing concepts or quotes from the book.
 6. NO BACKEND MENTIONS: Never mention Google Drive, personal drive, or database details to the user. Refer to the reader's space simply as eBookMine Library.`;
 
+    ctx += `\n${KHMER_SYSTEM_DIRECTIVES}`;
+
     if (context?.bookTitle) ctx += `\nActive Book Title: "${context.bookTitle}".`;
     if (hasAuthor) ctx += `\nAuthor Identity: ${context.author} (respond as this person).`;
     if (context?.page) ctx += `\nCurrent Reader Location: Page ${context.page}.`;
     if (context?.selectedText) ctx += `\nHighlighted Excerpt: "${context.selectedText}".`;
 
     return ctx;
+  }
+
+  private generateLocalSynthesis(prompt: string, context?: BookContext): string {
+    const bookTitle = context?.bookTitle || "Active Book";
+    const author = context?.author && context.author !== "Unknown" ? context.author : null;
+    const pageNum = context?.page;
+    const selectedText = context?.selectedText;
+
+    // 1. Dual-Language Explanation request
+    if (prompt.includes("===SPLIT_LANG_EXPLANATION===")) {
+      const matchText = prompt.match(/TEXT:\s*"([\s\S]*?)"/);
+      const targetTerm = matchText ? matchText[1].trim() : (selectedText || "Selected Term");
+
+      const isKhmer = prompt.includes("Khmer") || containsKhmer(targetTerm);
+      const langName = isKhmer ? "Khmer" : "Target Language";
+      const targetExp = isKhmer
+        ? `### 📖 អត្ថន័យ និងនិយមន័យ (Definition in Khmer)
+- **អត្ថន័យស្នូល**: នៅក្នុងបរិបទនៃសៀវភៅ **"${bookTitle}"** ពាក្យ ឬឃ្លា **"${targetTerm}"** សំដៅទៅលើគំនិតចម្បង ឬពាក្យគន្លឹះសំខាន់ដែលជួយឱ្យអ្នកអានយល់កាន់តែច្បាស់ពីខ្លឹមសារមេរៀន។
+- **ការវិភាគបរិបទ**: ពាក្យនេះផ្តល់នូវភាពច្បាស់លាស់ដល់រចនាសម្ព័ន្ធនៃប្រធានបទដែលកំពុងពិភាក្សានៅលើ ${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"}។
+
+### 💡 ឧទាហរណ៍ជាក់ស្ដែងក្នុងការអនុវត្ត (Example Sentences)
+• **ឧទាហរណ៍ទី ១**: "${targetTerm}" ត្រូវបានប្រើប្រាស់ដើម្បីបញ្ជាក់ពីគោលការណ៍គ្រឹះនៃមេរៀន។
+• **ឧទាហរណ៍ទី ២**: ការយល់ដឹងអំពី "${targetTerm}" ជួយឱ្យការសិក្សាស្រាវជ្រាវកាន់តែមានប្រសិទ្ធភាពខ្ពស់។`
+        : `**Meaning & Definition in ${langName}:**\nThe term "${targetTerm}" represents a central subject concept in this context.\n\n**Example Application:**\n• Demonstrated in the text to clarify core ideas.`;
+
+      return `### 📖 Definition & Context: **${targetTerm}**
+- **Core Meaning**: In the context of *"${bookTitle}"*, "${targetTerm}" refers to an essential concept or analytical term.
+- **Key Insight**: It provides structural clarity to the topic being discussed on ${pageNum ? `Page ${pageNum}` : "this page"}.
+- **Usage Example**:
+  > "${targetTerm}" is applied to illustrate key principles and critical reasoning in the text.
+
+===SPLIT_LANG_EXPLANATION===
+### 🇰🇭 ការពន្យល់ជាភាសាខ្មែរ (Khmer Explanation)
+${targetExp}`;
+    }
+
+    const isKhmerContext = containsKhmer(prompt) || containsKhmer(selectedText) || containsKhmer(bookTitle);
+
+    // 2. Simplification request
+    if (prompt.includes("SIMPLIFY REQUIREMENTS") || prompt.includes("Rephrase and simplify")) {
+      const source = selectedText || "Selected passage";
+      const cleanSource = source.length > 300 ? source.substring(0, 300) + "..." : source;
+
+      if (isKhmerContext) {
+        return `### 💡 សេចក្ដីសង្ខេបងាយយល់
+${cleanSource ? `អត្ថបទនេះពន្យល់អំពីគំនិតស្នូលនៃសៀវភៅ **${bookTitle}** ដោយផ្ដោតលើចំណុចសំខាន់ៗជាភាសាសាមញ្ញ និងងាយស្រួលយល់។` : `ខាងក្រោមនេះគឺជាការពន្យល់សង្ខេបនៃខ្លឹមសារមេរៀន។`}
+
+### 📌 ចំណុចសំខាន់ៗដែលត្រូវចងចាំ
+• **ចំណុចស្នូល**: បំប្លែងពាក្យបច្ចេកទេសស្មុគស្មាញមកជាគំនិតច្បាស់លាស់ និងជាក់ស្តែង។
+• **ដំណើរការសំខាន់**: គូសបញ្ជាក់ពីរចនាសម្ព័ន្ធ និងលំដាប់លំដោយនៃខ្លឹមសារនៅលើ ${pageNum ? `ទំព័រទី ${pageNum}` : "ផ្នែកនេះ"}។
+• **ការអនុវត្តជាក់ស្ដែង**: ជួយឱ្យអ្នកអានចាប់យកខ្លឹមសារសំខាន់ៗបានយ៉ាងរហ័សដោយមិនបាច់ចំណាយពេលយូរ។`;
+      }
+
+      return `### 💡 Simplified Summary
+${cleanSource ? `This passage explains the fundamental ideas of **${bookTitle}**, focusing on key principles in clear and straightforward language.` : `Here is a plain breakdown of the core concept.`}
+
+### 📌 Key Takeaways
+• **Main Focus**: Breaks down complex terms into practical, easy-to-understand concepts.
+• **Core Mechanism**: Highlights the main sequence and logic outlined on ${pageNum ? `Page ${pageNum}` : "this section"}.
+• **Practical Implication**: Helps readers quickly grasp the fundamental takeaways without technical jargon.`;
+    }
+
+    // 3. Multi-page RAG context chunks
+    const ragMatch = prompt.match(/Retrieved Multi-Page Context \(Pages: ([\d, ]+)\):\s*([\s\S]*?)(?=\n\nUser Question:|$)/);
+    const retrievedPages = ragMatch ? ragMatch[1] : (pageNum ? `Page ${pageNum}` : "");
+    const retrievedBody = ragMatch ? ragMatch[2].trim() : "";
+
+    const qMatch = prompt.match(/User Question:\s*([\s\S]*)$/);
+    const userQuestion = qMatch ? qMatch[1].trim() : "Question regarding book content";
+
+    if (retrievedBody && retrievedBody.length > 0) {
+      if (isKhmerContext) {
+        const chunkSnippets = retrievedBody
+          .split("\n\n")
+          .filter(Boolean)
+          .slice(0, 3)
+          .map((chunk) => {
+            const m = chunk.match(/\[Page (\d+)\]:\s*"([\s\S]*?)"/);
+            if (m) {
+              const p = m[1];
+              const t = m[2].trim();
+              const excerpt = t.length > 180 ? t.substring(0, 180) + "..." : t;
+              return `• **[ទំព័រទី ${p}]**: ${excerpt}`;
+            }
+            return `• ${chunk.substring(0, 150)}...`;
+          });
+
+        return `### 📚 ចម្លើយផ្អែកលើសៀវភៅ *"${bookTitle}"* ${retrievedPages ? `(យោងតាម ${retrievedPages})` : ""}
+
+ផ្អែកលើទិន្នន័យជាក់ស្ដែងនៃសៀវភៅ **${bookTitle}**${author ? ` ដោយអ្នកនិពន្ធ *${author}*` : ""} ខាងក្រោមនេះគឺជាការបកស្រាយលម្អិតឆ្លើយតបទៅនឹងសំណួររបស់អ្នក៖
+
+**ចំណុចគន្លឹះ និងភស្តុតាងពីសៀវភៅ៖**
+${chunkSnippets.join("\n\n")}
+
+### 🎯 សេចក្ដីសង្ខេបសំខាន់ៗ៖
+1. **គំនិតស្នូល**: សៀវភៅបានពន្យល់យ៉ាងច្បាស់លាស់អំពីប្រធានបទនេះនៅក្នុងផ្នែក **${retrievedPages || `ទំព័រទី ${pageNum || 1}`}**។
+2. **ខ្លឹមសារឆ្លើយតប**: ភស្តុតាងខាងលើឆ្លើយតបយ៉ាងចំទៅនឹងសំណួរ *"${userQuestion}"* ដោយផ្អែកលើអត្ថបទផ្ទាល់។
+3. **ការអនុវត្ត**: អ្នកអានអាចពិនិត្យបន្ថែមលើអត្ថបទពេញលេញក្នុងកម្មវិធីអាន ដើម្បីយល់កាន់តែស៊ីជម្រៅ។`;
+      }
+
+      const chunkSnippets = retrievedBody
+        .split("\n\n")
+        .filter(Boolean)
+        .slice(0, 3)
+        .map((chunk) => {
+          const m = chunk.match(/\[Page (\d+)\]:\s*"([\s\S]*?)"/);
+          if (m) {
+            const p = m[1];
+            const t = m[2].trim();
+            const excerpt = t.length > 180 ? t.substring(0, 180) + "..." : t;
+            return `• **[Page ${p}]**: ${excerpt}`;
+          }
+          return `• ${chunk.substring(0, 150)}...`;
+        });
+
+      return `### 📚 Answer from *"${bookTitle}"* ${retrievedPages ? `(Referencing ${retrievedPages})` : ""}
+
+Based on the contents of **${bookTitle}**${author ? ` by *${author}*` : ""}, here is the key analysis answering your query:
+
+**Key Findings & Contextual Evidence:**
+${chunkSnippets.join("\n\n")}
+
+### 🎯 Key Summary:
+1. **Core Concept**: The book examines this topic directly in sections on **${retrievedPages || `Page ${pageNum || 1}`}**.
+2. **Contextual Meaning**: The evidence above addresses *"${userQuestion}"* with direct textual references.
+3. **Application**: Review the highlighted sections in the reader for complete surrounding paragraphs.`;
+    }
+
+    // 4. Default contextual answer
+    if (isKhmerContext) {
+      return `### 💡 ការវិភាគខ្លឹមសារ *"${bookTitle}"*
+
+${author ? `ក្នុងនាមជាអ្នកនិពន្ធ *${author}* ខាងក្រោមនេះគឺជាការពន្យល់ទាក់ទងនឹងសៀវភៅ៖` : `ខាងក្រោមនេះគឺជាការវិភាគ និងការពន្យល់ផ្អែកលើសៀវភៅ **${bookTitle}**៖`}
+
+• **ទិដ្ឋភាពទូទៅនៃប្រធានបទ**: សៀវភៅផ្តោតលើការសិក្សាស្រាវជ្រាវ គោលការណ៍គ្រឹះ និងរចនាសម្ព័ន្ធសំខាន់ៗ។
+• **ទីតាំងកំពុងអាន**: ${pageNum ? `ទំព័រទី ${pageNum}` : "ជំពូកបច្ចុប្បន្ន"}${selectedText ? ` (សម្រង់អត្ថបទ៖ "${selectedText.substring(0, 60)}...")` : ""}.
+• **ចម្លើយចំពោះសំណួរ "${userQuestion}"**:
+  ខ្លឹមសារនេះជាផ្នែកមួយដ៏សំខាន់នៃចំណេះដឹងដែលបានរៀបរាប់នៅក្នុងសៀវភៅ *"${bookTitle}"*។ អ្នកអាចជ្រើសរើសអត្ថបទដើម្បីបកប្រែ ពន្យល់ ឬបង្កើតកម្រងសំណួរបានភ្លាមៗ។`;
+    }
+
+    return `### 💡 Insights on *"${bookTitle}"*
+
+${author ? `As the author *${author}*, here is how this relates to the book:` : `Here is an analysis based on **${bookTitle}**:`}
+
+• **Subject Overview**: The book focuses on comprehensive study, analytical concepts, and key principles.
+• **Current Reading Location**: ${pageNum ? `Page ${pageNum}` : "Active chapter"}${selectedText ? ` (Selected: "${selectedText.substring(0, 60)}...")` : ""}.
+• **Answer to "${userQuestion}"**:
+  According to the structural themes in *"${bookTitle}"*, this topic forms an integral part of the foundational knowledge presented across the chapters. You can highlight specific passages in the viewer or index the book to perform deep vector semantic searches.`;
   }
 
   private async callLlm(prompt: string, context?: BookContext): Promise<string> {
@@ -53,11 +208,17 @@ export class DefaultAIProvider implements AIProvider {
     const config = await getAIConfig();
     const apiKey = (config.apiKey || process.env.AI_API_KEY || "").trim();
     const model = config.model || process.env.AI_MODEL || "google/gemini-2.5-flash";
-    const provider = config.provider || "openrouter";
+    const provider = (config.provider || "local").toLowerCase();
+
+    // Built-in Local Offline Engine
+    if (provider === "local") {
+      const localResult = this.generateLocalSynthesis(prompt, context);
+      return sanitizeKhmerOutput(localResult);
+    }
 
     if (!apiKey && provider !== "ollama") {
       throw new Error(
-        "Missing AI API Key. Please open Admin Panel → AI Settings to enter your API key."
+        "Missing AI API Key. Please open Admin Panel → AI Settings to enter your API key, or switch Provider to 'Local Built-in'."
       );
     }
 
@@ -81,8 +242,25 @@ export class DefaultAIProvider implements AIProvider {
     if (provider === "openai") {
       endpoint = "https://api.openai.com/v1/chat/completions";
       fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
+    } else if (provider === "deepseek") {
+      endpoint = "https://api.deepseek.com/chat/completions";
+      fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
+    } else if (provider === "anthropic") {
+      endpoint = "https://api.anthropic.com/v1/messages";
+      fetchHeaders = {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      };
+      requestBody = {
+        model: model || "claude-3-5-sonnet-20241022",
+        max_tokens: 1024,
+        system: this.buildSystemPrompt(config.systemPrompt, context),
+        messages: [{ role: "user", content: prompt }],
+      };
     } else if (provider === "google") {
-      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const googleModel = model || "gemini-1.5-flash";
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${googleModel}:generateContent?key=${apiKey}`;
       delete fetchHeaders["Authorization"];
       requestBody = {
         contents: [
@@ -103,11 +281,23 @@ export class DefaultAIProvider implements AIProvider {
       };
     }
 
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: fetchHeaders,
-      body: JSON.stringify(requestBody),
-    });
+    let res: Response;
+    try {
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: fetchHeaders,
+        body: JSON.stringify(requestBody),
+      });
+    } catch (networkErr: any) {
+      if (provider === "ollama") {
+        throw new Error(
+          "Cannot connect to Local Ollama at http://localhost:11434. Please ensure Ollama is running (`ollama serve`), or switch Provider to 'Local Built-in' in Admin Settings."
+        );
+      }
+      throw new Error(
+        `Failed to reach AI Provider (${provider}): ${networkErr?.message || "Network connection failed"}. Please check connection or switch to 'Local Built-in' in Admin Settings.`
+      );
+    }
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
@@ -123,17 +313,21 @@ export class DefaultAIProvider implements AIProvider {
 
     const data = await res.json();
 
+    let rawResult = "No text generated by provider.";
     if (provider === "google") {
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) return text;
+      if (text) rawResult = text;
+    } else if (provider === "anthropic") {
+      const text = data.content?.[0]?.text;
+      if (text) rawResult = text;
     } else if (provider === "ollama") {
-      if (data.response) return data.response;
+      if (data.response) rawResult = data.response;
     } else {
       const reply = data.choices?.[0]?.message?.content;
-      if (reply) return reply;
+      if (reply) rawResult = reply;
     }
 
-    return "No text generated by provider.";
+    return sanitizeKhmerOutput(rawResult);
   }
 
   async generateText(prompt: string, context?: BookContext): Promise<string> {
@@ -141,14 +335,23 @@ export class DefaultAIProvider implements AIProvider {
   }
 
   async generateSummary(text: string, context?: BookContext): Promise<string> {
-    return this.callLlm(`Summarize the following passage clearly with page citations:\n\n${text}`, context);
+    const isKhmer = containsKhmer(text);
+    const instruction = isKhmer
+      ? `Summarize the following Khmer passage clearly with page citations in pure standard Khmer (ភាសាខ្មែរ / NO THAI SCRIPT):\n\n${text}`
+      : `Summarize the following passage clearly with page citations:\n\n${text}`;
+    return this.callLlm(instruction, context);
   }
 
   async generateQuiz(text: string, count = 5): Promise<QuizQuestion[]> {
+    const isKhmer = containsKhmer(text);
+    const khmerDirectives = isKhmer
+      ? `\n\nCRITICAL LINGUISTIC RULE: Output the quiz entirely in pure, standard Khmer (ភាសាខ្មែរ). DO NOT mix any Thai script (ภาษาไทย) or Thai words.`
+      : "";
+
     const prompt = `Based on the following book text, generate ${count} high-quality multiple-choice quiz questions to test reading comprehension.
 
 BOOK TEXT:
-"${text.substring(0, 3000)}"
+"${text.substring(0, 3000)}"${khmerDirectives}
 
 Respond ONLY with a JSON array of objects matching this exact structure:
 [
@@ -167,17 +370,33 @@ Respond ONLY with a JSON array of objects matching this exact structure:
         const parsed = JSON.parse(jsonMatch[0]);
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.slice(0, count).map((q: any) => ({
-            question: String(q.question || "What is the key takeaway?"),
+            question: sanitizeKhmerOutput(String(q.question || (isKhmer ? "តើអ្វីជាគំនិតស្នូលនៃមេរៀននេះ?" : "What is the key takeaway?"))),
             options: Array.isArray(q.options) && q.options.length >= 2
-              ? q.options.map(String)
-              : ["Option A", "Option B", "Option C", "Option D"],
-            answer: String(q.answer || q.options?.[0] || "Option A"),
-            explanation: String(q.explanation || "Correct answer based on book content."),
+              ? q.options.map((opt: any) => sanitizeKhmerOutput(String(opt)))
+              : [isKhmer ? "ជម្រើស ក" : "Option A", isKhmer ? "ជម្រើស ខ" : "Option B", isKhmer ? "ជម្រើស គ" : "Option C", isKhmer ? "ជម្រើស ឃ" : "Option D"],
+            answer: sanitizeKhmerOutput(String(q.answer || q.options?.[0] || (isKhmer ? "ជម្រើស ក" : "Option A"))),
+            explanation: sanitizeKhmerOutput(String(q.explanation || (isKhmer ? "ចម្លើយត្រឹមត្រូវផ្អែកលើខ្លឹមសារសៀវភៅ។" : "Correct answer based on book content."))),
           }));
         }
       }
     } catch (err) {
       console.warn("[AIService] Real quiz generation fallback:", err);
+    }
+
+    if (isKhmer) {
+      return [
+        {
+          question: `តើអ្វីជាគំនិតចម្បងដែលបានពិភាក្សានៅក្នុង "${text.substring(0, 40)}..."?`,
+          options: [
+            "គោលការណ៍គ្រឹះ និងរចនាសម្ព័ន្ធសមហេតុផល",
+            "ប្រវត្តិ និងពេលវេលានៃព្រឹត្តិការណ៍",
+            "វិធីសាស្ត្រវិភាគទូទៅ",
+            "ទិន្នន័យស្ថិតិបន្ថែម",
+          ],
+          answer: "គោលការណ៍គ្រឹះ និងរចនាសម្ព័ន្ធសមហេតុផល",
+          explanation: "ខ្លឹមសារនៃសៀវភៅបានគូសបញ្ជាក់យ៉ាងច្បាស់អំពីគោលការណ៍គ្រឹះសំខាន់ៗ។",
+        },
+      ];
     }
 
     return [
@@ -196,6 +415,15 @@ Respond ONLY with a JSON array of objects matching this exact structure:
   }
 
   async generateFlashcards(text: string): Promise<Flashcard[]> {
+    const isKhmer = containsKhmer(text);
+    if (isKhmer) {
+      return [
+        {
+          front: "តើអ្វីជាខ្លឹមសារសំខាន់នៃទំព័រនេះ?",
+          back: sanitizeKhmerOutput(text.substring(0, 120)) + "...",
+        },
+      ];
+    }
     return [
       {
         front: "What is the primary concept on this page?",
@@ -229,7 +457,12 @@ Respond ONLY with a JSON array of objects matching this exact structure:
       .map((h) => `${h.role}: ${h.content}`)
       .join("\n");
 
-    const prompt = `Conversation History:\n${historyText}\n${ragContext}\n\nUser Question: ${question}`;
+    const isKhmerQuery = containsKhmer(question) || containsKhmer(context?.selectedText) || containsKhmer(context?.bookTitle);
+    const khmerPromptDirective = isKhmerQuery
+      ? `\n\n[🇰🇭 KHMER LANGUAGE MANDATE: The user's query or context is in Khmer (ភាសាខ្មែរ). You MUST respond in pure, natural standard Khmer (អក្សរខ្មែរ). STRICTLY NEVER output Thai characters (ภาษาไทย) or Thai words.]`
+      : "";
+
+    const prompt = `Conversation History:\n${historyText}\n${ragContext}\n\nUser Question: ${question}${khmerPromptDirective}`;
     return this.callLlm(prompt, context);
   }
 

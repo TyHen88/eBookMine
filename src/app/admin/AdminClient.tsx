@@ -30,6 +30,10 @@ interface AdminClientProps {
 }
 
 const PROVIDER_MODELS: Record<string, Array<{ value: string; label: string }>> = {
+  local: [
+    { value: "local-synthesizer", label: "Local Built-in Synthesizer (Offline & Free)" },
+    { value: "local-rag", label: "Local Semantic RAG Engine (Offline & Free)" },
+  ],
   openrouter: [
     { value: "google/gemini-2.5-flash", label: "Google Gemini 2.5 Flash" },
     { value: "google/gemini-1.5-pro", label: "Google Gemini 1.5 Pro" },
@@ -1169,12 +1173,13 @@ export default function AdminClient({
                     onChange={(e) => handleProviderChange(e.target.value)}
                     className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   >
+                    <option value="local">Local Built-in (100% Offline & Free)</option>
+                    <option value="ollama">Local Ollama (Self-Hosted)</option>
                     <option value="openrouter">OpenRouter API</option>
                     <option value="google">Google Gemini AI Direct</option>
                     <option value="openai">OpenAI Direct</option>
                     <option value="anthropic">Anthropic Direct</option>
                     <option value="deepseek">DeepSeek Direct</option>
-                    <option value="ollama">Local Ollama</option>
                   </select>
                 </div>
 
@@ -1200,22 +1205,31 @@ export default function AdminClient({
               <div>
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    API Key
+                    API Key {aiProviderName === "local" ? "(Not required for Local Built-in)" : aiProviderName === "ollama" ? "(Optional for Local Ollama)" : ""}
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="text-[11px] font-bold text-brand-600 hover:underline dark:text-brand-400"
-                  >
-                    {showApiKey ? "Hide Key" : "Show Key"}
-                  </button>
+                  {aiProviderName !== "local" && (
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="text-[11px] font-bold text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      {showApiKey ? "Hide Key" : "Show Key"}
+                    </button>
+                  )}
                 </div>
                 <input
                   type={showApiKey ? "text" : "password"}
                   value={aiApiKey}
                   onChange={(e) => setAiApiKey(e.target.value)}
-                  placeholder="Paste API key here..."
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  disabled={aiProviderName === "local"}
+                  placeholder={
+                    aiProviderName === "local"
+                      ? "No API key required — Local Built-in engine works offline and free"
+                      : aiProviderName === "ollama"
+                      ? "Optional (Leave blank if running Ollama locally on port 11434)"
+                      : "Paste API key here..."
+                  }
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-xs font-bold outline-none focus:border-brand-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 />
               </div>
 

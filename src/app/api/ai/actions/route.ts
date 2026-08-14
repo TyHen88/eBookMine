@@ -45,8 +45,15 @@ export async function POST(req: NextRequest) {
           vi: "Vietnamese",
           ko: "Korean",
         };
-        const targetName = (targetLangName && typeof targetLangName === "string" ? targetLangName : langNames[targetLang || "km"]) || "Target Language";
+        const targetName = (targetLangName && typeof targetLangName === "string" ? targetLangName : langNames[targetLang || "km"]) || "Khmer";
+        const isTargetKhmer = targetLang === "km" || targetName.toLowerCase().includes("khmer");
 
+        const khmerGuideline = isTargetKhmer
+          ? `\n\nSTRICT KHMER SCRIPT & LANGUAGE RULES (ភាសាខ្មែរ):
+- The ${targetName} explanation must be written in 100% pure standard Khmer (អក្សរខ្មែរ / Unicode U+1780-U+17FF).
+- ZERO THAI SCRIPT: Absolutely NEVER output Thai script (ภาษาไทย / U+0E00-U+0E7F) or Thai words/particles.
+- Format with authentic Khmer headings (e.g. ### 📖 អត្ថន័យ និងការពន្យល់, **ឧទាហរណ៍ជាក់ស្ដែង**).`
+          : "";
 
         const prompt = `Provide a clear, dual-language AI explanation of the following word, phrase, or text in BOTH English AND ${targetName}:
 
@@ -54,7 +61,7 @@ TEXT: "${text}"
 
 REQUIREMENTS FOR EACH LANGUAGE:
 1. Core Meaning & Definition
-2. Real-World Example Sentences
+2. Real-World Example Sentences${khmerGuideline}
 
 CRITICAL FORMAT REQUIREMENT: Output the English explanation first, followed by the separator line "===SPLIT_LANG_EXPLANATION===", followed by the complete ${targetName} explanation.`;
 
@@ -62,8 +69,12 @@ CRITICAL FORMAT REQUIREMENT: Output the English explanation first, followed by t
         return NextResponse.json({ result });
       }
 
-
       case "simplify": {
+        const hasKhmer = /[\u1780-\u17FF]/.test(text);
+        const khmerNote = hasKhmer
+          ? "\n\nNOTE: The input contains Khmer. Respond purely in natural standard Khmer (ភាសាខ្មែរ) without any Thai script (ภาษาไทย)."
+          : "";
+
         const prompt = `Rephrase and simplify the following passage into plain, easy-to-understand language while preserving its exact core meaning:
 
 "${text}"
@@ -71,13 +82,13 @@ CRITICAL FORMAT REQUIREMENT: Output the English explanation first, followed by t
 SIMPLIFY REQUIREMENTS:
 - **Plain Summary**: 2 sentences explaining the main idea in simple, everyday language.
 - **Key Takeaways**: 3 concise bullet points listing the primary facts or steps.
-- **Length**: Compact and clear (100–180 words). Eliminate unnecessary jargon and fluff.`;
+- **Length**: Compact and clear (100–180 words). Eliminate unnecessary jargon and fluff.${khmerNote}`;
 
         const result = await aiProvider.generateText(prompt, context);
         return NextResponse.json({ result });
       }
       case "translate": {
-        const lang = targetLang || "en";
+        const lang = targetLang || "km";
         const gtResult = await translateText(text, lang);
         return NextResponse.json({
           result: gtResult.translatedText,

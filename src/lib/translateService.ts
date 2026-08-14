@@ -1,3 +1,5 @@
+import { sanitizeKhmerOutput } from "./khmerHelper";
+
 export interface TranslateDefinition {
   partOfSpeech: string;
   terms: string[];
@@ -34,7 +36,6 @@ const LANGUAGE_NAMES: Record<string, string> = {
   id: "Indonesian",
 };
 
-
 export function getLanguageName(code?: string): string {
   if (!code) return "Auto Detect";
   return LANGUAGE_NAMES[code] || code.toUpperCase();
@@ -45,7 +46,7 @@ export function getLanguageName(code?: string): string {
  */
 export async function translateText(
   text: string,
-  targetLang: string = "en",
+  targetLang: string = "km",
   sourceLang: string = "auto"
 ): Promise<TranslateResult> {
   if (!text || !text.trim()) {
@@ -53,7 +54,7 @@ export async function translateText(
   }
 
   const cleanText = text.trim();
-  const lang = targetLang || "en";
+  const lang = targetLang || "km";
   const sl = sourceLang || "auto";
 
   // Method 1: Google Translate GTX Endpoint (with dt=t & dt=bd for translations + definitions)
@@ -73,10 +74,14 @@ export async function translateText(
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && Array.isArray(data[0])) {
-        const translatedText = data[0]
+        let translatedText = data[0]
           .map((item: any) => (Array.isArray(item) ? item[0] : ""))
           .filter(Boolean)
           .join("");
+
+        if (lang === "km") {
+          translatedText = sanitizeKhmerOutput(translatedText);
+        }
 
         const detectedLangCode = typeof data[2] === "string" ? data[2] : undefined;
         const detectedName = detectedLangCode ? getLanguageName(detectedLangCode) : undefined;
@@ -85,7 +90,9 @@ export async function translateText(
         if (Array.isArray(data[1])) {
           definitions = data[1].map((dictGroup: any) => ({
             partOfSpeech: dictGroup[0] || "definition",
-            terms: Array.isArray(dictGroup[1]) ? dictGroup[1].slice(0, 8) : [],
+            terms: Array.isArray(dictGroup[1])
+              ? dictGroup[1].slice(0, 8).map((t: string) => (lang === "km" ? sanitizeKhmerOutput(t) : t))
+              : [],
           }));
         }
 
@@ -121,6 +128,10 @@ export async function translateText(
           .flat(Infinity)
           .filter((item: any) => typeof item === "string")
           .join("");
+      }
+
+      if (lang === "km") {
+        outputText = sanitizeKhmerOutput(outputText);
       }
 
       if (outputText.trim()) {

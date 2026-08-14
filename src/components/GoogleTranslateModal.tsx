@@ -227,36 +227,89 @@ export default function GoogleTranslateModal({
     }
   };
 
-  // Speech Synthesis
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopAudio = () => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current.currentTime = 0;
+      activeAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeakingSource(false);
+    setIsSpeakingTarget(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopAudio();
+    };
+  }, []);
+
+  // Speech Audio Playback (Neural TTS + Khmer & Multilingual support)
   const speakText = (text: string, langCode: string, isSource: boolean) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
+    if (!text || !text.trim()) return;
 
     if (isSource ? isSpeakingSource : isSpeakingTarget) {
-      if (isSource) setIsSpeakingSource(false);
-      else setIsSpeakingTarget(false);
+      stopAudio();
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (langCode !== "auto") {
-      utterance.lang = langCode;
-    }
+    stopAudio();
 
     if (isSource) setIsSpeakingSource(true);
     else setIsSpeakingTarget(true);
 
-    utterance.onend = () => {
-      if (isSource) setIsSpeakingSource(false);
-      else setIsSpeakingTarget(false);
+    const targetLangCode = langCode === "auto" ? "km" : langCode;
+
+    // Use /api/tts endpoint for reliable Khmer pronunciation and crystal-clear audio
+    const ttsUrl = `/api/tts?text=${encodeURIComponent(text.slice(0, 300))}&lang=${encodeURIComponent(targetLangCode)}`;
+    const audio = new Audio(ttsUrl);
+    activeAudioRef.current = audio;
+
+    audio.onended = () => {
+      stopAudio();
     };
 
-    utterance.onerror = () => {
-      if (isSource) setIsSpeakingSource(false);
-      else setIsSpeakingTarget(false);
+    audio.onerror = () => {
+      // Fallback to browser SpeechSynthesis if network TTS is unavailable
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          const utterance = new SpeechSynthesisUtterance(text);
+          if (targetLangCode !== "auto") {
+            utterance.lang = targetLangCode;
+          }
+          utterance.onend = () => stopAudio();
+          utterance.onerror = () => stopAudio();
+          window.speechSynthesis.speak(utterance);
+          return;
+        } catch {
+          stopAudio();
+        }
+      }
+      stopAudio();
     };
 
-    window.speechSynthesis.speak(utterance);
+    audio.play().catch(() => {
+      // Handle auto-play policy or fallback to SpeechSynthesis
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          const utterance = new SpeechSynthesisUtterance(text);
+          if (targetLangCode !== "auto") {
+            utterance.lang = targetLangCode;
+          }
+          utterance.onend = () => stopAudio();
+          utterance.onerror = () => stopAudio();
+          window.speechSynthesis.speak(utterance);
+          return;
+        } catch {
+          stopAudio();
+        }
+      }
+      stopAudio();
+    });
   };
 
   // Clipboard Copy
