@@ -91,12 +91,13 @@ export default function BookDetail({ id }: { id: string }) {
 
   useEffect(() => {
     if (book && book.title && typeof window !== "undefined") {
-      setIsFavorite(Boolean(book.favorite));
+      const timer = setTimeout(() => setIsFavorite(Boolean(book.favorite)), 0);
       const url = new URL(window.location.href);
       if (url.searchParams.get("title") !== book.title) {
         url.searchParams.set("title", book.title);
         window.history.replaceState(null, "", url.toString());
       }
+      return () => clearTimeout(timer);
     }
   }, [book]);
 
@@ -148,7 +149,7 @@ export default function BookDetail({ id }: { id: string }) {
   // Fetch Notes, Highlights, and Bookmarks for this book if authenticated
   useEffect(() => {
     if (!id || !isOwner) return;
-    setLoadingSaved(true);
+    const timer = setTimeout(() => setLoadingSaved(true), 0);
     Promise.all([
       fetch(`/api/reading/notes?bookId=${id}`).then((r) => (r.ok ? r.json() : [])),
       fetch(`/api/reading/highlights?bookId=${id}`).then((r) => (r.ok ? r.json() : [])),

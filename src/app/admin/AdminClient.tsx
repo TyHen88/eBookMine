@@ -133,6 +133,10 @@ export default function AdminClient({
   const [dailyTokenLimit, setDailyTokenLimit] = useState(100000);
   const [temperature, setTemperature] = useState(0.7);
 
+  const [embeddingProvider, setEmbeddingProvider] = useState("local");
+  const [embeddingModel, setEmbeddingModel] = useState("synthetic-64");
+  const [embeddingDimensions, setEmbeddingDimensions] = useState(64);
+
   const [loadingAiConfig, setLoadingAiConfig] = useState(true);
   const [savingAiConfig, setSavingAiConfig] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -197,6 +201,9 @@ export default function AdminClient({
           setChunkOverlap(d.config.chunkOverlap || 50);
           setDailyTokenLimit(d.config.dailyTokenLimit || 100000);
           setTemperature(d.config.temperature || 0.7);
+          setEmbeddingProvider(d.config.embeddingProvider || "local");
+          setEmbeddingModel(d.config.embeddingModel || "synthetic-64");
+          setEmbeddingDimensions(d.config.embeddingDimensions || 64);
         }
       })
       .catch(() => {})
@@ -421,6 +428,9 @@ export default function AdminClient({
           chunkOverlap,
           dailyTokenLimit,
           temperature,
+          embeddingProvider,
+          embeddingModel,
+          embeddingDimensions,
         }),
       });
 
@@ -1312,6 +1322,60 @@ export default function AdminClient({
                     type="number"
                     value={chunkOverlap}
                     onChange={(e) => setChunkOverlap(parseInt(e.target.value, 10) || 50)}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Embedding Provider
+                  </label>
+                  <select
+                    value={embeddingProvider}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEmbeddingProvider(val);
+                      if (val === "local") {
+                        setEmbeddingModel("synthetic-64");
+                        setEmbeddingDimensions(64);
+                      } else if (val === "openai") {
+                        setEmbeddingModel("text-embedding-3-small");
+                        setEmbeddingDimensions(1536);
+                      } else if (val === "google") {
+                        setEmbeddingModel("text-embedding-004");
+                        setEmbeddingDimensions(768);
+                      }
+                    }}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="local">Local Synthetic (64d - Free/Fast)</option>
+                    <option value="openai">OpenAI Embeddings (1536d)</option>
+                    <option value="google">Google Gemini Embeddings (768d)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Embedding Model
+                  </label>
+                  <input
+                    type="text"
+                    value={embeddingModel}
+                    onChange={(e) => setEmbeddingModel(e.target.value)}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Vector Dimensions
+                  </label>
+                  <input
+                    type="number"
+                    value={embeddingDimensions}
+                    onChange={(e) => setEmbeddingDimensions(parseInt(e.target.value, 10) || 64)}
                     className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
                 </div>

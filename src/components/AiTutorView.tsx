@@ -195,7 +195,8 @@ function MessageCard({
       }, 15);
       return () => clearInterval(interval);
     } else {
-      setDisplayedText(message.content);
+      const timer = setTimeout(() => setDisplayedText(message.content), 0);
+      return () => clearTimeout(timer);
     }
   }, [message, isLatest]);
 
@@ -288,8 +289,8 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
   // Debounced Search API query (300ms) to prevent DB spam / N+1 hits
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
+      const timer = setTimeout(() => setSearchResults([]), 0);
+      return () => clearTimeout(timer);
     }
 
     const timer = setTimeout(() => {

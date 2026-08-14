@@ -50,9 +50,11 @@ export default function PublicLibrary() {
   }, [books, query, category]);
 
   // Reset visible count when filters change
-  useEffect(() => {
+  const [prevFilter, setPrevFilter] = useState({ query, category });
+  if (prevFilter.query !== query || prevFilter.category !== category) {
+    setPrevFilter({ query, category });
     setVisible(PAGE_SIZE);
-  }, [query, category]);
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:pl-24 md:pr-10 animate-fade-in">

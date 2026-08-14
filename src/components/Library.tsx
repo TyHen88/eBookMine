@@ -78,9 +78,16 @@ export default function Library() {
   }, [books]);
 
   // Reset visible count when filters change
-  useEffect(() => {
+  const [prevFilter, setPrevFilter] = useState({ query, activeTab, category, sortBy });
+  if (
+    prevFilter.query !== query ||
+    prevFilter.activeTab !== activeTab ||
+    prevFilter.category !== category ||
+    prevFilter.sortBy !== sortBy
+  ) {
+    setPrevFilter({ query, activeTab, category, sortBy });
     setVisible(PAGE_SIZE);
-  }, [query, activeTab, category, sortBy]);
+  }
 
   const filteredAndSorted = useMemo(() => {
     const q = query.trim().toLowerCase();

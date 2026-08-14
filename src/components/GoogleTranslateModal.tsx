@@ -193,9 +193,11 @@ export default function GoogleTranslateModal({
   };
 
   useEffect(() => {
-    performTranslation(sourceText, sourceLang, targetLang);
-    // eslint-disable-next-deps
-  }, [sourceLang, targetLang]);
+    const timer = setTimeout(() => {
+      performTranslation(sourceText, sourceLang, targetLang);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [sourceLang, targetLang, sourceText]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;

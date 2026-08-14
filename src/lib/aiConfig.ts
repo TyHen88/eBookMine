@@ -11,6 +11,9 @@ export interface AIConfigData {
   chunkOverlap: number;
   dailyTokenLimit: number;
   temperature: number;
+  embeddingProvider: string;
+  embeddingModel: string;
+  embeddingDimensions: number;
 }
 
 const DEFAULT_CONFIG: AIConfigData = {
@@ -18,11 +21,14 @@ const DEFAULT_CONFIG: AIConfigData = {
   model: process.env.AI_MODEL || "google/gemini-2.5-flash",
   apiKey: process.env.AI_API_KEY || "",
   systemPrompt:
-    "You are eBookMine AI Tutor, an intelligent reading and study companion. Answer questions concisely using vector chunks and book context.",
+    "You are eBookMine AI Assistant, an intelligent reading and study companion. Answer questions concisely using vector chunks and book context.",
   chunkSize: 500,
   chunkOverlap: 50,
   dailyTokenLimit: 100000,
   temperature: 0.7,
+  embeddingProvider: process.env.EMBEDDING_PROVIDER || "local",
+  embeddingModel: process.env.EMBEDDING_MODEL || "synthetic-64",
+  embeddingDimensions: parseInt(process.env.EMBEDDING_DIMENSIONS || "64", 10),
 };
 
 const CONFIG_FILE_PATH = path.join(process.cwd(), ".gemini", "ai-config.json");

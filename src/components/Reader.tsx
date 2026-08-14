@@ -145,18 +145,18 @@ function MarkdownContent({ content, theme }: { content: string; theme: "light" |
     });
   };
 
-  let currentList: { type: "ul" | "ol"; items: React.ReactNode[] } | null = null;
+  const listState: { current: { type: "ul" | "ol"; items: React.ReactNode[] } | null } = { current: null };
 
   const flushList = (key: string | number) => {
-    if (!currentList) return null;
-    const ListTag = currentList.type;
-    const el = (
-      <ListTag key={key} className={currentList.type === "ul" ? "list-disc pl-5 my-1" : "list-decimal pl-5 my-1"}>
-        {currentList.items}
+    if (!listState.current) return null;
+    const ListTag = listState.current.type;
+    const items = listState.current.items;
+    listState.current = null;
+    return (
+      <ListTag key={key} className={ListTag === "ul" ? "list-disc pl-5 my-1" : "list-decimal pl-5 my-1"}>
+        {items}
       </ListTag>
     );
-    currentList = null;
-    return el;
   };
 
   lines.forEach((line, index) => {
@@ -178,7 +178,7 @@ function MarkdownContent({ content, theme }: { content: string; theme: "light" |
     }
 
     if (trimmed.startsWith("```")) {
-      if (currentList) {
+      if (listState.current) {
         const listEl = flushList(`list-${index}`);
         if (listEl) elements.push(listEl);
       }
@@ -190,14 +190,14 @@ function MarkdownContent({ content, theme }: { content: string; theme: "light" |
     const isNumList = /^\d+\.\s/.test(trimmed);
 
     if (isBullet) {
-      if (currentList && currentList.type !== "ul") {
+      if (listState.current && listState.current.type !== "ul") {
         const listEl = flushList(`list-${index}`);
         if (listEl) elements.push(listEl);
       }
-      if (!currentList) {
-        currentList = { type: "ul", items: [] };
+      if (!listState.current) {
+        listState.current = { type: "ul", items: [] };
       }
-      currentList.items.push(
+      listState.current.items.push(
         <li key={`li-${index}`} className="ml-4 list-disc text-xs sm:text-sm my-0.5 leading-relaxed">
           {processInlineText(trimmed.slice(2))}
         </li>
@@ -208,14 +208,14 @@ function MarkdownContent({ content, theme }: { content: string; theme: "light" |
     if (isNumList) {
       const match = trimmed.match(/^(\d+\.\s)(.*)/);
       if (match) {
-        if (currentList && currentList.type !== "ol") {
+        if (listState.current && listState.current.type !== "ol") {
           const listEl = flushList(`list-${index}`);
           if (listEl) elements.push(listEl);
         }
-        if (!currentList) {
-          currentList = { type: "ol", items: [] };
+        if (!listState.current) {
+          listState.current = { type: "ol", items: [] };
         }
-        currentList.items.push(
+        listState.current.items.push(
           <li key={`li-${index}`} className="ml-4 list-decimal text-xs sm:text-sm my-0.5 leading-relaxed">
             {processInlineText(match[2])}
           </li>
@@ -224,7 +224,7 @@ function MarkdownContent({ content, theme }: { content: string; theme: "light" |
       }
     }
 
-    if (currentList) {
+    if (listState.current) {
       const listEl = flushList(`list-${index}`);
       if (listEl) elements.push(listEl);
     }
@@ -244,7 +244,7 @@ function MarkdownContent({ content, theme }: { content: string; theme: "light" |
     }
   });
 
-  if (currentList) {
+  if (listState.current) {
     const listEl = flushList("list-final");
     if (listEl) elements.push(listEl);
   }
@@ -596,6 +596,16 @@ export default function Reader({ id }: { id: string }) {
         }
       })
       .catch(() => {});
+
+    // Load RAG Ingestion Status
+    fetch(`/api/ai/rag/status?bookId=${id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.status === "COMPLETED" && d.chunkCount > 0) {
+          setIsIngested(true);
+        }
+      })
+      .catch(() => {});
   }, [id, isOwner]);
 
   useEffect(() => {
@@ -607,9 +617,12 @@ export default function Reader({ id }: { id: string }) {
     if (book && !hasRestoredPageRef.current) {
       hasRestoredPageRef.current = true;
       if (book.lastPage > 1 && page === 1) {
-        setPage(book.lastPage);
-        setPageInput(String(book.lastPage));
-        setRenderCenter(book.lastPage);
+        const timer = setTimeout(() => {
+          setPage(book.lastPage);
+          setPageInput(String(book.lastPage));
+          setRenderCenter(book.lastPage);
+        }, 0);
+        return () => clearTimeout(timer);
       }
     }
   }, [book, page]);
@@ -772,7 +785,7 @@ export default function Reader({ id }: { id: string }) {
         body: JSON.stringify({ bookId: id, page, title: `Page ${page}` }),
       }).catch(() => {});
     }
-  }, [isOwner, isBookmarked, bookmarks, page, id]);
+  }, [isOwner, isBookmarked, bookmarks, page, id, setShowAuthModal]);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 

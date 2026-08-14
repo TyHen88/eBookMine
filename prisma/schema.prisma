@@ -64,27 +64,33 @@ model Book {
   language    String?  @default("en")
   visibility  String   @default("PRIVATE")
   published   Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  ingestionStatus   String    @default("PENDING")
+  ingestionError    String?   @db.Text
+  documentHash      String?   @db.Text
+  ingestedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-
-
-  authors           BookAuthor[]
-  categories        BookCategory[]
-  readingProgresses ReadingProgress[]
-  bookmarks         Bookmark[]
-  highlights        Highlight[]
-  notes             Note[]
-  aiConversations   AIConversation[]
-  contentChunks     ContentChunk[]
-  quizzes           Quiz[]
-  flashcards        Flashcard[]
+  authors            BookAuthor[]
+  categories         BookCategory[]
+  readingProgresses  ReadingProgress[]
+  bookmarks          Bookmark[]
+  highlights         Highlight[]
+  notes              Note[]
+  aiConversations    AIConversation[]
+  contentChunks      ContentChunk[]
+  documentPages      DocumentPage[]
+  documentStructures DocumentStructure[]
+  documentSummaries  DocumentSummary[]
+  quizzes            Quiz[]
+  flashcards         Flashcard[]
 
   @@index([driveFileId])
   @@index([published, visibility])
   @@index([published, createdAt])
   @@index([title])
   @@index([createdAt])
+  @@index([ingestionStatus])
 }
 
 model Author {
@@ -268,19 +274,92 @@ model AIUsage {
   @@index([userId, createdAt])
 }
 
-model ContentChunk {
-  id        String   @id @default(cuid())
-  bookId    String
-  chapter   String?
-  page      Int
-  content   String
-  metadata  String?
-  createdAt DateTime @default(now())
+model DocumentPage {
+  id               String   @id @default(cuid())
+  bookId           String
+  pageNumber       Int
+  text             String   @db.Text
+  extractionStatus String   @default("COMPLETED") // "PENDING" | "EXTRACTING" | "COMPLETED" | "FAILED"
+  layoutMetadata   String?  @db.Text
+  tokenCount       Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
+  @@unique([bookId, pageNumber])
+  @@index([bookId])
+}
+
+model DocumentStructure {
+  id            String   @id @default(cuid())
+  bookId        String
+  title         String
+  level         Int      @default(1) // 1 = Chapter, 2 = Section, 3 = Subsection
+  parentId      String?
+  pageStart     Int
+  pageEnd       Int
+  orderingIndex Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  book          Book                @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  parent        DocumentStructure?  @relation("SectionHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          DocumentStructure[] @relation("SectionHierarchy")
+  contentChunks     ContentChunk[]
+  documentSummaries DocumentSummary[]
+
+  @@index([bookId])
+  @@index([bookId, orderingIndex])
+}
+
+model DocumentSummary {
+  id             String   @id @default(cuid())
+  bookId         String
+  level          String   // "BOOK" | "CHAPTER" | "SECTION"
+  chapterTitle   String?
+  sectionId      String?
+  summary        String   @db.Text
+  pageStart      Int      @default(1)
+  pageEnd        Int      @default(1)
+  sourceChunkIds String   @db.Text // JSON string array of ContentChunk.id
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  book    Book               @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  section DocumentStructure? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  @@index([bookId])
+  @@index([bookId, level])
+  @@index([sectionId])
+}
+
+model ContentChunk {
+  id             String   @id @default(cuid())
+  bookId         String
+  chapter        String?
+  page           Int
+  pageStart      Int      @default(1)
+  pageEnd        Int      @default(1)
+  sectionId      String?
+  chunkIndex     Int      @default(0)
+  content        String   @db.Text
+  tokenCount     Int      @default(0)
+  contentHash    String?
+  embeddingModel String?
+  embeddingDim   Int?
+  isStale        Boolean  @default(false)
+  metadata       String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  book    Book               @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  section DocumentStructure? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
   @@index([bookId])
   @@index([bookId, page])
+  @@index([bookId, pageStart])
+  @@index([bookId, isStale])
+  @@index([sectionId])
 }
 
 model Quiz {
