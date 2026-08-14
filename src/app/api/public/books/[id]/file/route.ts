@@ -59,21 +59,22 @@ export async function GET(
       );
     }
 
+    const data = await driveRes.arrayBuffer();
+
     const headers = new Headers();
     headers.set("Content-Type", "application/pdf");
     headers.set("Cache-Control", "public, max-age=3600");
     headers.set("Accept-Ranges", "bytes");
     headers.set("Access-Control-Allow-Origin", "*");
     headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-    const len = driveRes.headers.get("content-length");
-    if (len) headers.set("Content-Length", len);
+    headers.set("Content-Length", String(data.byteLength));
     const contentRange = driveRes.headers.get("content-range");
     if (contentRange) headers.set("Content-Range", contentRange);
     if (download) {
       headers.set("Content-Disposition", `attachment; filename="${safeName}"`);
     }
-    return new NextResponse(driveRes.body, { status: driveRes.status, headers });
-  } catch (err) {
+    return new NextResponse(data, { status: driveRes.status, headers });
+  } catch (err: any) {
     console.error("Error streaming public book file:", err);
     if (download) {
       return NextResponse.redirect(
@@ -82,7 +83,10 @@ export async function GET(
       );
     }
     return new NextResponse(
-      JSON.stringify({ error: "Failed to stream public book file" }),
+      JSON.stringify({
+        error: "Failed to stream public book file",
+        details: err?.message || String(err),
+      }),
       { status: 404, headers: { "Content-Type": "application/json" } }
     );
   }
