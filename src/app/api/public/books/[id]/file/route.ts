@@ -47,19 +47,24 @@ export async function GET(
     const driveRes = await downloadPublicFile(driveFileId, range);
 
     if (!driveRes.ok) {
-      if (driveFileId) {
+      if (download && driveFileId) {
         return NextResponse.redirect(
           `https://drive.usercontent.google.com/download?id=${driveFileId}&export=download&authuser=0&confirm=t`,
           307
         );
       }
-      return new NextResponse(null, { status: driveRes.status });
+      return new NextResponse(
+        JSON.stringify({ error: "PDF file stream unavailable in Google Drive" }),
+        { status: driveRes.status || 404, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const headers = new Headers();
     headers.set("Content-Type", "application/pdf");
     headers.set("Cache-Control", "public, max-age=3600");
     headers.set("Accept-Ranges", "bytes");
+    headers.set("Access-Control-Allow-Origin", "*");
+    headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
     const len = driveRes.headers.get("content-length");
     if (len) headers.set("Content-Length", len);
     const contentRange = driveRes.headers.get("content-range");
@@ -70,9 +75,15 @@ export async function GET(
     return new NextResponse(driveRes.body, { status: driveRes.status, headers });
   } catch (err) {
     console.error("Error streaming public book file:", err);
-    return NextResponse.redirect(
-      `https://drive.usercontent.google.com/download?id=${id}&export=download&authuser=0&confirm=t`,
-      307
+    if (download) {
+      return NextResponse.redirect(
+        `https://drive.usercontent.google.com/download?id=${id}&export=download&authuser=0&confirm=t`,
+        307
+      );
+    }
+    return new NextResponse(
+      JSON.stringify({ error: "Failed to stream public book file" }),
+      { status: 404, headers: { "Content-Type": "application/json" } }
     );
   }
 }

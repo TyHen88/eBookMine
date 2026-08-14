@@ -620,14 +620,7 @@ export default function Reader({ id }: { id: string }) {
   const pageWidth = baseWidth ? baseWidth * scale : undefined;
   const estHeight = pageWidth ? Math.round(pageWidth * 1.4) : 900;
 
-  const [useDirectFallback, setUseDirectFallback] = useState(false);
-  const fileUrl = useMemo(() => {
-    if (useDirectFallback) {
-      return `https://drive.usercontent.google.com/download?id=${id}&export=download&authuser=0&confirm=t`;
-    }
-    return `${apiBase}/${id}/file`;
-  }, [apiBase, id, useDirectFallback]);
-
+  const fileUrl = useMemo(() => `${apiBase}/${id}/file`, [apiBase, id]);
   const downloadUrl = useMemo(
     () =>
       `${apiBase}/${id}/file?download=1` +
@@ -2903,13 +2896,21 @@ export default function Reader({ id }: { id: string }) {
                   Could Not Load PDF Document
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  The PDF stream may be temporarily unavailable or requires re-authentication.
+                  The PDF stream may be temporarily unavailable or the file is restricted in Google Drive.
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <Button size="sm" onClick={() => setLoadError(false)}>
                   Retry Loading
                 </Button>
+                <a
+                  href={downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-brand-500/20 hover:bg-brand-700 active:scale-95 transition"
+                >
+                  Download / Open PDF
+                </a>
                 <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>
                   Reload Page
                 </Button>
@@ -2922,15 +2923,6 @@ export default function Reader({ id }: { id: string }) {
                 options={PDF_OPTIONS}
                 onLoadSuccess={onDocumentLoadSuccess}
                 onLoadError={(err) => {
-                  if (!useDirectFallback) {
-                    console.warn("Retrying with direct CDN fallback for PDF:", err);
-                    setUseDirectFallback(true);
-                    return;
-                  }
-                  if (err?.name === "MissingPDFException" || err?.message?.includes("Missing PDF")) {
-                    setLoadError(true);
-                    return;
-                  }
                   console.warn("PDF load error:", err);
                   setLoadError(true);
                 }}
