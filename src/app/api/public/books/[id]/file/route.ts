@@ -20,15 +20,17 @@ export async function GET(
 
   try {
     let driveFileId = id;
-    const dbBook = await prisma.book.findUnique({
-      where: { id },
-      select: { driveFileId: true },
+    const dbBook = await prisma.book.findFirst({
+      where: { OR: [{ id }, { driveFileId: id }] },
+      select: { driveFileId: true, title: true, fileName: true },
     }).catch(() => null);
 
     if (dbBook?.driveFileId) {
       driveFileId = dbBook.driveFileId;
     }
 
+    const title = dbBook?.title || dbBook?.fileName || id;
+    const safeName = (rawName || title).replace(/[^\w.\- ]+/g, "_") + ".pdf";
     const range = download ? undefined : req.headers.get("range") ?? undefined;
 
     // 1. Check if stored locally on disk
@@ -60,7 +62,8 @@ export async function GET(
       headers.set("Content-Disposition", `attachment; filename="${safeName}"`);
     }
     return new NextResponse(driveRes.body, { status: driveRes.status, headers });
-  } catch {
+  } catch (err) {
+    console.error("Error streaming public book file:", err);
     return new NextResponse(null, { status: 404 });
   }
 }

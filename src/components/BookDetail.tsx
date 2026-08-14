@@ -190,7 +190,7 @@ export default function BookDetail({ id }: { id: string }) {
 
   const coverSrc = book ? book.cover ?? `${apiBase}/${book.id}/thumb` : null;
   const downloadHref = book
-    ? `/api/public/books/${book.id}/file?download=1&name=${encodeURIComponent(book.title)}`
+    ? `${apiBase}/${book.id}/file?download=1&name=${encodeURIComponent(book.title)}`
     : "#";
 
   const handleShare = () => {

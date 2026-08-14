@@ -623,9 +623,9 @@ export default function Reader({ id }: { id: string }) {
   const fileUrl = useMemo(() => `${apiBase}/${id}/file`, [apiBase, id]);
   const downloadUrl = useMemo(
     () =>
-      `/api/public/books/${id}/file?download=1` +
+      `${apiBase}/${id}/file?download=1` +
       (book ? `&name=${encodeURIComponent(book.title)}` : ""),
-    [id, book]
+    [apiBase, id, book]
   );
 
   // Load book metadata

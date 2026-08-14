@@ -408,25 +408,77 @@ export async function findPublicFileByName(
 }
 
 /**
- * Download a publicly-shared file's binary content (API key only). Returns the
- * raw Response so callers can stream it.
+ * Download a publicly-shared file's binary content using multi-tier streaming fallbacks.
+ * Handles Range headers, Google Drive CDN redirects, and virus-scan confirmations.
  */
 export async function downloadPublicFile(
   fileId: string,
   range?: string
 ): Promise<Response> {
-  try {
-    const res = await keyedFetch(
-      `${DRIVE_API}/files/${fileId}?alt=media`,
-      range ? { headers: { Range: range } } : {}
-    );
-    if (res.ok) return res;
-  } catch {
-    /* fallback to direct public stream */
+  const headers: Record<string, string> = {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    Accept: "application/pdf,*/*",
+  };
+  if (range) headers["Range"] = range;
+
+  // Tier 1: Try Google Drive API with server API Key
+  const key = apiKey();
+  if (key) {
+    try {
+      const apiUrl = `${DRIVE_API}/files/${fileId}?alt=media&key=${key}`;
+      const res = await fetch(apiUrl, { headers, redirect: "follow" });
+      const contentType = res.headers.get("content-type") || "";
+      if (
+        res.ok &&
+        (contentType.includes("pdf") ||
+          contentType.includes("octet-stream") ||
+          !contentType.includes("html"))
+      ) {
+        return res;
+      }
+    } catch {
+      /* fallback to direct public endpoints */
+    }
   }
 
-  const fallbackUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-  return fetch(fallbackUrl, range ? { headers: { Range: range } } : {});
+  // Tier 2: Direct Google Drive UserContent CDN (High speed & works with public shared files)
+  try {
+    const cdnUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
+    const res = await fetch(cdnUrl, { headers, redirect: "follow" });
+    const contentType = res.headers.get("content-type") || "";
+    if (
+      res.ok &&
+      (contentType.includes("pdf") ||
+        contentType.includes("octet-stream") ||
+        !contentType.includes("html"))
+    ) {
+      return res;
+    }
+  } catch {
+    /* fallback to UC */
+  }
+
+  // Tier 3: Classic Google Drive UC endpoint with confirm parameter
+  try {
+    const ucUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+    const res = await fetch(ucUrl, { headers, redirect: "follow" });
+    const contentType = res.headers.get("content-type") || "";
+    if (
+      res.ok &&
+      (contentType.includes("pdf") ||
+        contentType.includes("octet-stream") ||
+        !contentType.includes("html"))
+    ) {
+      return res;
+    }
+  } catch {
+    /* fallback to docs.google */
+  }
+
+  // Tier 4: Docs Google endpoint
+  const docsUrl = `https://docs.google.com/uc?export=download&id=${fileId}&confirm=t`;
+  return fetch(docsUrl, { headers, redirect: "follow" });
 }
 
 /**
