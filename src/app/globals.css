@@ -4,6 +4,16 @@
 
 :root {
   color-scheme: light dark;
+  --font-khmer-stack: var(--font-khmer), "Kantumruy Pro", "Noto Sans Khmer", "Hanuman", "Siemreap", system-ui, sans-serif;
+}
+
+/* Apply modern Khmer typography to AI markdown, translation modal, and chat responses */
+.ai-markdown,
+.font-khmer,
+.khmer-text,
+:lang(km) {
+  font-family: var(--font-khmer-stack);
+  line-height: 1.75;
 }
 
 /* Hide scrollbar for Chrome, Safari, Edge, Opera, Firefox */
@@ -66,6 +76,16 @@ body {
   textarea {
     font-size: 16px;
   }
+}
+
+/* Area Selection Mode Cursor Override */
+body.area-select-active,
+body.area-select-active *,
+.area-select-active,
+.area-select-active * {
+  cursor: crosshair !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 /* react-pdf text & annotation layers */

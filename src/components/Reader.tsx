@@ -299,6 +299,54 @@ export default function Reader({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<SidebarTab>("bookmarks");
   const [tocOutline, setTocOutline] = useState<any[]>([]);
 
+  // Dynamic Resizable Sidebar Width with mouse drag
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("ebookmine-sidebar-width");
+      if (saved) {
+        const p = parseInt(saved, 10);
+        if (!isNaN(p) && p >= 260 && p <= 800) return p;
+      }
+    }
+    return 360;
+  });
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const resizeStartXRef = useRef<number>(0);
+  const resizeStartWidthRef = useRef<number>(360);
+
+  const startResizingSidebar = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingSidebar(true);
+    resizeStartXRef.current = e.clientX;
+    resizeStartWidthRef.current = sidebarWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - resizeStartXRef.current;
+      const newWidth = Math.max(
+        260,
+        Math.min(resizeStartWidthRef.current + delta, Math.min(window.innerWidth - 320, 800))
+      );
+      setSidebarWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      setIsResizingSidebar(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setSidebarWidth((w) => {
+        localStorage.setItem("ebookmine-sidebar-width", String(w));
+        return w;
+      });
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
   // Bookmarks, Highlights, Notes
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [highlights, setHighlights] = useState<HighlightData[]>([]);
@@ -336,12 +384,38 @@ export default function Reader({ id }: { id: string }) {
     endY: number;
     isDragging: boolean;
   } | null>(null);
+  const [selectedAreaBox, setSelectedAreaBox] = useState<{
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null>(null);
+
+  // Sync cursor class across whole document when area selection mode is active
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      if (isAreaSelectMode) {
+        document.body.classList.add("area-select-active");
+      } else {
+        document.body.classList.remove("area-select-active");
+      }
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.body.classList.remove("area-select-active");
+      }
+    };
+  }, [isAreaSelectMode]);
 
   const handleAreaPointerDown = (e: React.PointerEvent) => {
     if (!isAreaSelectMode) return;
     try {
       window.getSelection()?.removeAllRanges();
     } catch {}
+    try {
+      (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+    } catch {}
+    setSelectedAreaBox(null);
     setAreaBox({
       startX: e.clientX,
       startY: e.clientY,
@@ -403,6 +477,10 @@ export default function Reader({ id }: { id: string }) {
   };
 
   const handleAreaPointerUp = async (e: React.PointerEvent) => {
+    try {
+      (e.currentTarget as HTMLElement)?.releasePointerCapture?.(e.pointerId);
+    } catch {}
+
     if (!isAreaSelectMode || !areaBox?.isDragging) return;
 
     const minX = Math.min(areaBox.startX, e.clientX);
@@ -413,13 +491,17 @@ export default function Reader({ id }: { id: string }) {
     const width = maxX - minX;
     const height = maxY - minY;
 
+    // Reset dragging state and exit selection mode
+    setIsAreaSelectMode(false);
+    setAreaBox(null);
+
     if (width > 15 && height > 15) {
-      setAreaBox({
+      // Retain persistent highlight of the selected area
+      setSelectedAreaBox({
         startX: minX,
         startY: minY,
         endX: maxX,
         endY: maxY,
-        isDragging: false,
       });
 
       let textToUse = extractTextFromBoxRect(minX, minY, maxX, maxY);
@@ -435,8 +517,8 @@ export default function Reader({ id }: { id: string }) {
         } catch {}
       }
 
-      if (!textToUse) {
-        textToUse = `Content on Page ${page}`;
+      if (!textToUse || !textToUse.trim()) {
+        textToUse = `Selected Region on Page ${page}`;
       }
 
       try {
@@ -449,7 +531,7 @@ export default function Reader({ id }: { id: string }) {
         left: minX + width / 2,
       });
     } else {
-      setAreaBox(null);
+      setSelectedAreaBox(null);
     }
   };
 
@@ -982,6 +1064,11 @@ export default function Reader({ id }: { id: string }) {
     });
   }, []);
 
+  const selectedAreaBoxRef = useRef(selectedAreaBox);
+  useEffect(() => {
+    selectedAreaBoxRef.current = selectedAreaBox;
+  }, [selectedAreaBox]);
+
   // Enhanced Text Selection detection for Mouse Pointer & Touch events
   useEffect(() => {
     let pointerPos = { top: 0, left: 0 };
@@ -998,6 +1085,9 @@ export default function Reader({ id }: { id: string }) {
     const handleSelectionCheck = () => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        if (!selectedAreaBoxRef.current) {
+          setSelectionPos(null);
+        }
         return;
       }
 
@@ -1419,7 +1509,10 @@ export default function Reader({ id }: { id: string }) {
         onHighlight={handleAddHighlight}
         onAddNote={handleAddNote}
         onAiAction={handleAiAction}
-        onClose={() => setSelectionPos(null)}
+        onClose={() => {
+          setSelectionPos(null);
+          setSelectedAreaBox(null);
+        }}
         theme={theme}
       />
 
@@ -1659,6 +1752,23 @@ export default function Reader({ id }: { id: string }) {
 
         {/* Right Controls */}
         <div className="flex items-center gap-1">
+          <IconButton
+            size="icon-sm"
+            onClick={() => {
+              setIsAreaSelectMode((v) => !v);
+              if (areaBox) setAreaBox(null);
+            }}
+            aria-label="Area Selection Tool"
+            title={isAreaSelectMode ? "Cancel Area Selection" : "Area Selection Tool (Select & Explain)"}
+            className={`hidden sm:inline-flex ${
+              isAreaSelectMode
+                ? "!bg-brand-600 !text-white shadow-md shadow-brand-500/30 ring-2 ring-brand-400"
+                : "text-slate-600 hover:text-brand-600 dark:text-slate-300 dark:hover:text-brand-400"
+            }`}
+          >
+            <MarqueeIcon size={18} />
+          </IconButton>
+
           <IconButton
             size="icon-sm"
             onClick={() => setShowSearch((v) => !v)}
@@ -1969,57 +2079,71 @@ export default function Reader({ id }: { id: string }) {
         </form>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div
+        className="flex-1 overflow-hidden relative"
+        style={
+          showDrawer
+            ? {
+                display: "grid",
+                gridTemplateColumns: `minmax(260px, ${sidebarWidth}px) 6px 1fr`,
+                height: "calc(100vh - 96px)",
+              }
+            : { display: "flex", height: "calc(100vh - 96px)" }
+        }
+      >
         {/* Sidebar Drawer (Desktop side panel & Mobile slide-up bottom sheet) */}
         {showDrawer && (
           <>
             {/* Desktop Side Panel */}
-            <aside className={`hidden sm:flex w-80 shrink-0 animate-fade-in flex-col border-r backdrop-blur ${themeSidebarStyle}`}>
+            <aside
+              style={{ width: "100%", maxWidth: `${sidebarWidth}px` }}
+              className={`hidden sm:flex shrink-0 animate-fade-in flex-col border-r backdrop-blur h-full overflow-hidden ${themeSidebarStyle}`}
+            >
               {/* Drawer Tabs */}
-              <div className={`flex border-b p-2 gap-1 ${themeTabsHeaderStyle}`}>
+              <div className={`flex border-b p-1.5 gap-1 overflow-x-auto no-scrollbar shrink-0 ${themeTabsHeaderStyle}`}>
                 <button
                   onClick={() => setActiveTab("toc")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("toc")}`}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-semibold rounded-lg transition-all ${getTabButtonStyle("toc")}`}
                 >
                   Outline
                 </button>
                 <button
                   onClick={() => setActiveTab("ai")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors flex items-center justify-center gap-1 ${getTabButtonStyle("ai")}`}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${getTabButtonStyle("ai")}`}
                 >
                   <SparklesIcon size={12} />
                   AI
                 </button>
                 <button
                   onClick={() => setActiveTab("study")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("study")}`}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-semibold rounded-lg transition-all ${getTabButtonStyle("study")}`}
                 >
                   Study
                 </button>
                 <button
                   onClick={() => setActiveTab("bookmarks")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("bookmarks")}`}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-semibold rounded-lg transition-all ${getTabButtonStyle("bookmarks")}`}
                 >
                   Marks
                 </button>
                 <button
                   onClick={() => setActiveTab("highlights")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("highlights")}`}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-semibold rounded-lg transition-all ${getTabButtonStyle("highlights")}`}
                 >
                   Highlights
                 </button>
                 <button
                   onClick={() => setActiveTab("notes")}
-                  className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${getTabButtonStyle("notes")}`}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-semibold rounded-lg transition-all ${getTabButtonStyle("notes")}`}
                 >
                   Notes
                 </button>
               </div>
 
             {/* Drawer Body */}
-            <div className="flex-1 overflow-y-auto p-3 flex flex-col">
+            <div className="flex-1 overflow-y-auto p-3 flex flex-col min-h-0">
               {activeTab === "toc" && (
-                <div>
+                <div className="overflow-y-auto">
                   <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
                     Table of Contents
                   </h4>
@@ -2044,8 +2168,8 @@ export default function Reader({ id }: { id: string }) {
 
               {/* AI Assistant Chat & RAG Tab */}
               {activeTab === "ai" && (
-                <div className="flex flex-1 flex-col h-full justify-between">
-                  <div>
+                <div className="flex flex-1 flex-col h-full min-h-0 justify-between">
+                  <div className="shrink-0">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
                         <SparklesIcon size={14} className="text-brand-500" />
@@ -2054,7 +2178,7 @@ export default function Reader({ id }: { id: string }) {
                       {chatMessages.length > 0 && (
                         <button
                           onClick={handleClearAiChat}
-                          className="text-[10px] text-slate-400 hover:text-red-500"
+                          className="text-[10px] font-medium text-slate-400 hover:text-red-500 transition-colors"
                         >
                           Clear Chat
                         </button>
@@ -2062,8 +2186,8 @@ export default function Reader({ id }: { id: string }) {
                     </div>
 
                     {/* Mode Toggle: Chat vs RAG */}
-                    <div className="mb-3 flex items-center justify-between rounded-lg bg-slate-100 p-1.5 dark:bg-slate-800">
-                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                    <div className="mb-2.5 flex items-center justify-between rounded-xl bg-slate-100/90 p-2 border border-slate-200/60 dark:bg-slate-800/80 dark:border-slate-700/60">
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
                         Chat with this Book (RAG)
                       </span>
                       <button
@@ -2082,41 +2206,47 @@ export default function Reader({ id }: { id: string }) {
                     </div>
 
                     {/* Context Active Pill */}
-                    <div className="mb-3 rounded-lg border border-brand-200/80 bg-brand-50/50 p-2 text-[11px] text-brand-900 dark:border-brand-900/60 dark:bg-brand-950/40 dark:text-brand-200">
-                      <p className="font-semibold">
-                        {isRagMode ? "📚 RAG Vector Context Active:" : "Page Context Active:"}
+                    <div className="mb-2.5 rounded-xl border border-brand-200/90 bg-brand-50/70 p-2.5 text-[11px] text-brand-900 shadow-xs dark:border-brand-900/60 dark:bg-brand-950/50 dark:text-brand-200">
+                      <p className="font-semibold flex items-center gap-1">
+                        <span>{isRagMode ? "📚 RAG Vector Context Active" : "📖 Page Context Active"}</span>
                       </p>
-                      <p className="truncate">Page {page} {book?.title ? `• ${book.title}` : ""}</p>
+                      <p className="truncate opacity-90 text-[10.5px] mt-0.5">
+                        Page {page} {book?.title ? `• ${book.title}` : ""}
+                      </p>
                     </div>
                   </div>
 
                   {/* Messages Feed */}
-                  <div className="flex-1 overflow-y-auto space-y-2.5 mb-3 pr-1">
+                  <div className="flex-1 overflow-y-auto space-y-3 mb-2.5 pr-1.5 min-h-0">
                     {chatMessages.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic text-center mt-6">
-                        {isRagMode
-                          ? "Ask questions to search and chat with this book using pgvector RAG."
-                          : `Ask questions about page ${page} or concepts in this book.`}
-                      </p>
+                      <div className="flex flex-col items-center justify-center text-center p-4 mt-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                        <SparklesIcon size={24} className="text-brand-500/70 mb-2" />
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                          {isRagMode
+                            ? "Ask questions to search and chat with this whole book using AI vectors."
+                            : `Ask questions about page ${page} or analyze concepts in this book.`}
+                        </p>
+                      </div>
                     ) : (
                       chatMessages.map((m, idx) => {
-                        const assistantMsgStyle = theme === "sepia"
-                          ? "bg-[#ebd9b3] text-[#5c4b37] border-[#e2cf9f]"
-                          : theme === "dark"
-                          ? "bg-slate-800 text-slate-100 border-slate-700"
-                          : "bg-slate-100 text-slate-800 border-slate-200/60";
+                        const assistantMsgStyle =
+                          theme === "sepia"
+                            ? "bg-[#ebd9b3]/90 text-[#5c4b37] border-[#e2cf9f]"
+                            : theme === "dark"
+                            ? "bg-slate-800/90 text-slate-100 border-slate-700/80"
+                            : "bg-white text-slate-800 border-slate-200/80 shadow-xs";
 
                         return (
                           <div
                             key={idx}
-                            className={`rounded-xl p-2.5 text-xs border ${
+                            className={`transition-all ${
                               m.role === "user"
-                                ? "bg-brand-600 text-white ml-6 border-transparent"
-                                : `${assistantMsgStyle} mr-2`
+                                ? "ml-6 rounded-2xl rounded-tr-xs bg-gradient-to-r from-brand-600 to-indigo-600 p-3 text-xs font-medium text-white shadow-sm"
+                                : `mr-1 rounded-2xl rounded-tl-xs p-3.5 text-xs border ${assistantMsgStyle}`
                             }`}
                           >
                             {m.role === "user" ? (
-                              <p className="whitespace-pre-wrap">{m.content}</p>
+                              <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
                             ) : (
                               <MarkdownContent content={m.content} theme={theme} />
                             )}
@@ -2133,7 +2263,7 @@ export default function Reader({ id }: { id: string }) {
                                       key={sIdx}
                                       type="button"
                                       onClick={() => goTo(src.page)}
-                                      className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-950 dark:text-brand-300"
+                                      className="rounded-md bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-950 dark:text-brand-300 border border-brand-200/60 dark:border-brand-800/60"
                                     >
                                       {src.chapter ? `${src.chapter} — ` : ""}Page {src.page}
                                     </button>
@@ -2146,13 +2276,13 @@ export default function Reader({ id }: { id: string }) {
                       })
                     )}
                     {chatLoading && (
-                      <div className="flex items-center gap-2 text-xs text-slate-400 p-2">
+                      <div className="flex items-center gap-2 text-xs text-slate-400 p-2.5 rounded-xl bg-slate-100/60 dark:bg-slate-800/50">
                         <Spinner size="sm" />
-                        <span>Searching book vectors...</span>
+                        <span className="font-medium">Searching vectors and synthesizing response...</span>
                       </div>
                     )}
                     {chatError && (
-                      <div className="rounded-lg bg-red-50 p-2 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-300">
+                      <div className="rounded-xl bg-red-50 p-2.5 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/60">
                         {chatError}
                       </div>
                     )}
@@ -2161,14 +2291,14 @@ export default function Reader({ id }: { id: string }) {
                   {/* Input Form */}
                   <form
                     onSubmit={handleSendAiChat}
-                    className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/10 dark:border-slate-800 dark:bg-slate-900/60 dark:focus-within:border-brand-400"
+                    className="relative flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-sm focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 dark:border-slate-800/90 dark:bg-slate-900 focus-within:dark:border-brand-400 shrink-0"
                   >
                     <textarea
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       placeholder={isRagMode ? "Ask a question about this book..." : `Ask AI about page ${page}...`}
                       rows={1}
-                      className="flex-1 resize-none bg-transparent py-2 px-3 text-xs outline-none dark:text-white max-h-24"
+                      className="flex-1 resize-none bg-transparent py-2 px-3 text-xs font-medium outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 max-h-28"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
@@ -2372,6 +2502,19 @@ export default function Reader({ id }: { id: string }) {
               )}
             </div>
           </aside>
+
+          {/* Desktop Draggable Mouse Resizer Splitter */}
+          <div
+            onMouseDown={startResizingSidebar}
+            className={`hidden sm:flex w-1.5 hover:w-2 cursor-col-resize select-none shrink-0 z-30 transition-all items-center justify-center group relative h-full ${
+              isResizingSidebar
+                ? "bg-brand-600 shadow-md ring-1 ring-brand-400"
+                : "bg-slate-200/80 hover:bg-brand-500/80 dark:bg-slate-800/80 dark:hover:bg-brand-500/80"
+            }`}
+            title="Click and drag with mouse to dynamically resize sidebar width"
+          >
+            <div className="h-10 w-0.5 rounded-full bg-slate-400/80 group-hover:bg-white transition-colors" />
+          </div>
 
           {/* Mobile Slide-Up Bottom Sheet */}
           <div className="fixed inset-0 z-50 flex items-end sm:hidden bg-slate-900/60 backdrop-blur-sm animate-fade-in">
@@ -2670,53 +2813,75 @@ export default function Reader({ id }: { id: string }) {
           onPointerDown={handleAreaPointerDown}
           onPointerMove={handleAreaPointerMove}
           onPointerUp={handleAreaPointerUp}
+          onPointerCancel={() => {
+            if (isAreaSelectMode) {
+              setAreaBox(null);
+            }
+          }}
+          style={{
+            touchAction: isAreaSelectMode ? "none" : undefined,
+          }}
           className={`flex min-w-0 flex-1 flex-col items-center overflow-auto py-6 relative ${
             isAreaSelectMode ? "cursor-crosshair select-none" : ""
           }`}
         >
           {/* Active Area Select Mode Floating Badge Indicator */}
           {isAreaSelectMode && (
-            <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 whitespace-nowrap rounded-full border border-brand-500 bg-brand-600 px-3 py-1 text-xs font-bold text-white shadow-xl animate-fade-in">
-              <MarqueeIcon size={14} />
-              <span>Area Select Active</span>
+            <div className="fixed top-14 sm:top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 whitespace-nowrap rounded-full border border-brand-400 bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-2xl animate-fade-in">
+              <MarqueeIcon size={16} />
+              <span>
+                <span className="hidden sm:inline">Area Select Active — Drag box over text/image</span>
+                <span className="sm:hidden">Drag over area to select</span>
+              </span>
               <button
+                type="button"
                 onClick={() => {
                   setIsAreaSelectMode(false);
                   setAreaBox(null);
                 }}
-                className="ml-1 rounded-full p-0.5 hover:bg-white/20"
-                title="Exit Area Select Mode"
+                className="ml-2 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold hover:bg-white/30 transition active:scale-95"
+                title="Cancel Area Select"
               >
-                <XIcon size={13} />
+                Cancel
               </button>
             </div>
           )}
 
-          {/* Figma Live Selection Box Overlay */}
-          {areaBox && (
-            <div
-              style={{
-                position: "fixed",
-                left: `${Math.min(areaBox.startX, areaBox.endX)}px`,
-                top: `${Math.min(areaBox.startY, areaBox.endY)}px`,
-                width: `${Math.abs(areaBox.endX - areaBox.startX)}px`,
-                height: `${Math.abs(areaBox.endY - areaBox.startY)}px`,
-                pointerEvents: "none",
-              }}
-              className="z-40 border-2 border-brand-500 bg-brand-500/15 shadow-2xl ring-2 ring-brand-400/40 rounded-lg animate-fade-in"
-            >
-              {/* Figma Corner Handles */}
-              <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-              <div className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-              <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-              <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-              
-              {/* Dimensions Badge */}
-              <div className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
-                <span>Box ({Math.round(Math.abs(areaBox.endX - areaBox.startX))}×{Math.round(Math.abs(areaBox.endY - areaBox.startY))})</span>
+          {/* Figma Live Selection Box Overlay (Live Dragging & Persisted Selection) */}
+          {(areaBox || selectedAreaBox) && (() => {
+            const activeBox = areaBox || selectedAreaBox;
+            if (!activeBox) return null;
+            const left = Math.min(activeBox.startX, activeBox.endX);
+            const top = Math.min(activeBox.startY, activeBox.endY);
+            const width = Math.abs(activeBox.endX - activeBox.startX);
+            const height = Math.abs(activeBox.endY - activeBox.startY);
+            if (width < 5 && height < 5) return null;
+
+            return (
+              <div
+                style={{
+                  position: "fixed",
+                  left: `${left}px`,
+                  top: `${top}px`,
+                  width: `${width}px`,
+                  height: `${height}px`,
+                  pointerEvents: "none",
+                }}
+                className="z-40 border-2 border-brand-500 bg-brand-500/15 shadow-2xl ring-2 ring-brand-400/40 rounded-lg animate-fade-in"
+              >
+                {/* Figma Corner Handles */}
+                <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+                <div className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+                <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+                <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+
+                {/* Dimensions Badge */}
+                <div className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
+                  <span>Selected Area ({Math.round(width)}×{Math.round(height)})</span>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
           {status === "loading" ? (
             <div className="mt-24">
               <BookLoader label="Initializing PDF Reader..." />

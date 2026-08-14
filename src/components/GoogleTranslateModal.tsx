@@ -10,6 +10,7 @@ import {
   GoogleTranslateLogo,
   SparklesIcon,
 } from "./ui/icons";
+import { containsKhmer } from "@/lib/khmerHelper";
 
 export interface GoogleTranslateModalProps {
   initialText: string;
@@ -67,7 +68,10 @@ export function renderAiExplanation(content: string | null) {
 
     if (isHeader) {
       return (
-        <h5 key={`ailine-${lIdx}`} className="font-bold text-brand-600 dark:text-brand-400 text-[11px] uppercase tracking-wider mt-1.5 mb-0.5">
+        <h5
+          key={`ailine-${lIdx}`}
+          className="font-bold text-brand-600 dark:text-brand-400 text-[11px] uppercase tracking-wider mt-2 mb-1"
+        >
           {formattedLine}
         </h5>
       );
@@ -75,15 +79,21 @@ export function renderAiExplanation(content: string | null) {
 
     if (line.trim().startsWith("- ") || line.trim().startsWith("• ") || /^\d+\./.test(line.trim())) {
       return (
-        <div key={`ailine-${lIdx}`} className="flex items-start gap-1.5 pl-1.5 text-slate-700 dark:text-slate-300 text-xs">
-          <span className="text-brand-500 font-bold">•</span>
+        <div
+          key={`ailine-${lIdx}`}
+          className="flex items-start gap-1.5 pl-1.5 text-slate-800 dark:text-slate-100 text-xs font-normal leading-relaxed"
+        >
+          <span className="text-brand-500 font-bold shrink-0">•</span>
           <span>{line.replace(cleanBulletRegex, "").replace(cleanBoldRegex, "")}</span>
         </div>
       );
     }
 
     return (
-      <p key={`ailine-${lIdx}`} className="text-slate-800 dark:text-slate-200 text-xs font-medium">
+      <p
+        key={`ailine-${lIdx}`}
+        className="text-slate-800 dark:text-slate-100 text-xs font-normal leading-relaxed"
+      >
         {line}
       </p>
     );
@@ -262,10 +272,11 @@ export default function GoogleTranslateModal({
     if (isSource) setIsSpeakingSource(true);
     else setIsSpeakingTarget(true);
 
-    const targetLangCode = langCode === "auto" ? "km" : langCode;
+    const isKhmerText = containsKhmer(text) || langCode === "km";
+    const targetLangCode = isKhmerText ? "km" : langCode === "auto" ? "en" : langCode;
 
-    // Use /api/tts endpoint for reliable Khmer pronunciation and crystal-clear audio
-    const ttsUrl = `/api/tts?text=${encodeURIComponent(text.slice(0, 300))}&lang=${encodeURIComponent(targetLangCode)}`;
+    // Use /api/tts endpoint for reliable Khmer pronunciation and long-text multi-chunk audio
+    const ttsUrl = `/api/tts?text=${encodeURIComponent(text.slice(0, 1500))}&lang=${encodeURIComponent(targetLangCode)}`;
     const audio = new Audio(ttsUrl);
     activeAudioRef.current = audio;
 
@@ -274,8 +285,8 @@ export default function GoogleTranslateModal({
     };
 
     audio.onerror = () => {
-      // Fallback to browser SpeechSynthesis if network TTS is unavailable
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      // NEVER fallback to browser SpeechSynthesis for Khmer (browsers default to English)
+      if (!isKhmerText && typeof window !== "undefined" && "speechSynthesis" in window) {
         try {
           const utterance = new SpeechSynthesisUtterance(text);
           if (targetLangCode !== "auto") {
@@ -293,8 +304,8 @@ export default function GoogleTranslateModal({
     };
 
     audio.play().catch(() => {
-      // Handle auto-play policy or fallback to SpeechSynthesis
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      // Handle auto-play policy or fallback for non-Khmer languages
+      if (!isKhmerText && typeof window !== "undefined" && "speechSynthesis" in window) {
         try {
           const utterance = new SpeechSynthesisUtterance(text);
           if (targetLangCode !== "auto") {
@@ -326,20 +337,20 @@ export default function GoogleTranslateModal({
   };
 
   // Theme Styles
-  let bgModal = "bg-white text-slate-900 border-slate-200 shadow-2xl";
-  let bgPanel = "bg-slate-50/80 border-slate-200/90";
-  let bgTargetPanel = "bg-brand-50/30 border-brand-200/50";
-  let borderDivider = "border-slate-200/80";
+  let bgModal = "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-slate-200 dark:border-slate-800 shadow-2xl";
+  let bgPanel = "bg-slate-50 dark:bg-slate-900/90 border-slate-200/90 dark:border-slate-800";
+  let bgTargetPanel = "bg-brand-50/40 dark:bg-slate-900/90 border-brand-200/60 dark:border-brand-900/60";
+  let borderDivider = "border-slate-200/80 dark:border-slate-800";
 
   if (theme === "dark") {
     bgModal = "bg-slate-900 text-slate-100 border-slate-800 shadow-2xl";
-    bgPanel = "bg-slate-950/80 border-slate-800/90";
-    bgTargetPanel = "bg-slate-950 border-slate-800";
+    bgPanel = "bg-slate-900/90 border-slate-800";
+    bgTargetPanel = "bg-slate-900/90 border-brand-900/60";
     borderDivider = "border-slate-800";
   } else if (theme === "sepia") {
     bgModal = "bg-[#f4e4c1] text-[#5c4b37] border-[#e2cf9f] shadow-2xl";
-    bgPanel = "bg-[#ebd9b3]/40 border-[#e2cf9f]";
-    bgTargetPanel = "bg-[#ebd9b3]/70 border-[#e2cf9f]";
+    bgPanel = "bg-[#ebd9b3]/50 border-[#e2cf9f]";
+    bgTargetPanel = "bg-[#ebd9b3]/80 border-[#e2cf9f]";
     borderDivider = "border-[#e2cf9f]";
   }
 

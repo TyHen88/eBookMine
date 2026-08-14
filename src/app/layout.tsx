@@ -1,11 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Kantumruy_Pro } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import ScrollToTop from "@/components/ScrollToTop";
 import VerticalNav from "@/components/VerticalNav";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const kantumruy = Kantumruy_Pro({
+  subsets: ["khmer", "latin"],
+  variable: "--font-khmer",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "eBookMine — Read, Understand & Remember Books with AI",
@@ -48,7 +54,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${inter.variable} font-sans antialiased`}>
+      <body suppressHydrationWarning className={`${inter.variable} ${kantumruy.variable} font-sans antialiased`}>
         <Providers>
           <VerticalNav />
           {children}

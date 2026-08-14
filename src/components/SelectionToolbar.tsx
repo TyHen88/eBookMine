@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import {
   SparklesIcon,
   BookmarkIcon,
-  XIcon,
   DotsVerticalIcon,
   CopyIcon,
   TranslateIcon,
@@ -31,6 +30,36 @@ export default function SelectionToolbar({
 }: SelectionToolbarProps) {
   const [showMore, setShowMore] = useState(false);
   const [copied, setCopied] = useState(false);
+  const toolbarRef = React.useRef<HTMLDivElement>(null);
+
+  // Close toolbar when clicking or tapping outside, or pressing Escape
+  React.useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    // Attach with small delay so the pointerUp that triggered selection doesn't instantly dismiss it
+    const timer = setTimeout(() => {
+      document.addEventListener("mousedown", handleOutsideClick);
+      document.addEventListener("touchstart", handleOutsideClick, { passive: true });
+      document.addEventListener("keydown", handleKeyDown);
+    }, 60);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
 
   if (!position || !selectedText.trim()) return null;
 
@@ -41,7 +70,6 @@ export default function SelectionToolbar({
   let btnBrand = "text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/50";
   let btnAskAi = "bg-brand-600 text-white hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600 shadow-sm";
   let divider = "bg-slate-200 dark:bg-slate-800";
-  let btnClose = "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200";
   let menuStyles = "bg-white border-slate-200 shadow-2xl dark:bg-slate-900 dark:border-slate-800";
 
   if (theme === "sepia") {
@@ -51,7 +79,6 @@ export default function SelectionToolbar({
     btnBrand = "text-indigo-800 hover:bg-indigo-100/50";
     btnAskAi = "bg-[#5c4b37] text-white hover:bg-[#4a3c2c]";
     divider = "bg-[#e2cf9f]";
-    btnClose = "text-[#9e876a] hover:text-[#5c4b37]";
     menuStyles = "bg-[#f4e4c1] border-[#e2cf9f]";
   } else if (theme === "dark") {
     containerStyles = "border-slate-800/90 bg-slate-900/95 text-slate-100";
@@ -60,7 +87,6 @@ export default function SelectionToolbar({
     btnBrand = "text-brand-400 hover:bg-brand-950/50";
     btnAskAi = "bg-brand-500 text-white hover:bg-brand-600 shadow-sm";
     divider = "bg-slate-800";
-    btnClose = "text-slate-400 hover:text-slate-100";
     menuStyles = "bg-slate-900 border-slate-800";
   }
 
@@ -91,6 +117,7 @@ export default function SelectionToolbar({
 
   return (
     <div
+      ref={toolbarRef}
       role="toolbar"
       aria-label="Text selection actions"
       style={styleObj}
@@ -197,16 +224,6 @@ export default function SelectionToolbar({
           </div>
         )}
       </div>
-
-      {/* Close Button */}
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close selection menu"
-        className={`ml-0.5 p-1 rounded-xl transition-colors ${btnClose}`}
-      >
-        <XIcon size={15} />
-      </button>
     </div>
   );
 }
