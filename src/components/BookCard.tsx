@@ -212,9 +212,9 @@ export default function BookCard({
         </button>
       )}
 
-      <div className="flex flex-1 flex-col p-3.5">
+      <div className="flex flex-1 flex-col p-2.5 sm:p-3.5">
         <Link href={`/book/${book.id}`} {...wrapProps}>
-          <h3 className="line-clamp-2 text-xs font-bold text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400">
+          <h3 className="line-clamp-2 text-xs font-bold text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400 break-words">
             {book.title}
           </h3>
         </Link>
@@ -224,7 +224,7 @@ export default function BookCard({
           </p>
         )}
 
-        <div className="mt-2.5 flex items-center justify-between">
+        <div className="mt-2 flex items-center justify-between gap-1">
           {book.category && book.category !== "Other" ? (
             <Chip tone="neutral">{book.category}</Chip>
           ) : (
@@ -232,19 +232,25 @@ export default function BookCard({
           )}
 
           {isReading && (
-            <span className="text-[11px] font-bold tabular-nums text-brand-600 dark:text-brand-400">
+            <span className="text-[10px] sm:text-[11px] font-bold tabular-nums text-brand-600 dark:text-brand-400 shrink-0">
               {pct}%
             </span>
           )}
         </div>
 
-        <div className="mt-auto flex items-center gap-1.5 pt-3">
+        <div className="mt-auto flex items-center gap-1.5 pt-2.5">
           <Link
             href={`/read/${book.id}`}
-            className={`flex-1 ${buttonClass({ variant: isReading ? "primary" : "secondary", size: "sm" })}`}
+            className={`flex w-full items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold transition-all active:scale-[0.98] ${
+              isReading
+                ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-500/20 hover:shadow-md"
+                : "border border-slate-200/90 bg-slate-50/80 text-slate-700 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:border-brand-700 dark:hover:bg-brand-900/40"
+            }`}
           >
-            <BookOpenIcon size={14} />
-            {isCompleted ? "Read Again" : isReading ? "Continue" : "Start Reading"}
+            <BookOpenIcon size={13} className="shrink-0" />
+            <span className="truncate">
+              {isCompleted ? "Read Again" : isReading ? "Continue" : "Read"}
+            </span>
           </Link>
         </div>
       </div>

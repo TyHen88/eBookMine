@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { containsKhmer } from "@/lib/khmerHelper";
+import { containsKhmer, sanitizeKhmerOutput } from "@/lib/khmerHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -49,24 +49,62 @@ function splitTextForTTS(text: string, maxLen = 95): string[] {
 }
 
 /**
+ * Detect language code from text or explicit request param.
+ */
+function resolveTtsLanguage(text: string, requestedLang?: string | null): string {
+  if (requestedLang && requestedLang.toLowerCase() !== "auto") {
+    return requestedLang;
+  }
+
+  // 1. Khmer script
+  if (containsKhmer(text)) {
+    return "km";
+  }
+
+  // 2. Chinese (Han)
+  if (/[\u4E00-\u9FFF]/.test(text)) {
+    return "zh-CN";
+  }
+
+  // 3. Japanese (Hiragana / Katakana)
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) {
+    return "ja";
+  }
+
+  // 4. Korean (Hangul)
+  if (/[\uAC00-\uD7AF\u1100-\u11FF]/.test(text)) {
+    return "ko";
+  }
+
+  // 5. Arabic
+  if (/[\u0600-\u06FF]/.test(text)) {
+    return "ar";
+  }
+
+  // 6. Russian / Cyrillic
+  if (/[\u0400-\u04FF]/.test(text)) {
+    return "ru";
+  }
+
+  // Default to English for English/Latin text
+  return "en";
+}
+
+/**
  * GET /api/tts?text=...&lang=...
  * Streams high-fidelity Text-To-Speech audio with multi-chunk concatenation for long texts.
  */
 export async function GET(req: NextRequest) {
   try {
     const text = req.nextUrl.searchParams.get("text");
-    let lang = req.nextUrl.searchParams.get("lang") || "km";
+    const reqLang = req.nextUrl.searchParams.get("lang");
 
     if (!text || !text.trim()) {
       return new NextResponse("Text parameter is required", { status: 400 });
     }
 
-    // Auto-detect Khmer text or explicit language code
-    if (lang === "auto" || containsKhmer(text)) {
-      lang = "km";
-    }
-
-    const cleanText = text.trim();
+    const lang = resolveTtsLanguage(text, reqLang);
+    const cleanText = lang === "km" ? sanitizeKhmerOutput(text.trim()) : text.trim();
     const chunks = splitTextForTTS(cleanText, 95);
 
     // Limit maximum chunks to 20 (~2000 chars) for responsive streaming

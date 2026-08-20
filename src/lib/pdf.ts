@@ -6,6 +6,26 @@ import { pdfjs } from "react-pdf";
 // Loading it as a static asset avoids webpack/Terser trying to minify the .mjs module.
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
+// Suppress harmless PDF.js worker task cancellation warnings when switching tabs/pages
+if (typeof window !== "undefined") {
+  const originalWarn = console.warn;
+  console.warn = (...args: any[]) => {
+    if (
+      args.some(
+        (arg) =>
+          typeof arg === "string" &&
+          (arg.includes("AbortException") ||
+            arg.includes("TextLayer task cancelled") ||
+            arg.includes("RenderingCancelledException") ||
+            arg.includes("Canvas task cancelled"))
+      )
+    ) {
+      return;
+    }
+    originalWarn(...args);
+  };
+}
+
 export { pdfjs };
 
 export interface ExtractedInfo {

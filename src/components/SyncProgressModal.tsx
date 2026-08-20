@@ -35,13 +35,7 @@ export default function SyncProgressModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen) {
-      setStage("idle");
-      setProgress(0);
-      setStats(null);
-      setErrorMessage(null);
-      return;
-    }
+    if (!isOpen) return;
 
     let isMounted = true;
 

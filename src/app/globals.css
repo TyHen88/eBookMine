@@ -635,39 +635,129 @@ body.area-select-active *,
 .react-pdf__Page__canvas {
   position: relative !important;
   z-index: 1 !important;
+  display: block !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  pointer-events: none !important;
 }
 
 .react-pdf__Page__textContent,
 .react-pdf__Page__textLayer,
 .textLayer {
   position: absolute !important;
+  text-align: initial !important;
   inset: 0 !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  z-index: 5 !important;
+  overflow: hidden !important;
+  z-index: 10 !important;
   opacity: 1 !important;
   line-height: 1 !important;
   user-select: text !important;
   -webkit-user-select: text !important;
   pointer-events: auto !important;
   cursor: text !important;
+  transform-origin: 0 0 !important;
 }
 
-.react-pdf__Page__textContent > span,
-.react-pdf__Page__textLayer > span,
-.textLayer > span {
+.react-pdf__Page__textContent span,
+.react-pdf__Page__textLayer span,
+.textLayer span {
+  color: transparent !important;
+  position: absolute !important;
+  white-space: pre !important;
   cursor: text !important;
+  transform-origin: 0% 0% !important;
   user-select: text !important;
   -webkit-user-select: text !important;
   pointer-events: auto !important;
-  color: transparent !important;
 }
 
+.textLayer .endOfContent {
+  display: block !important;
+  position: absolute !important;
+  inset: 100% 0 0 !important;
+  z-index: -1 !important;
+  cursor: default !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.textLayer .endOfContent.active {
+  top: 0 !important;
+}
+
+/* High-contrast visible text selection highlight (Royal Blue) */
+::selection {
+  background: rgba(37, 99, 235, 0.45) !important;
+}
+
+::-moz-selection {
+  background: rgba(37, 99, 235, 0.45) !important;
+}
+
+.react-pdf__Page ::selection,
+.react-pdf__Page *::selection,
 .react-pdf__Page__textContent ::selection,
+.react-pdf__Page__textContent *::selection,
 .react-pdf__Page__textLayer ::selection,
-.textLayer ::selection {
-  background: rgba(99, 102, 241, 0.35) !important;
-  color: transparent !important;
+.react-pdf__Page__textLayer *::selection,
+.textLayer ::selection,
+.textLayer *::selection,
+.textLayer span::selection {
+  background: rgba(37, 99, 235, 0.45) !important;
+}
+
+.react-pdf__Page ::-moz-selection,
+.react-pdf__Page *::-moz-selection,
+.react-pdf__Page__textContent ::-moz-selection,
+.react-pdf__Page__textContent *::-moz-selection,
+.react-pdf__Page__textLayer ::-moz-selection,
+.react-pdf__Page__textLayer *::-moz-selection,
+.textLayer ::-moz-selection,
+.textLayer *::-moz-selection,
+.textLayer span::-moz-selection {
+  background: rgba(37, 99, 235, 0.45) !important;
+}
+
+/* Chrome fix for PDF text linebreaks */
+.textLayer br::selection,
+.textLayer br::-moz-selection {
+  background: transparent !important;
+}
+
+/* Chrome / Arc Style Tab Switch Transitions */
+@keyframes tab-switch-in {
+  0% {
+    opacity: 0.88;
+    transform: scale(0.995) translateY(2px);
+    filter: blur(0.6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-tab-switch {
+  animation: tab-switch-in 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity, filter;
+}
+
+@keyframes tab-preview-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-tab-preview {
+  animation: tab-preview-pop 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

@@ -42,36 +42,37 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Toast Notification Container */}
-      <div className="fixed top-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4">
+      {/* Toast Notification Container - Top Center */}
+      <div className="fixed top-14 sm:top-5 inset-x-0 mx-auto z-50 flex flex-col items-center gap-2 max-w-sm sm:max-w-md w-full pointer-events-none px-4">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center justify-between gap-3 p-3.5 rounded-2xl shadow-xl border backdrop-blur-xl transition-all duration-300 animate-slide-in ${
+            className={`pointer-events-auto flex items-center justify-between gap-3 px-4 py-2.5 rounded-full shadow-2xl border backdrop-blur-xl transition-all duration-300 animate-slideDown max-w-full ${
               toast.type === "success"
-                ? "bg-emerald-50/95 border-emerald-200 text-emerald-900 dark:bg-emerald-950/90 dark:border-emerald-800 dark:text-emerald-100"
+                ? "bg-slate-900/95 border-emerald-500/50 text-white shadow-emerald-950/40"
                 : toast.type === "error"
-                ? "bg-rose-50/95 border-rose-200 text-rose-900 dark:bg-rose-950/90 dark:border-rose-800 dark:text-rose-100"
-                : "bg-brand-50/95 border-brand-200 text-brand-900 dark:bg-brand-950/90 dark:border-brand-800 dark:text-brand-100"
+                ? "bg-slate-900/95 border-rose-500/50 text-white shadow-rose-950/40"
+                : "bg-slate-900/95 border-slate-700/80 text-white shadow-black/50"
             }`}
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="shrink-0">
                 {toast.type === "success" ? (
-                  <CheckIcon size={18} className="text-emerald-600 dark:text-emerald-400" />
+                  <CheckIcon size={16} className="text-emerald-400" />
                 ) : toast.type === "error" ? (
-                  <AlertTriangleIcon size={18} className="text-rose-600 dark:text-rose-400" />
+                  <AlertTriangleIcon size={16} className="text-rose-400" />
                 ) : (
-                  <InfoIcon size={18} className="text-brand-600 dark:text-brand-400" />
+                  <InfoIcon size={16} className="text-brand-400" />
                 )}
               </span>
               <p className="text-xs font-semibold truncate">{toast.message}</p>
             </div>
             <button
               onClick={() => removeToast(toast.id)}
-              className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="shrink-0 rounded-full p-0.5 text-slate-400 hover:bg-white/10 hover:text-white transition"
+              aria-label="Dismiss notification"
             >
-              <XIcon size={14} />
+              <XIcon size={13} />
             </button>
           </div>
         ))}

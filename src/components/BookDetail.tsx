@@ -8,8 +8,6 @@ import { BookMeta } from "@/lib/types";
 import { BookmarkData, HighlightData, NoteData } from "@/lib/readingService";
 import Header from "./Header";
 import BookCard from "./BookCard";
-import LearningDashboard from "./LearningDashboard";
-import AiTutorView from "./AiTutorView";
 import AuthPromptModal from "./AuthPromptModal";
 import { buttonClass, Spinner } from "./ui";
 import { useToast } from "./ui/Toast";
@@ -17,7 +15,6 @@ import {
   ArrowLeftIcon,
   BookOpenIcon,
   DownloadIcon,
-  SparklesIcon,
   BookmarkIcon,
   ShareIcon,
   ClockIcon,
@@ -25,11 +22,7 @@ import {
   StarIcon,
   TagIcon,
   CheckIcon,
-  LockIcon,
-  GridIcon,
 } from "./ui/icons";
-
-type DetailTab = "overview" | "study" | "notes" | "bookmarks";
 
 function formatBytes(bytes: number): string {
   if (!bytes) return "—";
@@ -67,7 +60,6 @@ export default function BookDetail({ id }: { id: string }) {
 
   const [books, setBooks] = useState<BookMeta[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const [coverFailed, setCoverFailed] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -394,27 +386,19 @@ export default function BookDetail({ id }: { id: string }) {
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <Link
                       href={`/read/${book.id}`}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-brand-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-brand-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     >
                       <BookOpenIcon size={15} />
-                      {pct > 0 ? `Continue (p. ${book.lastPage})` : "Start Reading"}
-                    </Link>
-
-                    <Link
-                      href={`/ai-tutor?bookId=${book.id}`}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3.5 py-2.5 text-xs font-bold text-amber-900 shadow-sm transition-all hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200"
-                    >
-                      <SparklesIcon size={15} className="text-amber-500 animate-pulse" />
-                      Ask AI About Book
+                      {pct > 0 ? `Continue Reading (p. ${book.lastPage})` : "Start Reading"}
                     </Link>
 
                     <a
                       href={downloadHref}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                       title="Download PDF"
                     >
                       <DownloadIcon size={15} />
-                      <span className="hidden sm:inline">PDF</span>
+                      <span>Download PDF</span>
                     </a>
                   </div>
                 </div>
@@ -463,283 +447,58 @@ export default function BookDetail({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* Responsive Workspace Tab Bar */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-slate-200/80 bg-white/80 p-1.5 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 sm:grid-cols-4">
-                <button
-                  onClick={() => setActiveTab("overview")}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-                    activeTab === "overview"
-                      ? "bg-brand-600 text-white shadow-md dark:bg-brand-500"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                  }`}
-                >
-                  <GridIcon size={14} />
-                  <span>Overview</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("study")}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-                    activeTab === "study"
-                      ? "bg-brand-600 text-white shadow-md dark:bg-brand-500"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                  }`}
-                >
-                  <SparklesIcon size={14} />
-                  <span>Book AI Tutor</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("notes")}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-                    activeTab === "notes"
-                      ? "bg-brand-600 text-white shadow-md dark:bg-brand-500"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                  }`}
-                >
-                  <FileTextIcon size={14} />
-                  <span>Notes ({notes.length + highlights.length})</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("bookmarks")}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-                    activeTab === "bookmarks"
-                      ? "bg-brand-600 text-white shadow-md dark:bg-brand-500"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                  }`}
-                >
-                  <BookmarkIcon size={14} filled={activeTab === "bookmarks"} />
-                  <span>Bookmarks ({bookmarks.length})</span>
-                </button>
-              </div>
-
-              {/* Tab Contents */}
-              {activeTab === "overview" && (
-                <div className="space-y-4">
-                  {related.length > 0 ? (
-                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80">
-                      <h3 className="mb-3 text-sm font-extrabold text-slate-900 dark:text-white">
-                        Recommended & Related Books
-                      </h3>
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
-                        {related.map((r, i) => (
-                          <BookCard
-                            key={r.id}
-                            book={r}
-                            view="grid"
-                            index={i}
-                            readOnly={!isOwner}
-                            onToggleFavorite={() => {}}
-                            onEdit={() => {}}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-6 text-center text-slate-500 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80">
-                      <p className="text-xs font-semibold text-slate-400">
-                        No other related books found in your library yet.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === "study" && (
-                <div className="space-y-6">
-                  {/* Book-scoped AI Tutor Assistant View */}
-                  <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                    <AiTutorView bookId={book.id} />
-                  </div>
-                  {/* Book-scoped Flashcards & Quiz Dashboard */}
-                  <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                    <LearningDashboard bookId={book.id} />
+            {/* Clean Details Section: Recommended Books & Saved Annotations */}
+            <div className="space-y-5">
+              {/* Recommended & Related Books */}
+              {related.length > 0 && (
+                <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80">
+                  <h3 className="mb-3 text-sm font-extrabold text-slate-900 dark:text-white">
+                    Recommended & Related Books
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
+                    {related.map((r, i) => (
+                      <BookCard
+                        key={r.id}
+                        book={r}
+                        view="grid"
+                        index={i}
+                        readOnly={!isOwner}
+                        onToggleFavorite={() => {}}
+                        onEdit={() => {}}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
 
-              {activeTab === "notes" && (
-                <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90 space-y-4">
+              {/* Saved Notes & Bookmarks Summary Card (if any exist) */}
+              {isOwner && (notes.length > 0 || bookmarks.length > 0 || highlights.length > 0) && (
+                <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/80 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                        Notes & Highlights
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Annotations attached to specific pages in this book.
-                      </p>
-                    </div>
-                    {isOwner && (
-                      <Link
-                        href={`/read/${book.id}`}
-                        className="text-xs font-bold text-brand-600 hover:underline dark:text-brand-400"
-                      >
-                        + Add in Reader
-                      </Link>
-                    )}
+                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      Your Saved Annotations & Bookmarks
+                    </h3>
+                    <Link
+                      href={`/read/${book.id}`}
+                      className="text-xs font-bold text-brand-600 hover:underline dark:text-brand-400"
+                    >
+                      Open in Reader →
+                    </Link>
                   </div>
-
-                  {!isOwner ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 dark:border-slate-800 dark:bg-slate-900/50">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
-                        <LockIcon size={20} />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          Sign In to Sync Notes & Highlights
-                        </h4>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Create personal notes, save highlights, and access your annotations across device sessions.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setShowAuthModal(true)}
-                        className={`mt-2 ${buttonClass({ variant: "primary", size: "sm" })}`}
-                      >
-                        Sign In / Create Account
-                      </button>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-xs">
+                    <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                      <span className="text-slate-500 dark:text-slate-400">Notes:</span>
+                      <span className="font-bold ml-1.5 text-slate-900 dark:text-white">{notes.length}</span>
                     </div>
-                  ) : loadingSaved ? (
-                    <div className="flex justify-center py-8">
-                      <Spinner size="sm" />
+                    <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                      <span className="text-slate-500 dark:text-slate-400">Highlights:</span>
+                      <span className="font-bold ml-1.5 text-slate-900 dark:text-white">{highlights.length}</span>
                     </div>
-                  ) : notes.length === 0 && highlights.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-2 border border-dashed border-slate-200 rounded-xl dark:border-slate-800">
-                      <FileTextIcon size={30} className="text-slate-300 dark:text-slate-700" />
-                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
-                        No notes or highlights saved yet.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {notes.map((n) => (
-                        <div
-                          key={n.id}
-                          className="flex flex-col gap-1.5 rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 transition-all dark:border-slate-800/80 dark:bg-slate-800/50"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1 rounded bg-brand-100/80 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-950 dark:text-brand-300">
-                              Page {n.page}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {formatDate(n.createdAt)}
-                            </span>
-                          </div>
-                          <p className="text-xs font-medium text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
-                            {n.content}
-                          </p>
-                          <Link
-                            href={`/read/${book.id}?page=${n.page}`}
-                            className="text-[11px] font-bold text-brand-600 hover:underline dark:text-brand-400 self-end"
-                          >
-                            Jump to Page →
-                          </Link>
-                        </div>
-                      ))}
-
-                      {highlights.map((h) => (
-                        <div
-                          key={h.id}
-                          className="flex flex-col gap-1.5 rounded-xl border border-amber-100 bg-amber-50/50 p-3.5 transition-all dark:border-amber-900/40 dark:bg-amber-950/20"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1 rounded bg-amber-200/80 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                              Highlight • Page {h.page}
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {formatDate(h.createdAt)}
-                            </span>
-                          </div>
-                          <blockquote className="border-l-2 border-amber-400 pl-2.5 text-xs italic text-slate-700 dark:text-slate-300">
-                            &quot;{h.selectedText}&quot;
-                          </blockquote>
-                          <Link
-                            href={`/read/${book.id}?page=${h.page}`}
-                            className="text-[11px] font-bold text-amber-600 hover:underline dark:text-amber-400 self-end"
-                          >
-                            Jump to Page →
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === "bookmarks" && (
-                <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-lg backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                        Saved Bookmarks
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Saved page shortcuts for quick navigation.
-                      </p>
+                    <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                      <span className="text-slate-500 dark:text-slate-400">Bookmarks:</span>
+                      <span className="font-bold ml-1.5 text-slate-900 dark:text-white">{bookmarks.length}</span>
                     </div>
                   </div>
-
-                  {!isOwner ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 dark:border-slate-800 dark:bg-slate-900/50">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
-                        <LockIcon size={20} />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          Sign In to View Your Bookmarks
-                        </h4>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Save key page positions while reading and access them anytime.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setShowAuthModal(true)}
-                        className={`mt-2 ${buttonClass({ variant: "primary", size: "sm" })}`}
-                      >
-                        Sign In / Create Account
-                      </button>
-                    </div>
-                  ) : loadingSaved ? (
-                    <div className="flex justify-center py-8">
-                      <Spinner size="sm" />
-                    </div>
-                  ) : bookmarks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-center space-y-2 border border-dashed border-slate-200 rounded-xl dark:border-slate-800">
-                      <BookmarkIcon size={30} className="text-slate-300 dark:text-slate-700" />
-                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
-                        No bookmarks saved yet.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                      {bookmarks.map((bm) => (
-                        <div
-                          key={bm.id}
-                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3 transition-all hover:border-brand-300 dark:border-slate-800/80 dark:bg-slate-800/50"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700 dark:bg-brand-950 dark:text-brand-300">
-                              <BookmarkIcon size={15} filled />
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                {bm.title}
-                              </h4>
-                              <p className="text-[10px] text-slate-400">
-                                Page {bm.page} • {formatDate(bm.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-
-                          <Link
-                            href={`/read/${book.id}?page=${bm.page}`}
-                            className="shrink-0 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-600 hover:bg-brand-100 dark:bg-brand-950/60 dark:text-brand-300"
-                          >
-                            Open →
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
