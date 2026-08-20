@@ -23,9 +23,11 @@ export const aiChatSchema = z.object({
   bookId: z.string().optional(),
   page: z.number().optional(),
   selectedText: z.string().optional(),
-  message: z.string().min(1, "Message cannot be empty"),
+  message: z.string().optional(),
+  prompt: z.string().optional(),
   bookTitle: z.string().optional(),
   author: z.string().optional(),
+  chatHistory: z.array(z.any()).optional(),
 });
 
 export const quizSubmitSchema = z.object({

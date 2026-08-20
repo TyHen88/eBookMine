@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/authHelpers";
+import { getSession } from "@/lib/authHelpers";
+import { prisma } from "@/lib/db";
 import { aiProvider, checkAndTrackUsage } from "@/lib/ai/aiService";
 import { BookContext } from "@/lib/ai/aiProvider";
 import { translateText } from "@/lib/translateService";
@@ -12,17 +13,26 @@ export const dynamic = "force-dynamic";
  * Body: { action: "explain"|"simplify"|"translate"|"quiz"|"flashcards", text, page, bookTitle, author, targetLang }
  */
 export async function POST(req: NextRequest) {
-  const { user, response } = await requireUser();
-  if (response) return response;
-
   try {
+    const session = await getSession();
+    const user = session?.user?.email
+      ? await prisma.user.findUnique({ where: { email: session.user.email } })
+      : null;
+
     const { action, text, page, bookTitle, author, targetLang, targetLangName } = await req.json();
     if (!action || typeof action !== "string") {
       return NextResponse.json({ error: "Action is required" }, { status: 400 });
     }
 
-    if (action !== "translate") {
-      await checkAndTrackUsage(user.id, action, 200);
+    if (user && action !== "translate") {
+      try {
+        await checkAndTrackUsage(user.id, action, 200);
+      } catch (usageErr: any) {
+        return NextResponse.json(
+          { error: usageErr.message || "Daily AI limit reached" },
+          { status: 429 }
+        );
+      }
     }
 
     const context: BookContext = {

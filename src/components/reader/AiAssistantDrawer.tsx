@@ -151,6 +151,9 @@ export default function AiAssistantDrawer({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             bookId: tab.id,
+            bookTitle: tab.title,
+            author: tab.author,
+            message: userMsg.content,
             prompt: userMsg.content,
             page: currentPage,
             chatHistory: activeHistory.slice(-8).map((m) => ({
@@ -162,13 +165,31 @@ export default function AiAssistantDrawer({
         });
 
         const data = await res.json();
+
+        if (!res.ok || data.error) {
+          const errorContent = data.error || "Sorry, I encountered an issue connecting to the AI companion.";
+          const errorMsg: ChatMessage = {
+            id: `msg-${Date.now() + 1}`,
+            role: "assistant",
+            content: errorContent,
+            page: currentPage,
+            timestamp: new Date().toISOString(),
+          };
+          setLocalPending([]);
+          onUpdateChatHistory([...activeHistory, errorMsg]);
+          return;
+        }
+
+        const replyContent =
+          data.reply ||
+          data.result ||
+          (typeof data.message === "string" ? data.message : data.message?.content) ||
+          "";
+
         const assistantMsg: ChatMessage = {
           id: `msg-${Date.now() + 1}`,
           role: "assistant",
-          content:
-            data.reply ||
-            data.message ||
-            "I have analyzed your reading selection. How else can I assist you?",
+          content: replyContent,
           page: currentPage,
           citations: data.citations || [],
           timestamp: new Date().toISOString(),
@@ -177,11 +198,11 @@ export default function AiAssistantDrawer({
         const updatedAll = [...activeHistory, assistantMsg];
         setLocalPending([]);
         onUpdateChatHistory(updatedAll);
-      } catch {
+      } catch (err: any) {
         const errorMsg: ChatMessage = {
           id: `msg-${Date.now() + 1}`,
           role: "assistant",
-          content: "Sorry, I encountered an issue connecting to the AI companion.",
+          content: err?.message || "Sorry, I encountered a network issue connecting to the AI companion.",
           page: currentPage,
           timestamp: new Date().toISOString(),
         };
@@ -191,7 +212,7 @@ export default function AiAssistantDrawer({
         setLoading(false);
       }
     },
-    [currentPage, loading, onUpdateChatHistory, tab.chatHistory, tab.id]
+    [currentPage, loading, onUpdateChatHistory, tab.author, tab.chatHistory, tab.id, tab.title]
   );
 
   useEffect(() => {

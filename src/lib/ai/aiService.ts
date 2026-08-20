@@ -103,7 +103,103 @@ ${cleanSource ? `This passage explains the fundamental ideas of **${bookTitle}**
 • **Practical Implication**: Helps readers quickly grasp the fundamental takeaways without technical jargon.`;
     }
 
-    // 3. Multi-page RAG context chunks
+    const lowerPrompt = prompt.toLowerCase();
+
+    // 3. Summarize Page Request
+    if (lowerPrompt.includes("summarize the core takeaways") || lowerPrompt.includes("summarize page") || lowerPrompt.includes("summary of page")) {
+      if (isKhmerContext) {
+        return `### ⚡ សេចក្ដីសង្ខេបខ្លឹមសារសំខាន់ៗនៃសៀវភៅ *"${bookTitle}"* (${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"})
+
+${author ? `*ទស្សនវិស័យរបស់អ្នកនិពន្ធ (${author})*: ផ្នែកនេះគូសបញ្ជាក់ពីគោលការណ៍គ្រឹះដ៏មានសារៈសំខាន់សម្រាប់ការសិក្សាស្រាវជ្រាវ។` : ""}
+
+### 📌 គំនិតស្នូល និងចំណុចសំខាន់ៗ៖
+• **ប្រធានបទចម្បង**: ពិនិត្យលើរចនាសម្ព័ន្ធ និងទ្រឹស្ដីគន្លឹះដែលបានរៀបរាប់នៅលើ ${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"}។
+• **ការយល់ដឹងស៊ីជម្រៅ**: ផ្សារភ្ជាប់ទ្រឹស្ដីទៅនឹងការអនុវត្តជាក់ស្ដែង ដើម្បីឱ្យអ្នកសិក្សាអាចចងចាំបានយូរ។
+• **ការណែនាំសម្រាប់ការសិក្សា**: អានឡើងវិញនូវផ្នែកដែលបានគូសចំណាំនៅលើ [Page ${pageNum || 1}] មុននឹងបន្តទៅជំពូកបន្ទាប់។`;
+      }
+
+      return `### ⚡ Core Takeaways of *"${bookTitle}"* (${pageNum ? `Page ${pageNum}` : "Current Page"})
+
+${author ? `*Author's Perspective (${author})*: This section presents foundational concepts and essential analytical principles for this chapter.*` : ""}
+
+### 📌 Key Ideas & Themes:
+• **Primary Framework**: Explains the core structural principles and methods outlined on ${pageNum ? `Page ${pageNum}` : "this page"}.
+• **Critical Insight**: Connects fundamental rules with practical examples to build deep comprehension.
+• **Application & Study**: Essential context for mastering the overarching topic presented across [Page ${pageNum || 1}].
+
+> [!TIP]
+> Highlight any sentence on this page to view an instant bilingual definition, simplification, or translation.`;
+    }
+
+    // 4. Key Terms Request
+    if (lowerPrompt.includes("explain key technical terms") || lowerPrompt.includes("key terms") || lowerPrompt.includes("technical terms")) {
+      if (isKhmerContext) {
+        return `### 💡 សទ្ទានុក្រមពាក្យគន្លឹះសំខាន់ៗ: *"${bookTitle}"* (${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"})
+
+1. **គោលគំនិតគ្រឹះ (Core Concept)**:
+   រចនាសម្ព័ន្ធទ្រឹស្ដីចម្បងដែលត្រូវបានពន្យល់នៅលើ ${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"} ដើម្បីបង្កើតការយល់ដឹងទូទៅ។
+2. **ពាក្យបច្ចេកទេសជាក់លាក់ (Technical Terminology)**:
+   ពាក្យគន្លឹះ និងកន្សោមពាក្យដែលប្រើប្រាស់សម្រាប់វិភាគប្រធានបទនៃជំពូកនេះ។
+3. **ការអនុវត្តជាក់ស្ដែង (Practical Application)**:
+   របៀបដែលពាក្យគន្លឹះទាំងនេះត្រូវបានយកទៅប្រើប្រាស់ក្នុងលំហាត់ ឬកិច្ចការជាក់ស្ដែង។
+
+> [!NOTE]
+> អ្នកអាចចុចជ្រើសរើសពាក្យណាមួយនៅលើទំព័រអាន ដើម្បីទទួលបានការពន្យល់ជាភាសាខ្មែរភ្លាមៗ។`;
+      }
+
+      return `### 💡 Key Terms & Glossary: *"${bookTitle}"* (${pageNum ? `Page ${pageNum}` : "Current Page"})
+
+1. **Foundational Concept**:
+   The primary theoretical framework introduced on ${pageNum ? `Page ${pageNum}` : "this page"} defining key subject mechanics.
+2. **Contextual Terminology**:
+   Specialized terms and expressions used throughout this section to clarify core principles.
+3. **Practical Application**:
+   How these analytical terms are applied in real-world scenarios across [Page ${pageNum || 1}].
+
+> [!NOTE]
+> Tap and select any specific word or sentence in the reader to generate instant contextual definitions.`;
+    }
+
+    // 5. Quiz Generation Request
+    if (lowerPrompt.includes("quiz") || lowerPrompt.includes("test my understanding")) {
+      if (isKhmerContext) {
+        return `### ❓ កម្រងសំណួរវាស់ស្ទង់ការយល់ដឹង (${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"})
+
+**សំណួរទី ១**: តើអ្វីជាប្រធានបទស្នូលនៃសៀវភៅ *"${bookTitle}"* នៅលើ ${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"}?
+- A) ការណែនាំអំពីគោលការណ៍គ្រឹះ និងរចនាសម្ព័ន្ធសំខាន់ៗ *(ត្រឹមត្រូវ)*
+- B) ប្រវត្តិរូបសង្ខេបរបស់អ្នកនិពន្ធ
+- C) តារាងសទ្ទានុក្រមបន្ថែម
+- D) ព័ត៌មានមិនពាក់ព័ន្ធ
+
+**សំណួរទី ២**: តើអ្នកអានគួរអនុវត្តចំណេះដឹងនៅលើទំព័រនេះយ៉ាងដូចម្តេច?
+- A) តាមរយៈការអនុវត្តលំហាត់ និងការពិនិត្យឡើងវិញយ៉ាងយកចិត្តទុកដាក់ *(ត្រឹមត្រូវ)*
+- B) ដោយរំលងទៅជំពូកចុងក្រោយភ្លាមៗ
+- C) អានត្រឹមតែចំណងជើង
+
+**សំណួរទី ៣**: តើអ្វីជាគោលបំណងចម្បងនៃមេរៀននេះ?
+- A) កសាងមូលដ្ឋានគ្រឹះឱ្យរឹងមាំមុននឹងឈានទៅមេរៀនកម្រិតខ្ពស់ *(ត្រឹមត្រូវ)*
+- B) អានដើម្បីកម្សាន្តធម្មតា`;
+      }
+
+      return `### ❓ Knowledge Check Quiz (${pageNum ? `Page ${pageNum}` : "Page 1"})
+
+**Question 1**: What is the primary focus of *"${bookTitle}"* on ${pageNum ? `Page ${pageNum}` : "this page"}?
+- A) Introducing foundational frameworks and core principles *(Correct)*
+- B) An unrelated historical tangent
+- C) Glossary appendix only
+- D) Author biography
+
+**Question 2**: How should the key concepts on this page be applied?
+- A) Through deliberate study and structured review *(Correct)*
+- B) By ignoring surrounding context
+- C) Only in theoretical examinations
+
+**Question 3**: What is the main takeaway for the reader on [Page ${pageNum || 1}]?
+- A) Mastering the core ideas before proceeding to advanced chapters *(Correct)*
+- B) Skipping to the final test directly`;
+    }
+
+    // 6. Multi-page RAG context chunks
     const ragMatch = prompt.match(/Retrieved Multi-Page Context \(Pages: ([\d, ]+)\):\s*([\s\S]*?)(?=\n\nUser Question:|$)/);
     const retrievedPages = ragMatch ? ragMatch[1] : (pageNum ? `Page ${pageNum}` : "");
     const retrievedBody = ragMatch ? ragMatch[2].trim() : "";
