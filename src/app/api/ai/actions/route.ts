@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         const khmerGuideline = isTargetKhmer
           ? `\n\nSTRICT KHMER SCRIPT & LANGUAGE RULES (ភាសាខ្មែរ):
 - The ${targetName} explanation must be written in 100% pure standard Khmer (អក្សរខ្មែរ / Unicode U+1780-U+17FF).
-- ZERO THAI SCRIPT: Absolutely NEVER output Thai script (ภาษาไทย / U+0E00-U+0E7F) or Thai words/particles.
+- ZERO THAI SCRIPT: Absolutely NEVER output any Thai Unicode characters (U+0E00-U+0E7F) or non-Khmer script.
 - Format with authentic Khmer headings (e.g. ### 📖 អត្ថន័យ និងការពន្យល់, **ឧទាហរណ៍ជាក់ស្ដែង**).`
           : "";
 
@@ -75,8 +75,11 @@ export async function POST(req: NextRequest) {
 Provide a clear, high-quality, dual-language explanation in BOTH English AND ${targetName}:
 
 REQUIREMENTS FOR EACH LANGUAGE:
-1. ### 📖 Core Meaning & Definition: Explain what this concept or term means in the context of the text.
-2. ### 💡 Practical Application & Insights: Provide 2 clear example sentences or application points.${khmerGuideline}
+### 📖 Core Meaning & Definition
+Explain what this concept or term means in the context of the text.
+
+### 💡 Practical Application & Insights
+Provide 2 clear example sentences or application points.${khmerGuideline}
 
 CRITICAL FORMAT REQUIREMENT: Output the English explanation first, followed by the separator line "===SPLIT_LANG_EXPLANATION===", followed by the complete ${targetName} explanation.`;
 
@@ -87,7 +90,7 @@ CRITICAL FORMAT REQUIREMENT: Output the English explanation first, followed by t
       case "simplify": {
         const hasKhmer = /[\u1780-\u17FF]/.test(text);
         const khmerNote = hasKhmer
-          ? "\n\nNOTE: The input contains Khmer. Respond purely in natural standard Khmer (ភាសាខ្មែរ) without any Thai script (ภาษาไทย)."
+          ? "\n\nNOTE: The input contains Khmer. Respond purely in natural standard Khmer (ភាសាខ្មែរ) without any Thai Unicode characters (U+0E00-U+0E7F)."
           : "";
 
         const bookContextText = bookTitle

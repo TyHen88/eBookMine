@@ -7,7 +7,7 @@ import {
   XIcon,
   RefreshIcon,
 } from "@/components/ui/icons";
-import { Spinner } from "@/components/ui";
+import { Spinner, AiMarkdownView } from "@/components/ui";
 
 interface AiAssistantDrawerProps {
   tab: DocumentTab;
@@ -18,86 +18,6 @@ interface AiAssistantDrawerProps {
   onJumpToPage: (page: number) => void;
   onUpdateChatHistory: (messages: ChatMessage[]) => void;
   onClearInitialPrompt?: () => void;
-}
-
-// Markdown parser with interactive [Page X] citation links
-function AiMarkdownView({
-  content,
-  onJumpToPage,
-}: {
-  content: string;
-  onJumpToPage: (p: number) => void;
-}) {
-  const elements = useMemo(() => {
-    if (!content) return null;
-    const lines = content.split("\n");
-
-    return lines.map((line, lineIdx) => {
-      if (line.startsWith("### ")) {
-        return (
-          <h4 key={lineIdx} className="text-xs font-bold text-slate-900 dark:text-white mt-2 mb-1">
-            {line.slice(4)}
-          </h4>
-        );
-      }
-      if (line.startsWith("## ")) {
-        return (
-          <h3 key={lineIdx} className="text-sm font-extrabold text-slate-900 dark:text-white mt-2.5 mb-1">
-            {line.slice(3)}
-          </h3>
-        );
-      }
-
-      const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[Page\s*\d+\])/g);
-      const formatted = parts.map((part, partIdx) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return (
-            <strong key={partIdx} className="font-bold text-slate-900 dark:text-white">
-              {part.slice(2, -2)}
-            </strong>
-          );
-        }
-        if (part.startsWith("*") && part.endsWith("*")) {
-          return <em key={partIdx} className="italic">{part.slice(1, -1)}</em>;
-        }
-        if (part.startsWith("`") && part.endsWith("`")) {
-          return (
-            <code
-              key={partIdx}
-              className="rounded bg-slate-200/80 px-1 py-0.5 font-mono text-[11px] font-semibold text-brand-700 dark:bg-slate-800 dark:text-brand-300"
-            >
-              {part.slice(1, -1)}
-            </code>
-          );
-        }
-        if (part.startsWith("[Page") && part.endsWith("]")) {
-          const match = part.match(/\d+/);
-          const pageNum = match ? parseInt(match[0], 10) : null;
-          return (
-            <button
-              key={partIdx}
-              type="button"
-              onClick={() => pageNum && onJumpToPage(pageNum)}
-              className="inline-flex items-center gap-1 rounded-md bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 hover:bg-brand-200 dark:bg-brand-950 dark:text-brand-300 dark:hover:bg-brand-900 transition mx-0.5 shadow-sm active:scale-95"
-              title={`Jump to Page ${pageNum}`}
-            >
-              <span>📖</span>
-              <span>Page {pageNum}</span>
-            </button>
-          );
-        }
-        return part;
-      });
-
-      return (
-        <p key={lineIdx} className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
-          {formatted}
-        </p>
-      );
-    });
-  }, [content, onJumpToPage]);
-
-  return <div className="space-y-1.5">{elements}</div>;
 }
 
 export default function AiAssistantDrawer({
@@ -336,7 +256,7 @@ export default function AiAssistantDrawer({
       </div>
 
       {/* Messages Stream */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 font-khmer noto-sans-khmer">
         {messages.length === 0 ? (
           <div className="flex h-64 flex-col items-center justify-center p-6 text-center space-y-2 text-slate-400">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
@@ -346,7 +266,7 @@ export default function AiAssistantDrawer({
               Ask Anything About This Book
             </p>
             <p className="text-[11px] text-slate-400 max-w-[220px]">
-              The AI Tutor reads with you. Tap a quick action above or ask about any concept.
+              The AI Assistant reads with you. Tap a quick action above or ask about any concept.
             </p>
           </div>
         ) : (
@@ -380,7 +300,7 @@ export default function AiAssistantDrawer({
         {loading && (
           <div className="flex items-center gap-2 p-2 text-xs font-semibold text-brand-600 dark:text-brand-400">
             <Spinner size="sm" />
-            <span>AI Tutor is thinking...</span>
+            <span>AI Assistant is thinking...</span>
           </div>
         )}
         <div ref={messagesEndRef} />

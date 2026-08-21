@@ -10,7 +10,7 @@ import {
   TagIcon,
   RotateCwIcon,
 } from "@/components/ui/icons";
-import { Spinner } from "@/components/ui";
+import { Spinner, AiMarkdownView } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 
 export interface AiActionModalProps {
@@ -305,7 +305,7 @@ export default function AiActionModal({
       role="region"
       aria-label="AI response message"
       style={positionStyle}
-      className={`z-50 flex flex-col max-h-[65vh] sm:max-h-[55vh] rounded-2xl border shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-200 animate-scaleUp select-text ${cardBg}`}
+      className={`z-50 flex flex-col max-h-[65vh] sm:max-h-[55vh] rounded-2xl border shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-200 animate-scaleUp select-text font-khmer noto-sans-khmer ${cardBg}`}
     >
       {/* 1. Message Body (No Top Header) */}
       <div
@@ -331,8 +331,8 @@ export default function AiActionModal({
             </button>
           </div>
         ) : (
-          <StreamMarkdown
-            text={displayedContent.replace(/===SPLIT_LANG_EXPLANATION===/g, "\n\n---\n\n")}
+          <AiMarkdownView
+            content={displayedContent}
             isTyping={isTyping}
           />
         )}
@@ -431,128 +431,4 @@ export default function AiActionModal({
       </div>
     </aside>
   );
-}
-
-/**
- * Clean Lightweight Markdown & Stream Renderer with Blinking Cursor
- */
-function StreamMarkdown({ text, isTyping }: { text: string; isTyping: boolean }) {
-  if (!text) return null;
-
-  const lines = text.split("\n");
-
-  return (
-    <div className="space-y-1">
-      {lines.map((line, idx) => {
-        const trimmed = line.trim();
-        if (!trimmed) return <div key={idx} className="h-1" />;
-
-        // Horizontal Divider
-        if (trimmed === "---" || trimmed === "***") {
-          return <hr key={idx} className="my-2 border-black/10 dark:border-white/10" />;
-        }
-
-        // Headers
-        if (trimmed.startsWith("### ")) {
-          return (
-            <h5
-              key={idx}
-              className="font-bold text-xs text-brand-600 dark:text-brand-400 mt-2 mb-0.5"
-            >
-              {formatInline(trimmed.replace(/^###\s*/, ""))}
-            </h5>
-          );
-        }
-        if (trimmed.startsWith("## ") || trimmed.startsWith("# ")) {
-          return (
-            <h4 key={idx} className="font-bold text-xs sm:text-sm mt-2 mb-0.5">
-              {formatInline(trimmed.replace(/^#+\s*/, ""))}
-            </h4>
-          );
-        }
-
-        // Bullet points
-        if (trimmed.startsWith("• ") || trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-          return (
-            <div key={idx} className="flex items-start gap-1.5 pl-1 my-0.5">
-              <span className="text-brand-500 font-bold shrink-0">•</span>
-              <span>{formatInline(trimmed.replace(/^[-•*]\s*/, ""))}</span>
-            </div>
-          );
-        }
-
-        // Numbered list
-        const numMatch = trimmed.match(/^(\d+\.)\s*(.*)/);
-        if (numMatch) {
-          return (
-            <div key={idx} className="flex items-start gap-1.5 pl-1 my-0.5">
-              <span className="text-brand-500 font-bold shrink-0">{numMatch[1]}</span>
-              <span>{formatInline(numMatch[2])}</span>
-            </div>
-          );
-        }
-
-        // Blockquotes
-        if (trimmed.startsWith("> ")) {
-          return (
-            <blockquote
-              key={idx}
-              className="border-l-2 border-brand-500 pl-2 my-1 italic opacity-85"
-            >
-              {formatInline(trimmed.replace(/^>\s*/, ""))}
-            </blockquote>
-          );
-        }
-
-        // Standard Paragraph
-        return (
-          <p key={idx} className="leading-relaxed">
-            {formatInline(line)}
-          </p>
-        );
-      })}
-
-      {/* Blinking typing cursor */}
-      {isTyping && (
-        <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-brand-500 animate-pulse rounded-xs align-middle" />
-      )}
-    </div>
-  );
-}
-
-function formatInline(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[Page\s*[^\]]+\])/g);
-  return parts.map((part, idx) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={idx} className="font-bold text-slate-900 dark:text-white">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    if (part.startsWith("*") && part.endsWith("*")) {
-      return <em key={idx}>{part.slice(1, -1)}</em>;
-    }
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return (
-        <code
-          key={idx}
-          className="rounded px-1 py-0.2 font-mono text-[11px] bg-black/5 dark:bg-white/10"
-        >
-          {part.slice(1, -1)}
-        </code>
-      );
-    }
-    if (part.startsWith("[Page") && part.endsWith("]")) {
-      return (
-        <span
-          key={idx}
-          className="inline-flex items-center gap-0.5 rounded px-1 text-[10px] font-bold bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300 mx-0.5"
-        >
-          📖 {part.slice(1, -1)}
-        </span>
-      );
-    }
-    return part;
-  });
 }

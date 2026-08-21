@@ -26,7 +26,28 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: [
+          '"Noto Sans Khmer"',
+          "var(--font-noto-khmer)",
+          "var(--font-inter)",
+          '"Kantumruy Pro"',
+          "var(--font-khmer)",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "Roboto",
+          "system-ui",
+          "sans-serif",
+        ],
+        khmer: [
+          '"Noto Sans Khmer"',
+          "var(--font-noto-khmer)",
+          '"Kantumruy Pro"',
+          "var(--font-khmer)",
+          "Battambang",
+          "Siemreap",
+          "sans-serif",
+        ],
       },
       // Motion system — reusable, GPU-friendly animations used across the UI.
       // All entrance animations use `both` so the element stays hidden until it

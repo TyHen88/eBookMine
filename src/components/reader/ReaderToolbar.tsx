@@ -356,7 +356,7 @@ export default function ReaderToolbar({
           title="Open Adobe AI Assistant"
         >
           <SparklesIcon size={14} className="animate-pulse" />
-          <span className="hidden sm:inline">AI Tutor</span>
+          <span className="hidden sm:inline">AI Assistant</span>
         </button>
       </div>
     </header>

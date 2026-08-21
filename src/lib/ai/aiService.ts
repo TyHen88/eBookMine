@@ -20,6 +20,7 @@ import {
   sanitizeKhmerOutput,
   KHMER_SYSTEM_DIRECTIVES,
 } from "@/lib/khmerHelper";
+import { translateText } from "@/lib/translateService";
 
 export { getCircuitStatus, resetCircuit };
 
@@ -51,34 +52,115 @@ export class DefaultAIProvider implements AIProvider {
     return ctx;
   }
 
-  private generateLocalSynthesis(prompt: string, context?: BookContext): string {
-    const bookTitle = context?.bookTitle || "Active Book";
+  private async fetchRichWordData(term: string, targetLang: string = "km") {
+    try {
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(
+        targetLang
+      )}&dt=t&dt=bd&dt=ex&dt=md&q=${encodeURIComponent(term.trim())}`;
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          Accept: "*/*",
+        },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+
+      const translatedText = Array.isArray(data?.[0])
+        ? data[0].map((item: any) => item?.[0] || "").join("").trim()
+        : "";
+
+      let definitions: Array<{ partOfSpeech: string; terms: string[] }> = [];
+      if (Array.isArray(data?.[1])) {
+        definitions = data[1].map((d: any) => ({
+          partOfSpeech: d[0] || "",
+          terms: Array.isArray(d[1]) ? d[1].slice(0, 6) : [],
+        }));
+      }
+
+      let meanings: Array<{ partOfSpeech: string; glosses: Array<{ definition: string; example?: string }> }> = [];
+      if (Array.isArray(data?.[12])) {
+        meanings = data[12].map((m: any) => ({
+          partOfSpeech: m[0] || "",
+          glosses: Array.isArray(m[1])
+            ? m[1].map((g: any) => ({
+                definition: g[0] || "",
+                example: g[2] || "",
+              }))
+            : [],
+        }));
+      }
+
+      let examples: string[] = [];
+      if (Array.isArray(data?.[13]?.[0])) {
+        examples = data[13][0].map((e: any) => (e[0] || "").replace(/<\/?b>/g, "**"));
+      }
+
+      return {
+        term: term.trim(),
+        translatedText,
+        definitions,
+        meanings,
+        examples,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async generateLocalSynthesis(prompt: string, context?: BookContext): Promise<string> {
+    const rawTitle = context?.bookTitle || "Active Book";
+    let bookTitle = rawTitle;
+    try {
+      bookTitle = decodeURIComponent(rawTitle).replace(/\+/g, " ").replace(/\.pdf$/i, "").trim();
+    } catch {
+      bookTitle = rawTitle.replace(/\+/g, " ").replace(/\.pdf$/i, "").trim();
+    }
+
     const author = context?.author && context.author !== "Unknown" ? context.author : null;
     const pageNum = context?.page;
     const selectedText = context?.selectedText;
 
-    // 1. Dual-Language Explanation request
+    // 1. Dual-Language Explanation request (from AI Action Modal "Explain")
     if (prompt.includes("===SPLIT_LANG_EXPLANATION===")) {
       const matchText = prompt.match(/TEXT:\s*"([\s\S]*?)"/);
       const targetTerm = matchText ? matchText[1].trim() : (selectedText || "Selected Term");
 
-      const isKhmer = prompt.includes("Khmer") || containsKhmer(targetTerm);
-      const langName = isKhmer ? "Khmer" : "Target Language";
-      const targetExp = isKhmer
-        ? `### 📖 អត្ថន័យ និងនិយមន័យ (Definition in Khmer)
-- **អត្ថន័យស្នូល**: នៅក្នុងបរិបទនៃសៀវភៅ **"${bookTitle}"** ពាក្យ ឬឃ្លា **"${targetTerm}"** សំដៅទៅលើគំនិតចម្បង ឬពាក្យគន្លឹះសំខាន់ដែលជួយឱ្យអ្នកអានយល់កាន់តែច្បាស់ពីខ្លឹមសារមេរៀន។
-- **ការវិភាគបរិបទ**: ពាក្យនេះផ្តល់នូវភាពច្បាស់លាស់ដល់រចនាសម្ព័ន្ធនៃប្រធានបទដែលកំពុងពិភាក្សានៅលើ ${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"}។
+      const isKhmer = prompt.includes("Khmer") || containsKhmer(targetTerm) || containsKhmer(prompt);
+      const wordInfo = await this.fetchRichWordData(targetTerm, "km");
 
-### 💡 ឧទាហរណ៍ជាក់ស្ដែងក្នុងការអនុវត្ត (Example Sentences)
-• **ឧទាហរណ៍ទី ១**: "${targetTerm}" ត្រូវបានប្រើប្រាស់ដើម្បីបញ្ជាក់ពីគោលការណ៍គ្រឹះនៃមេរៀន។
-• **ឧទាហរណ៍ទី ២**: ការយល់ដឹងអំពី "${targetTerm}" ជួយឱ្យការសិក្សាស្រាវជ្រាវកាន់តែមានប្រសិទ្ធភាពខ្ពស់។`
-        : `**Meaning & Definition in ${langName}:**\nThe term "${targetTerm}" represents a central subject concept in this context.\n\n**Example Application:**\n• Demonstrated in the text to clarify core ideas.`;
+      const kmTrans = wordInfo?.translatedText || targetTerm;
+      const kmDef = wordInfo?.meanings?.[0]?.glosses?.[0]?.definition || "";
+      const kmEx1 = wordInfo?.meanings?.[0]?.glosses?.[0]?.example || wordInfo?.examples?.[0] || "";
+      const kmEx2 = wordInfo?.examples?.[1] || wordInfo?.meanings?.[0]?.glosses?.[1]?.example || "";
+
+      let targetExp = "";
+      if (isKhmer) {
+        targetExp = `### 📖 អត្ថន័យ និងនិយមន័យ: **${targetTerm}**
+- **ការបកប្រែជាភាសាខ្មែរ**: **${kmTrans}**${wordInfo?.definitions?.[0]?.partOfSpeech ? ` (${wordInfo.definitions[0].partOfSpeech})` : ""}
+- **អត្ថន័យស្នូល**: ${kmDef ? `"${kmDef}"` : `នៅក្នុងបរិបទនៃសៀវភៅ **"${bookTitle}"** ពាក្យនេះសំដៅលើគំនិតគន្លឹះសំខាន់សម្រាប់មេរៀន។`}
+
+### 💡 ឧទាហរណ៍ជាក់ស្ដែងក្នុងការប្រើប្រាស់ (Example Sentences)
+• **ឧទាហរណ៍ទី ១**: ${kmEx1 ? `"${kmEx1}"` : `"${targetTerm}" ត្រូវបានប្រើប្រាស់ដើម្បីបញ្ជាក់ពីគោលការណ៍គ្រឹះនៃមេរៀន។`}
+${kmEx2 ? `• **ឧទាហរណ៍ទី ២**: "${kmEx2}"` : `• **ឧទាហរណ៍ទី ២**: ការយល់ដឹងអំពី "${targetTerm}" ជួយឱ្យការសិក្សាស្រាវជ្រាវកាន់តែមានប្រសិទ្ធភាពខ្ពស់។`}
+
+### 📌 បរិបទក្នុងសៀវភៅ:
+ពាក្យនេះផ្តល់នូវភាពច្បាស់លាស់ដល់រចនាសម្ព័ន្ធនៃប្រធានបទដែលកំពុងពិភាក្សានៅលើ ${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"} នៃសៀវភៅ **"${bookTitle}"**។`;
+      } else {
+        targetExp = `### 📖 Meaning & Definition: **${targetTerm}**
+- **Core Meaning**: In the context of *"${bookTitle}"*, "${targetTerm}" refers to an essential concept.
+- **Definition**: ${kmDef || "A key analytical concept used in this text."}
+
+### 💡 Examples:
+• ${kmEx1 || `Applied in text to illustrate principles.`}
+${kmEx2 ? `• ${kmEx2}` : ""}`;
+      }
 
       return `### 📖 Definition & Context: **${targetTerm}**
-- **Core Meaning**: In the context of *"${bookTitle}"*, "${targetTerm}" refers to an essential concept or analytical term.
-- **Key Insight**: It provides structural clarity to the topic being discussed on ${pageNum ? `Page ${pageNum}` : "this page"}.
-- **Usage Example**:
-  > "${targetTerm}" is applied to illustrate key principles and critical reasoning in the text.
+- **Core Meaning**: In the context of *"${bookTitle}"*, "${targetTerm}" represents: **${kmTrans}** (${wordInfo?.definitions?.[0]?.partOfSpeech || "term"}).
+- **English Definition**: ${kmDef || `Essential concept discussed on ${pageNum ? `Page ${pageNum}` : "this page"}.`}
+${kmEx1 ? `- **Example Usage**: > "${kmEx1}"` : ""}
 
 ===SPLIT_LANG_EXPLANATION===
 ### 🇰🇭 ការពន្យល់ជាភាសាខ្មែរ (Khmer Explanation)
@@ -87,7 +169,75 @@ ${targetExp}`;
 
     const isKhmerContext = containsKhmer(prompt) || containsKhmer(selectedText) || containsKhmer(bookTitle);
 
-    // 2. Simplification request
+    // Extract User Question from prompt
+    const qMatch = prompt.match(/User Question:\s*([\s\S]*?)(?:\n\n\[🇰🇭|$)/i);
+    const userQuestion = (qMatch ? qMatch[1] : prompt).trim();
+
+    // 2. Vocabulary / Meaning / Definition queries (e.g. "assumption meaning khmer", "what is assumption", "define X", "X meaning in khmer")
+    const meaningMatch1 = userQuestion.match(/^(?:what\s+is\s+the\s+meaning\s+of|meaning\s+of|what\s+is|what\s+does|define|explain|translate)\s+["']?([^"'\n\r?]+?)["']?(?:\s+mean(?:ing)?)?(?:\s+(?:in|to)\s+(?:khmer|english|ភាសាខ្មែរ))?\??$/i);
+    const meaningMatch2 = userQuestion.match(/^["']?([a-zA-Z0-9\s\-]+?)["']?\s+(?:meaning\s+in\s+khmer|meaning\s+khmer|in\s+khmer|meaning|definition|និយមន័យ|មានន័យថាម៉េច|បកប្រែ)\s*\??$/i);
+    const meaningMatch3 = userQuestion.match(/(?:តើ\s*)?(?:ពាក្យ\s*)?["']?([a-zA-Z0-9\s\-]+?)["']?\s*(?:មានន័យថាម៉េច|មានន័យដូចម្តេច|ប្រែថាម៉េច|ជាភាសាខ្មែរ)/i);
+    const meaningMatch4 = userQuestion.match(/^(?:បកប្រែ(?:ពាក្យ)?|ពន្យល់(?:ពាក្យ)?)\s*["']?([^"'\n\r?]+?)["']?(?:\s*(?:ជាភាសាខ្មែរ|ជាខ្មែរ))?\??$/i);
+
+    const termCandidate = (
+      meaningMatch1 ? meaningMatch1[1].replace(/^(the\s+term|the\s+word|word|term)\s+/i, "") :
+      meaningMatch2 ? meaningMatch2[1] :
+      meaningMatch3 ? meaningMatch3[1] :
+      meaningMatch4 ? meaningMatch4[1] : ""
+    ).trim();
+
+    if (termCandidate && termCandidate.length > 0 && termCandidate.length < 60) {
+      const wordInfo = await this.fetchRichWordData(termCandidate, "km");
+      if (wordInfo && (wordInfo.translatedText || wordInfo.definitions.length > 0 || wordInfo.meanings.length > 0)) {
+        const kmTrans = wordInfo.translatedText || termCandidate;
+        const pos = wordInfo.definitions?.[0]?.partOfSpeech || wordInfo.meanings?.[0]?.partOfSpeech || "";
+        const allTerms = wordInfo.definitions?.[0]?.terms?.slice(0, 4)?.join(", ") || kmTrans;
+        const engDef = wordInfo.meanings?.[0]?.glosses?.[0]?.definition || "";
+        const ex1 = wordInfo.meanings?.[0]?.glosses?.[0]?.example || wordInfo.examples?.[0] || "";
+        const ex2 = wordInfo.examples?.[1] || wordInfo.meanings?.[0]?.glosses?.[1]?.example || "";
+
+        return `### 📖 អត្ថន័យ និងនិយមន័យ: **${termCandidate}**
+- **ការបកប្រែជាភាសាខ្មែរ**: **${kmTrans}** ${pos ? `(${pos})` : ""}
+${allTerms && allTerms !== kmTrans ? `- **ពាក្យស្រដៀង / ន័យបន្ថែម**: ${allTerms}` : ""}
+- **និយមន័យ (Definition)**: ${engDef ? `${engDef}` : `ពាក្យគន្លឹះសំខាន់ដែលត្រូវបានប្រើប្រាស់នៅក្នុងការសិក្សា។`}
+
+### 💡 ឧទាហរណ៍ជាក់ស្ដែងក្នុងការប្រើប្រាស់ (Example Sentences):
+${ex1 ? `• *"${ex1}"*` : `• *"${termCandidate} is widely referenced in practical contexts."*`}
+${ex2 ? `• *"${ex2}"*` : ""}
+
+### 📌 បរិបទនៅក្នុងសៀវភៅ ${bookTitle}:
+ពាក្យ **"${termCandidate}"** ត្រូវបានប្រើប្រាស់ដើម្បីបញ្ជាក់ពីគោលការណ៍ និងរចនាសម្ព័ន្ធសំខាន់ៗដែលទាក់ទងនឹង ${pageNum ? `ទំព័រទី ${pageNum}` : "ខ្លឹមសារមេរៀន"} នៃសៀវភៅ **${bookTitle}**${author ? ` ដោយអ្នកនិពន្ធ *${author}*` : ""}។`;
+      }
+    }
+
+    // 3. Translation request: "translate [text] to [lang]"
+    const transMatch = userQuestion.match(/^(?:translate|បកប្រែ)\s+["']?([\s\S]+?)["']?\s+(?:to|into|ជា)\s+(khmer|english|french|spanish|chinese|japanese|korean|vietnamese|german|ភាសាខ្មែរ)/i);
+    if (transMatch) {
+      const textToTranslate = transMatch[1].trim();
+      const langMap: Record<string, string> = {
+        khmer: "km",
+        ភាសាខ្មែរ: "km",
+        english: "en",
+        french: "fr",
+        spanish: "es",
+        chinese: "zh-CN",
+        japanese: "ja",
+        korean: "ko",
+        vietnamese: "vi",
+        german: "de",
+      };
+      const tLang = langMap[transMatch[2].toLowerCase()] || "km";
+      try {
+        const transRes = await translateText(textToTranslate, tLang);
+        return `### 🌐 លទ្ធផលបកប្រែ (Translation)
+- **អត្ថបទដើម**: "${textToTranslate}"
+- **ការបកប្រែ (${transMatch[2]})**: **${transRes.translatedText}**`;
+      } catch {
+        /* fallback */
+      }
+    }
+
+    // 4. Simplification request
     if (prompt.includes("SIMPLIFY REQUIREMENTS") || prompt.includes("Rephrase and simplify")) {
       const source = selectedText || "Selected passage";
       const cleanSource = source.length > 300 ? source.substring(0, 300) + "..." : source;
@@ -113,7 +263,7 @@ ${cleanSource ? `This passage explains the fundamental ideas of **${bookTitle}**
 
     const lowerPrompt = prompt.toLowerCase();
 
-    // 3. Summarize Page Request
+    // 5. Summarize Page Request
     if (lowerPrompt.includes("summarize the core takeaways") || lowerPrompt.includes("summarize page") || lowerPrompt.includes("summary of page")) {
       if (isKhmerContext) {
         return `### ⚡ សេចក្ដីសង្ខេបខ្លឹមសារសំខាន់ៗនៃសៀវភៅ *"${bookTitle}"* (${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"})
@@ -139,7 +289,7 @@ ${author ? `*Author's Perspective (${author})*: This section presents foundation
 > Highlight any sentence on this page to view an instant bilingual definition, simplification, or translation.`;
     }
 
-    // 4. Key Terms Request
+    // 6. Key Terms Request
     if (lowerPrompt.includes("explain key technical terms") || lowerPrompt.includes("key terms") || lowerPrompt.includes("technical terms")) {
       if (isKhmerContext) {
         return `### 💡 សទ្ទានុក្រមពាក្យគន្លឹះសំខាន់ៗ: *"${bookTitle}"* (${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"})
@@ -168,7 +318,7 @@ ${author ? `*Author's Perspective (${author})*: This section presents foundation
 > Tap and select any specific word or sentence in the reader to generate instant contextual definitions.`;
     }
 
-    // 5. Quiz Generation Request
+    // 7. Quiz Generation Request
     if (lowerPrompt.includes("quiz") || lowerPrompt.includes("test my understanding")) {
       if (isKhmerContext) {
         return `### ❓ កម្រងសំណួរវាស់ស្ទង់ការយល់ដឹង (${pageNum ? `ទំព័រទី ${pageNum}` : "ទំព័រនេះ"})
@@ -207,13 +357,10 @@ ${author ? `*Author's Perspective (${author})*: This section presents foundation
 - B) Skipping to the final test directly`;
     }
 
-    // 6. Multi-page RAG context chunks
+    // 8. Multi-page RAG context chunks
     const ragMatch = prompt.match(/Retrieved Multi-Page Context \(Pages: ([\d, ]+)\):\s*([\s\S]*?)(?=\n\nUser Question:|$)/);
     const retrievedPages = ragMatch ? ragMatch[1] : (pageNum ? `Page ${pageNum}` : "");
     const retrievedBody = ragMatch ? ragMatch[2].trim() : "";
-
-    const qMatch = prompt.match(/User Question:\s*([\s\S]*)$/);
-    const userQuestion = qMatch ? qMatch[1].trim() : "Question regarding book content";
 
     if (retrievedBody && retrievedBody.length > 0) {
       if (isKhmerContext) {
@@ -273,26 +420,30 @@ ${chunkSnippets.join("\n\n")}
 3. **Application**: Review the highlighted sections in the reader for complete surrounding paragraphs.`;
     }
 
-    // 4. Default contextual answer
+    // 9. Intelligent contextual answer for free-form queries
     if (isKhmerContext) {
-      return `### 💡 ការវិភាគខ្លឹមសារ *"${bookTitle}"*
+      return `### 💡 ការវិភាគ និងការពន្យល់: *"${bookTitle}"*
 
-${author ? `ក្នុងនាមជាអ្នកនិពន្ធ *${author}* ខាងក្រោមនេះគឺជាការពន្យល់ទាក់ទងនឹងសៀវភៅ៖` : `ខាងក្រោមនេះគឺជាការវិភាគ និងការពន្យល់ផ្អែកលើសៀវភៅ **${bookTitle}**៖`}
+${author ? `ក្នុងនាមជាអ្នកនិពន្ធ *${author}* ខាងក្រោមនេះគឺជាការពន្យល់ឆ្លើយតបទៅនឹងសំណួររបស់អ្នក៖` : `ខាងក្រោមនេះគឺជាការពន្យល់ផ្អែកលើខ្លឹមសារសៀវភៅ **${bookTitle}**៖`}
 
-• **ទិដ្ឋភាពទូទៅនៃប្រធានបទ**: សៀវភៅផ្តោតលើការសិក្សាស្រាវជ្រាវ គោលការណ៍គ្រឹះ និងរចនាសម្ព័ន្ធសំខាន់ៗ។
-• **ទីតាំងកំពុងអាន**: ${pageNum ? `ទំព័រទី ${pageNum}` : "ជំពូកបច្ចុប្បន្ន"}${selectedText ? ` (សម្រង់អត្ថបទ៖ "${selectedText.substring(0, 60)}...")` : ""}.
-• **ចម្លើយចំពោះសំណួរ "${userQuestion}"**:
-  ខ្លឹមសារនេះជាផ្នែកមួយដ៏សំខាន់នៃចំណេះដឹងដែលបានរៀបរាប់នៅក្នុងសៀវភៅ *"${bookTitle}"*។ អ្នកអាចជ្រើសរើសអត្ថបទដើម្បីបកប្រែ ពន្យល់ ឬបង្កើតកម្រងសំណួរបានភ្លាមៗ។`;
+• **សំណួររបស់អ្នក**: "${userQuestion}"
+• **ទីតាំងកំពុងអាន**: ${pageNum ? `ទំព័រទី ${pageNum}` : "ជំពូកបច្ចុប្បន្ន"}${selectedText ? ` (សម្រង់អត្ថបទ៖ "${selectedText.substring(0, 60)}...")` : ""}
+
+### 📌 ខ្លឹមសារសំខាន់ៗ៖
+1. **ការយល់ដឹងអំពីប្រធានបទ**: សំណួរ *"${userQuestion}"* ត្រូវបានពិភាក្សា និងមានទំនាក់ទំនងយ៉ាងជិតស្និទ្ធទៅនឹងទ្រឹស្ដីគ្រឹះនៃសៀវភៅ **${bookTitle}**។
+2. **ការអនុវត្តជាក់ស្ដែង**: អ្នកអាចជ្រើសរើស (Highlight) អត្ថបទជាក់លាក់ណាមួយនៅក្នុងកម្មវិធីអាន ដើម្បីទទួលបានការពន្យល់ស៊ីជម្រៅ ឬបកប្រែភ្លាមៗ។`;
     }
 
-    return `### 💡 Insights on *"${bookTitle}"*
+    return `### 💡 Analysis on *"${bookTitle}"*
 
-${author ? `As the author *${author}*, here is how this relates to the book:` : `Here is an analysis based on **${bookTitle}**:`}
+${author ? `As the author *${author}*, here is how this addresses your question:` : `Here is the analysis based on **${bookTitle}**:`}
 
-• **Subject Overview**: The book focuses on comprehensive study, analytical concepts, and key principles.
-• **Current Reading Location**: ${pageNum ? `Page ${pageNum}` : "Active chapter"}${selectedText ? ` (Selected: "${selectedText.substring(0, 60)}...")` : ""}.
-• **Answer to "${userQuestion}"**:
-  According to the structural themes in *"${bookTitle}"*, this topic forms an integral part of the foundational knowledge presented across the chapters. You can highlight specific passages in the viewer or index the book to perform deep vector semantic searches.`;
+• **Your Query**: "${userQuestion}"
+• **Current Reading Location**: ${pageNum ? `Page ${pageNum}` : "Active Chapter"}${selectedText ? ` (Selected: "${selectedText.substring(0, 60)}...")` : ""}
+
+### 📌 Key Explanatory Points:
+1. **Core Understanding**: Addressing *"${userQuestion}"* is central to comprehending the foundational framework presented in **${bookTitle}**.
+2. **Reading Guidance**: Review related sections around [Page ${pageNum || 1}] or select any specific passage to view instant translations and deep contextual breakdowns.`;
   }
 
   private async callSpecificProvider(
@@ -306,7 +457,7 @@ ${author ? `As the author *${author}*, here is how this relates to the book:` : 
 
     // Built-in Local Offline Engine
     if (provider === "local") {
-      const localResult = this.generateLocalSynthesis(prompt, context);
+      const localResult = await this.generateLocalSynthesis(prompt, context);
       return sanitizeKhmerOutput(localResult);
     }
 
@@ -458,7 +609,7 @@ ${author ? `As the author *${author}*, here is how this relates to the book:` : 
   async generateSummary(text: string, context?: BookContext): Promise<string> {
     const isKhmer = containsKhmer(text);
     const instruction = isKhmer
-      ? `Summarize the following Khmer passage clearly with page citations in pure standard Khmer (ភាសាខ្មែរ / NO THAI SCRIPT):\n\n${text}`
+      ? `Summarize the following Khmer passage clearly with page citations in pure standard Khmer (ភាសាខ្មែរ):\n\n${text}`
       : `Summarize the following passage clearly with page citations:\n\n${text}`;
     return this.callLlm(instruction, context);
   }
@@ -466,7 +617,7 @@ ${author ? `As the author *${author}*, here is how this relates to the book:` : 
   async generateQuiz(text: string, count = 5): Promise<QuizQuestion[]> {
     const isKhmer = containsKhmer(text);
     const khmerDirectives = isKhmer
-      ? `\n\nCRITICAL LINGUISTIC RULE: Output the quiz entirely in pure, standard Khmer (ភាសាខ្មែរ). DO NOT mix any Thai script (ภาษาไทย) or Thai words.`
+      ? `\n\nCRITICAL LINGUISTIC RULE: Output the quiz entirely in pure, standard Khmer (ភាសាខ្មែរ). STRICTLY NEVER output any Thai Unicode characters (U+0E00-U+0E7F).`
       : "";
 
     const prompt = `Based on the following book text, generate ${count} high-quality multiple-choice quiz questions to test reading comprehension.
@@ -580,7 +731,7 @@ Respond ONLY with a JSON array of objects matching this exact structure:
 
     const isKhmerQuery = containsKhmer(question) || containsKhmer(context?.selectedText) || containsKhmer(context?.bookTitle);
     const khmerPromptDirective = isKhmerQuery
-      ? `\n\n[🇰🇭 KHMER LANGUAGE MANDATE: The user's query or context is in Khmer (ភាសាខ្មែរ). You MUST respond in pure, natural standard Khmer (អក្សរខ្មែរ). STRICTLY NEVER output Thai characters (ภาษาไทย) or Thai words.]`
+      ? `\n\n[🇰🇭 KHMER LANGUAGE MANDATE: The user's query or context is in Khmer (ភាសាខ្មែរ). You MUST respond in pure, natural standard Khmer (អក្សរខ្មែរ). STRICTLY NEVER output any Thai characters (U+0E00-U+0E7F).]`
       : "";
 
     const prompt = `Conversation History:\n${historyText}\n${ragContext}\n\nUser Question: ${question}${khmerPromptDirective}`;

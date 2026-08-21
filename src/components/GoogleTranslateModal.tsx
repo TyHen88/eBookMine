@@ -11,6 +11,7 @@ import {
   SparklesIcon,
 } from "./ui/icons";
 import { containsKhmer } from "@/lib/khmerHelper";
+import { AiMarkdownView } from "./ui";
 
 export interface GoogleTranslateModalProps {
   initialText: string;
@@ -43,8 +44,8 @@ export const POPULAR_LANGUAGES: LanguageOption[] = [
 
 export const ALL_LANGUAGES: LanguageOption[] = [
   ...POPULAR_LANGUAGES,
-  { code: "ru", name: "Russian", nativeName: "Русский", flag: "🇷🇺" },
   { code: "it", name: "Italian", nativeName: "Italiano", flag: "🇮🇹" },
+  { code: "ru", name: "Russian", nativeName: "Русский", flag: "🇷🇺" },
   { code: "pt", name: "Portuguese", nativeName: "Português", flag: "🇵🇹" },
   { code: "hi", name: "Hindi", nativeName: "हिन्दी", flag: "🇮🇳" },
   { code: "ar", name: "Arabic", nativeName: "العربية", flag: "🇸🇦" },
@@ -56,48 +57,7 @@ export const ALL_LANGUAGES: LanguageOption[] = [
 
 export function renderAiExplanation(content: string | null) {
   if (!content) return null;
-  const lines = content.split("\n");
-  const cleanHeaderRegex = new RegExp("^\\#+\\s*");
-  const cleanBoldRegex = new RegExp("\\*\\*", "g");
-  const cleanBulletRegex = new RegExp("^[-•\\d.]+\\s*");
-
-  return lines.map((line, lIdx) => {
-    if (!line.trim()) return null;
-    const isHeader = line.startsWith("#") || (line.startsWith("**") && line.endsWith("**"));
-    const formattedLine = line.replace(cleanHeaderRegex, "").replace(cleanBoldRegex, "");
-
-    if (isHeader) {
-      return (
-        <h5
-          key={`ailine-${lIdx}`}
-          className="font-bold text-brand-600 dark:text-brand-400 text-[11px] uppercase tracking-wider mt-2 mb-1"
-        >
-          {formattedLine}
-        </h5>
-      );
-    }
-
-    if (line.trim().startsWith("- ") || line.trim().startsWith("• ") || /^\d+\./.test(line.trim())) {
-      return (
-        <div
-          key={`ailine-${lIdx}`}
-          className="flex items-start gap-1.5 pl-1.5 text-slate-800 dark:text-slate-100 text-xs font-normal leading-relaxed"
-        >
-          <span className="text-brand-500 font-bold shrink-0">•</span>
-          <span>{line.replace(cleanBulletRegex, "").replace(cleanBoldRegex, "")}</span>
-        </div>
-      );
-    }
-
-    return (
-      <p
-        key={`ailine-${lIdx}`}
-        className="text-slate-800 dark:text-slate-100 text-xs font-normal leading-relaxed"
-      >
-        {line}
-      </p>
-    );
-  });
+  return <AiMarkdownView content={content} />;
 }
 
 export default function GoogleTranslateModal({
@@ -362,7 +322,7 @@ export default function GoogleTranslateModal({
 
   const mainContent = (
     <div
-      className={`relative w-full transition-all duration-300 flex flex-col ${
+      className={`relative w-full transition-all duration-300 flex flex-col font-khmer noto-sans-khmer ${
         isEmbed
           ? "bg-transparent text-slate-900 dark:text-slate-100"
           : `max-w-2xl max-h-[88vh] overflow-hidden rounded-2xl border ${bgModal} shadow-2xl`

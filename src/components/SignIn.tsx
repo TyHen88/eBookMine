@@ -293,7 +293,7 @@ export default function SignIn({ initialTab = "signin" }: { initialTab?: AuthTab
               </h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {tab === "signin"
-                  ? "Access your personal eBook library, reading goals, and AI tutor"
+                  ? "Access your personal eBook library, reading goals, and AI Assistant"
                   : tab === "signup"
                   ? "Enter your details to receive a 6-digit email verification code"
                   : "We'll send a 6-digit OTP code to verify and update your password"}

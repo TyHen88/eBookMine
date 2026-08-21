@@ -61,7 +61,7 @@ export default function VerticalNav() {
       ? [
           {
             href: "/ai-tutor",
-            label: "AI Tutor",
+            label: "AI Assistant",
             icon: SparklesIcon,
             active: pathname === "/ai-tutor",
             iconClass: "text-amber-500",

@@ -30,7 +30,7 @@ export async function generateMetadata({
 
   const displayTitle = title ? `${title} — eBookMine` : "eBookMine — Read & Understand Books with AI";
   const description = title
-    ? `Read and study "${title}"${author ? ` by ${author}` : ""} on eBookMine. Interactive reading, instant AI tutoring, multi-page vector search, and smart flashcards.`
+    ? `Read and study "${title}"${author ? ` by ${author}` : ""} on eBookMine. Interactive reading, instant AI Assistanting, multi-page vector search, and smart flashcards.`
     : "Your personal eBook reading library powered by AI. Read, analyze, and retain knowledge effectively.";
 
   return {

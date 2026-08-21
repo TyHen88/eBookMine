@@ -4,7 +4,7 @@ import AiTutorView from "@/components/AiTutorView";
 import { Spinner } from "@/components/ui";
 
 export const metadata = {
-  title: "AI Tutor — eBookMine",
+  title: "AI Assistant — eBookMine",
   description: "Your personal AI study companion for eBookMine.",
 };
 

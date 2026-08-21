@@ -7,6 +7,7 @@ import { SearchIcon } from "./icons";
 
 export * from "./icons";
 export * from "./Button";
+export { default as AiMarkdownView, formatInlineText } from "./AiMarkdownView";
 
 /** Shared control surface (inputs, selects) — one consistent focus treatment. */
 const controlBase =

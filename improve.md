@@ -82,7 +82,7 @@ Authenticated user:
 eBookMine
 Library
 My Learning
-AI Tutor
+AI Assistant
 
 Right side:
 
@@ -280,7 +280,7 @@ Progress:
 
 Learning tools:
 
-AI Tutor
+AI Assistant
 Flashcards
 Quiz
 Notes
@@ -354,12 +354,12 @@ Active goals
 Recommended books
 
 ==================================================
-9. AI TUTOR ENTRY POINT
+9. AI Assistant ENTRY POINT
 ==================================================
 
 AI should be visible throughout the product.
 
-Add an AI Tutor navigation item.
+Add an AI Assistant navigation item.
 
 Inside book detail:
 
@@ -550,7 +550,7 @@ Refactor components only when necessary.
 
 The final application should feel like:
 
-"Kindle + Notion + AI Tutor"
+"Kindle + Notion + AI Assistant"
 
 rather than:
 

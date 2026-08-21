@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { BookMeta } from "@/lib/types";
-import { Button, Spinner } from "./ui";
+import { Button, Spinner, AiMarkdownView } from "./ui";
 import { useToast } from "./ui/Toast";
 import {
   SparklesIcon,
@@ -24,143 +24,6 @@ interface Message {
 
 interface AiTutorViewProps {
   bookId?: string;
-}
-
-// Custom Markdown Renderer Component with Adobe Acrobat AI Style Page Citations
-function MarkdownContent({ content }: { content: string }) {
-  const parsedElements = useMemo(() => {
-    if (!content) return null;
-
-    const lines = content.split("\n");
-    const elements: React.ReactNode[] = [];
-    let inCodeBlock = false;
-    let codeBuffer: string[] = [];
-
-    const processInlineText = (text: string) => {
-      const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[Page\s*[^\]]+\])/g);
-      return parts.map((part, idx) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return (
-            <strong key={idx} className="font-bold text-slate-900 dark:text-white">
-              {part.slice(2, -2)}
-            </strong>
-          );
-        }
-        if (part.startsWith("*") && part.endsWith("*")) {
-          return (
-            <em key={idx} className="italic text-slate-700 dark:text-slate-300">
-              {part.slice(1, -1)}
-            </em>
-          );
-        }
-        if (part.startsWith("`") && part.endsWith("`")) {
-          return (
-            <code
-              key={idx}
-              className="rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-brand-700 dark:bg-slate-800 dark:text-brand-300"
-            >
-              {part.slice(1, -1)}
-            </code>
-          );
-        }
-        if (part.startsWith("[Page") && part.endsWith("]")) {
-          return (
-            <span
-              key={idx}
-              className="inline-flex items-center gap-1 rounded-md bg-brand-100 px-1.5 py-0.5 text-[10px] font-extrabold text-brand-800 dark:bg-brand-950 dark:text-brand-300 shadow-sm mx-0.5"
-            >
-              📖 {part.slice(1, -1)}
-            </span>
-          );
-        }
-        return part;
-      });
-    };
-
-    lines.forEach((line, index) => {
-      if (line.trim().startsWith("```")) {
-        if (inCodeBlock) {
-          elements.push(
-            <div
-              key={`code-${index}`}
-              className="my-2.5 overflow-x-auto rounded-xl bg-slate-900 p-3 font-mono text-xs text-slate-100 shadow-inner"
-            >
-              <pre>{codeBuffer.join("\n")}</pre>
-            </div>
-          );
-          codeBuffer = [];
-          inCodeBlock = false;
-        } else {
-          inCodeBlock = true;
-        }
-        return;
-      }
-
-      if (inCodeBlock) {
-        codeBuffer.push(line);
-        return;
-      }
-
-      const trimmed = line.trim();
-
-      if (trimmed.startsWith("### ")) {
-        elements.push(
-          <h4
-            key={index}
-            className="mt-3 mb-1 text-xs font-extrabold tracking-tight text-slate-900 dark:text-white uppercase"
-          >
-            {processInlineText(trimmed.slice(4))}
-          </h4>
-        );
-        return;
-      }
-
-      if (trimmed.startsWith("## ")) {
-        elements.push(
-          <h3
-            key={index}
-            className="mt-3 mb-1 text-sm font-extrabold tracking-tight text-slate-900 dark:text-white"
-          >
-            {processInlineText(trimmed.slice(3))}
-          </h3>
-        );
-        return;
-      }
-
-      if (trimmed.startsWith("• ") || trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-        elements.push(
-          <li key={index} className="ml-4 list-disc text-xs sm:text-sm my-0.5 leading-relaxed">
-            {processInlineText(trimmed.slice(2))}
-          </li>
-        );
-        return;
-      }
-
-      if (/^\d+\.\s/.test(trimmed)) {
-        const match = trimmed.match(/^(\d+\.\s)(.*)/);
-        if (match) {
-          elements.push(
-            <li key={index} className="ml-4 list-decimal text-xs sm:text-sm my-0.5 leading-relaxed">
-              {processInlineText(match[2])}
-            </li>
-          );
-          return;
-        }
-      }
-
-      if (trimmed.length > 0) {
-        elements.push(
-          <p key={index} className="my-1.5 leading-relaxed text-xs sm:text-sm">
-            {processInlineText(line)}
-          </p>
-        );
-      }
-    });
-
-    return elements;
-  }, [content]);
-
-  return <div className="space-y-1">{parsedElements}</div>;
 }
 
 // Single Message Card Component
@@ -214,7 +77,7 @@ function MessageCard({
         }`}
       >
         {message.role === "assistant" ? (
-          <MarkdownContent content={displayedText} />
+          <AiMarkdownView content={displayedText} />
         ) : (
           <p className="whitespace-pre-wrap">{message.content}</p>
         )}
@@ -248,7 +111,7 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
   const searchParamBookId = searchParams.get("bookId");
   const { showToast } = useToast();
 
-  // Scenario Check: Came directly from Book Details ("Ask Author AI") vs Direct Menu ("AI Tutor")
+  // Scenario Check: Came directly from Book Details ("Ask Author AI") vs Direct Menu ("AI Assistant")
   const isDirectFromBookDetail = Boolean(propBookId || searchParamBookId);
 
   const [activeBookId, setActiveBookId] = useState<string | undefined>(

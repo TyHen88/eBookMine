@@ -759,6 +759,7 @@ export default function ReaderWorkspace() {
           position={selectionPos}
           page={selectionPage}
           onClose={() => setSelectedText("")}
+          onAskAi={handleAskAiSelection}
           onExplain={handleExplainSelection}
           onSimplify={handleSimplifySelection}
           onTranslate={handleTranslateSelection}

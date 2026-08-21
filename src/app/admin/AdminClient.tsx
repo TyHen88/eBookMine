@@ -144,7 +144,7 @@ export default function AdminClient({
   const [aiApiKey, setAiApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState(
-    "You are eBookMine AI Tutor, an intelligent reading companion. Answer questions concisely using vector chunks and book context."
+    "You are eBookMine AI Assistant, an intelligent reading companion. Answer questions concisely using vector chunks and book context."
   );
   const [chunkSize, setChunkSize] = useState(500);
   const [chunkOverlap, setChunkOverlap] = useState(50);
