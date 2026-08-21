@@ -15,8 +15,8 @@ interface SelectionHUDProps {
   position: { top: number; left: number };
   page: number;
   onClose: () => void;
-  onExplain: (text: string, page: number) => void;
-  onSimplify: (text: string, page: number) => void;
+  onExplain: (text: string, page: number, position?: { top: number; left: number }) => void;
+  onSimplify: (text: string, page: number, position?: { top: number; left: number }) => void;
   onTranslate: (text: string, page: number) => void;
   onAddHighlight: (text: string, color: string, page: number) => void;
   onAddNote: (text: string, page: number) => void;
@@ -124,7 +124,7 @@ export default function SelectionHUD({
       <button
         type="button"
         onClick={() => {
-          onExplain(selectedText, page);
+          onExplain(selectedText, page, position);
           onClose();
         }}
         className="flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-xl px-2 py-1 text-[11px] sm:px-2.5 sm:py-1.5 sm:text-xs font-bold text-amber-300 hover:bg-white/10 active:scale-95 transition"
@@ -138,7 +138,7 @@ export default function SelectionHUD({
       <button
         type="button"
         onClick={() => {
-          onSimplify(selectedText, page);
+          onSimplify(selectedText, page, position);
           onClose();
         }}
         className="flex shrink-0 items-center gap-1 rounded-xl px-2 py-1 text-[11px] sm:px-2.5 sm:py-1.5 sm:text-xs font-semibold text-slate-200 hover:bg-white/10 active:scale-95 transition"

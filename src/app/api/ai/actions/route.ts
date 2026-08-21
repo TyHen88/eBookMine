@@ -65,13 +65,18 @@ export async function POST(req: NextRequest) {
 - Format with authentic Khmer headings (e.g. ### 📖 អត្ថន័យ និងការពន្យល់, **ឧទាហរណ៍ជាក់ស្ដែង**).`
           : "";
 
-        const prompt = `Provide a clear, dual-language AI explanation of the following word, phrase, or text in BOTH English AND ${targetName}:
+        const bookContextText = bookTitle
+          ? `(from the book "${bookTitle}"${author ? ` by ${author}` : ""}${page ? `, Page ${page}` : ""})`
+          : "";
 
-TEXT: "${text}"
+        const prompt = `You are analyzing the following excerpt from a PDF document ${bookContextText}:
+"${text}"
+
+Provide a clear, high-quality, dual-language explanation in BOTH English AND ${targetName}:
 
 REQUIREMENTS FOR EACH LANGUAGE:
-1. Core Meaning & Definition
-2. Real-World Example Sentences${khmerGuideline}
+1. ### 📖 Core Meaning & Definition: Explain what this concept or term means in the context of the text.
+2. ### 💡 Practical Application & Insights: Provide 2 clear example sentences or application points.${khmerGuideline}
 
 CRITICAL FORMAT REQUIREMENT: Output the English explanation first, followed by the separator line "===SPLIT_LANG_EXPLANATION===", followed by the complete ${targetName} explanation.`;
 
@@ -85,9 +90,14 @@ CRITICAL FORMAT REQUIREMENT: Output the English explanation first, followed by t
           ? "\n\nNOTE: The input contains Khmer. Respond purely in natural standard Khmer (ភាសាខ្មែរ) without any Thai script (ภาษาไทย)."
           : "";
 
-        const prompt = `Rephrase and simplify the following passage into plain, easy-to-understand language while preserving its exact core meaning:
+        const bookContextText = bookTitle
+          ? `(from the book "${bookTitle}"${author ? ` by ${author}` : ""}${page ? `, Page ${page}` : ""})`
+          : "";
 
+        const prompt = `You are analyzing the following excerpt from a PDF document ${bookContextText}:
 "${text}"
+
+Rephrase and simplify this passage into plain, easy-to-understand language while preserving its exact core meaning:
 
 SIMPLIFY REQUIREMENTS:
 - **Plain Summary**: 2 sentences explaining the main idea in simple, everyday language.

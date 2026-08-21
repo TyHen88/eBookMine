@@ -13,6 +13,7 @@ import QuickBookPickerModal from "./QuickBookPickerModal";
 import MobileTabSwitcherSheet from "./MobileTabSwitcherSheet";
 import MobileReadingDock from "./MobileReadingDock";
 import NoteEditorModal from "./NoteEditorModal";
+import AiActionModal from "./AiActionModal";
 import GoogleTranslateModal from "@/components/GoogleTranslateModal";
 import { NoteData } from "@/lib/readingService";
 import { useToast } from "@/components/ui/Toast";
@@ -55,6 +56,20 @@ export default function ReaderWorkspace() {
   // Translate modal state
   const [translateOpen, setTranslateOpen] = useState(false);
   const [translateText, setTranslateText] = useState("");
+
+  // AI Action Modal state (popup for Explain and Simplify)
+  const [aiActionModal, setAiActionModal] = useState<{
+    isOpen: boolean;
+    actionType: "explain" | "simplify";
+    text: string;
+    page: number;
+    position?: { top: number; left: number };
+  }>({
+    isOpen: false,
+    actionType: "explain",
+    text: "",
+    page: 1,
+  });
 
   // Mobile tabs sheet state
   const [mobileTabsSheetOpen, setMobileTabsSheetOpen] = useState(false);
@@ -229,15 +244,25 @@ export default function ReaderWorkspace() {
     []
   );
 
-  // Selection HUD Actions
-  const handleExplainSelection = (text: string, page: number) => {
-    setAiInitialPrompt(`Please explain this passage from page ${page}: "${text}"`);
-    setAiDrawerOpen(true);
+  // Selection HUD Actions: Open dedicated AI Action popup above selection
+  const handleExplainSelection = (text: string, page: number, pos?: { top: number; left: number }) => {
+    setAiActionModal({
+      isOpen: true,
+      actionType: "explain",
+      text,
+      page,
+      position: pos || selectionPos || undefined,
+    });
   };
 
-  const handleSimplifySelection = (text: string, page: number) => {
-    setAiInitialPrompt(`Please simplify and clarify this passage from page ${page}: "${text}"`);
-    setAiDrawerOpen(true);
+  const handleSimplifySelection = (text: string, page: number, pos?: { top: number; left: number }) => {
+    setAiActionModal({
+      isOpen: true,
+      actionType: "simplify",
+      text,
+      page,
+      position: pos || selectionPos || undefined,
+    });
   };
 
   const handleTranslateSelection = (text: string) => {
@@ -659,6 +684,25 @@ export default function ReaderWorkspace() {
           onClose={() => setTranslateOpen(false)}
         />
       )}
+
+      {/* 8. AI Action Modal Popup (Stream typing for Explain and Simplify) */}
+      <AiActionModal
+        isOpen={aiActionModal.isOpen}
+        actionType={aiActionModal.actionType}
+        selectedText={aiActionModal.text}
+        page={aiActionModal.page}
+        position={aiActionModal.position}
+        bookTitle={activeTab.title}
+        author={activeTab.author}
+        theme={activeTab.theme || "light"}
+        onClose={() => setAiActionModal((p) => ({ ...p, isOpen: false }))}
+        onSaveAsNote={(content, p) => handleSaveNoteModal(content, p)}
+        onAskAiInDrawer={(prompt) => {
+          setAiInitialPrompt(prompt);
+          setAiDrawerOpen(true);
+        }}
+        onPlayTTS={handlePlayTTS}
+      />
 
       {/* 8. Note Editor Modal / Mobile Sheet */}
       <NoteEditorModal
