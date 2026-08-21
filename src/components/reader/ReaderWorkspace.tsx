@@ -421,18 +421,53 @@ export default function ReaderWorkspace() {
 
     if (!isAreaSelectMode || !areaBox?.isDragging) return;
 
-    const minX = Math.min(areaBox.startX, e.clientX);
-    const maxX = Math.max(areaBox.startX, e.clientX);
-    const minY = Math.min(areaBox.startY, e.clientY);
-    const maxY = Math.max(areaBox.startY, e.clientY);
+    let minX = Math.min(areaBox.startX, e.clientX);
+    let maxX = Math.max(areaBox.startX, e.clientX);
+    let minY = Math.min(areaBox.startY, e.clientY);
+    let maxY = Math.max(areaBox.startY, e.clientY);
 
-    const width = maxX - minX;
-    const height = maxY - minY;
+    let width = maxX - minX;
+    let height = maxY - minY;
 
     setIsAreaSelectMode(false);
     setAreaBox(null);
 
-    if (width > 15 && height > 15) {
+    // Mobile single tap auto-detection: if user tapped instead of dragging
+    if (width < 20 && height < 20) {
+      if (typeof document !== "undefined") {
+        const elements = document.elementsFromPoint(e.clientX, e.clientY);
+        const textSpan = elements.find(
+          (el) =>
+            el.tagName === "SPAN" &&
+            (el.closest(".react-pdf__Page__textContent") || el.closest(".textLayer"))
+        ) as HTMLElement | undefined;
+
+        if (textSpan) {
+          const spanRect = textSpan.getBoundingClientRect();
+          minX = Math.max(0, spanRect.left - 6);
+          maxX = spanRect.right + 6;
+          minY = Math.max(0, spanRect.top - 4);
+          maxY = spanRect.bottom + 4;
+          width = maxX - minX;
+          height = maxY - minY;
+        } else {
+          const pageEl = elements.find((el) => el.hasAttribute("data-page-number")) as HTMLElement | undefined;
+          if (pageEl) {
+            const pageRect = pageEl.getBoundingClientRect();
+            const targetWidth = Math.min(pageRect.width - 24, 300);
+            const targetHeight = 90;
+            minX = Math.max(pageRect.left + 12, Math.min(pageRect.right - targetWidth - 12, e.clientX - targetWidth / 2));
+            maxX = minX + targetWidth;
+            minY = Math.max(pageRect.top + 12, Math.min(pageRect.bottom - targetHeight - 12, e.clientY - targetHeight / 2));
+            maxY = minY + targetHeight;
+            width = maxX - minX;
+            height = maxY - minY;
+          }
+        }
+      }
+    }
+
+    if (width > 12 && height > 12) {
       let textToUse = extractTextFromBoxRect(minX, minY, maxX, maxY);
 
       // Find the page element under the selection
@@ -862,73 +897,76 @@ export default function ReaderWorkspace() {
 
       {/* 3. Main Split Workspace */}
       <div
-        onPointerDown={handleAreaPointerDown}
-        onPointerMove={handleAreaPointerMove}
-        onPointerUp={handleAreaPointerUp}
-        onPointerCancel={() => {
-          if (isAreaSelectMode) setAreaBox(null);
-        }}
-        style={{
-          touchAction: isAreaSelectMode ? "none" : undefined,
-        }}
-        className={`relative flex flex-1 h-[calc(100vh-48px)] md:h-[calc(100vh-88px)] w-full overflow-hidden ${
-          isAreaSelectMode ? "cursor-crosshair select-none" : ""
-        }`}
+        className="relative flex flex-1 h-[calc(100vh-48px)] md:h-[calc(100vh-88px)] w-full overflow-hidden"
       >
-        {/* Active Area Select Mode Floating Banner Indicator */}
+        {/* Full-Screen Touch & Pointer Capture Overlay for Mobile & Desktop Area Selection */}
         {isAreaSelectMode && (
-          <div className="fixed top-14 sm:top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 whitespace-nowrap rounded-full border border-brand-400 bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-2xl animate-scaleUp">
-            <MarqueeIcon size={16} />
-            <span>
-              <span className="hidden sm:inline">Area Select Active — Drag box over text/diagram</span>
-              <span className="sm:hidden">Drag over area to select</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setIsAreaSelectMode(false);
-                setAreaBox(null);
-              }}
-              className="ml-2 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold hover:bg-white/30 transition active:scale-95"
-              title="Cancel Area Select"
-            >
-              Cancel
-            </button>
+          <div
+            onPointerDown={handleAreaPointerDown}
+            onPointerMove={handleAreaPointerMove}
+            onPointerUp={handleAreaPointerUp}
+            onPointerCancel={() => {
+              setIsAreaSelectMode(false);
+              setAreaBox(null);
+            }}
+            style={{ touchAction: "none" }}
+            className="fixed inset-0 z-50 cursor-crosshair select-none touch-none bg-brand-500/[0.04] backdrop-blur-[0.5px]"
+          >
+            {/* Active Area Select Mode Floating Banner Indicator */}
+            <div className="fixed top-14 sm:top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 whitespace-nowrap rounded-full border border-brand-400 bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-2xl animate-scaleUp">
+              <MarqueeIcon size={16} />
+              <span>
+                <span className="hidden sm:inline">Area Select Active — Drag box over text/diagram</span>
+                <span className="sm:hidden">Touch & drag or tap area to select</span>
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsAreaSelectMode(false);
+                  setAreaBox(null);
+                }}
+                className="ml-2 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold hover:bg-white/30 transition active:scale-95"
+                title="Cancel Area Select"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Figma-Style Area Selection Box Overlay (Live Dragging only) */}
+            {areaBox?.isDragging && (() => {
+              const left = Math.min(areaBox.startX, areaBox.endX);
+              const top = Math.min(areaBox.startY, areaBox.endY);
+              const width = Math.abs(areaBox.endX - areaBox.startX);
+              const height = Math.abs(areaBox.endY - areaBox.startY);
+              if (width < 3 && height < 3) return null;
+
+              return (
+                <div
+                  style={{
+                    position: "fixed",
+                    left: `${left}px`,
+                    top: `${top}px`,
+                    width: `${width}px`,
+                    height: `${height}px`,
+                  }}
+                  className="z-50 border-2 border-brand-500 bg-brand-500/20 shadow-2xl ring-2 ring-brand-400/50 rounded-lg pointer-events-none"
+                >
+                  {/* Figma Corner Handles with touch visibility */}
+                  <div className="absolute -left-1.5 -top-1.5 h-3.5 w-3.5 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+                  <div className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+                  <div className="absolute -bottom-1.5 -left-1.5 h-3.5 w-3.5 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+                  <div className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+
+                  {/* Dimensions Badge */}
+                  <div className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
+                    <span>Selecting ({Math.round(width)}×{Math.round(height)})</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
-
-        {/* Figma-Style Area Selection Box Overlay (Live Dragging only) */}
-        {areaBox?.isDragging && (() => {
-          const left = Math.min(areaBox.startX, areaBox.endX);
-          const top = Math.min(areaBox.startY, areaBox.endY);
-          const width = Math.abs(areaBox.endX - areaBox.startX);
-          const height = Math.abs(areaBox.endY - areaBox.startY);
-          if (width < 5 && height < 5) return null;
-
-          return (
-            <div
-              style={{
-                position: "fixed",
-                left: `${left}px`,
-                top: `${top}px`,
-                width: `${width}px`,
-                height: `${height}px`,
-              }}
-              className="z-40 border-2 border-brand-500 bg-brand-500/15 shadow-2xl ring-2 ring-brand-400/40 rounded-lg pointer-events-none"
-            >
-              {/* Figma Corner Handles */}
-              <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-              <div className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-              <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-              <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-
-              {/* Dimensions Badge */}
-              <div className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
-                <span>Selecting Area ({Math.round(width)}×{Math.round(height)})</span>
-              </div>
-            </div>
-          );
-        })()}
 
         {/* Left Navigation Sidebar */}
         <ReaderSidebar

@@ -422,11 +422,11 @@ const VirtualPage = memo(function VirtualPage({
             }}
             className="z-30 border-2 border-brand-500 bg-brand-500/15 shadow-2xl ring-2 ring-brand-400/40 rounded-lg animate-scaleUp pointer-events-none"
           >
-            {/* Corner Handles */}
-            <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-            <div className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-            <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
-            <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+            {/* Touch-Friendly Corner Handles */}
+            <div className="absolute -left-2 -top-2 h-4 w-4 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+            <div className="absolute -right-2 -top-2 h-4 w-4 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+            <div className="absolute -bottom-2 -left-2 h-4 w-4 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+            <div className="absolute -bottom-2 -right-2 h-4 w-4 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
 
             {/* Dimensions Badge */}
             <div className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
@@ -441,10 +441,10 @@ const VirtualPage = memo(function VirtualPage({
                   e.stopPropagation();
                   onDismissArea?.();
                 }}
-                className="pointer-events-auto absolute -top-3 -right-3 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg ring-2 ring-white hover:bg-red-600 transition active:scale-95"
+                className="pointer-events-auto absolute -top-3.5 -right-3.5 flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg ring-2 ring-white hover:bg-red-600 transition active:scale-95"
                 title="Remove selection box"
               >
-                <XIcon size={12} />
+                <XIcon size={14} />
               </button>
             )}
           </div>
@@ -455,10 +455,10 @@ const VirtualPage = memo(function VirtualPage({
               style={{
                 position: "absolute",
                 left: `${selectedArea.relX + selectedArea.relW / 2}%`,
-                top: `${Math.max(0, selectedArea.relY)}%`,
-                transform: "translate(-50%, -120%)",
+                top: selectedArea.relY < 12 ? `${selectedArea.relY + selectedArea.relH + 1}%` : `${selectedArea.relY}%`,
+                transform: selectedArea.relY < 12 ? "translate(-50%, 8px)" : "translate(-50%, calc(-100% - 8px))",
               }}
-              className="z-40 pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-slate-700/90 bg-slate-900/95 p-1.5 text-white shadow-2xl backdrop-blur-xl animate-scaleUp select-none"
+              className="z-40 pointer-events-auto flex items-center gap-1 sm:gap-1.5 rounded-2xl border border-slate-700/90 bg-slate-900/95 p-1 sm:p-1.5 text-white shadow-2xl backdrop-blur-xl animate-scaleUp select-none max-w-[90vw]"
             >
               <button
                 type="button"
@@ -466,10 +466,10 @@ const VirtualPage = memo(function VirtualPage({
                   e.stopPropagation();
                   onAskAiArea?.(selectedArea.text, selectedArea.page);
                 }}
-                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md shadow-brand-500/30 hover:brightness-110 active:scale-95 transition"
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-bold text-white shadow-md shadow-brand-500/30 hover:brightness-110 active:scale-95 transition"
                 title="Open in AI Assistant to analyze this selected area"
               >
-                <SparklesIcon size={14} className="text-amber-300" />
+                <SparklesIcon size={15} className="text-amber-300" />
                 <span>Ask AI</span>
               </button>
               <button
@@ -478,10 +478,10 @@ const VirtualPage = memo(function VirtualPage({
                   e.stopPropagation();
                   onDismissArea?.();
                 }}
-                className="flex h-7 w-7 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition active:scale-95"
+                className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition active:scale-95"
                 title="Dismiss Selection Box"
               >
-                <XIcon size={14} />
+                <XIcon size={15} />
               </button>
             </div>
           )}
