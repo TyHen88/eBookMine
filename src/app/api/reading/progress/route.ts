@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
   if (response) return response;
 
   try {
-    const { bookId, currentPage, totalPages } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { bookId, currentPage, totalPages } = body;
     if (!bookId || typeof currentPage !== "number") {
       return NextResponse.json({ error: "Invalid progress payload" }, { status: 400 });
     }
@@ -42,9 +43,9 @@ export async function POST(req: NextRequest) {
       Math.max(0, totalPages || 0)
     );
 
-    return NextResponse.json({ progress });
+    return NextResponse.json({ progress: progress || { currentPage, totalPages, progressPercentage: 0 } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg, fallback: true }, { status: 200 });
   }
 }

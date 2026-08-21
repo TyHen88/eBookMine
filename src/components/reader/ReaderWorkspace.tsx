@@ -91,6 +91,7 @@ export default function ReaderWorkspace() {
 
   const saveProgressTimer = useRef<NodeJS.Timeout | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const urlSyncTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Debounced reading progress sync to backend & URL history sync
   const handlePageChange = useCallback(
@@ -99,16 +100,7 @@ export default function ReaderWorkspace() {
 
       updateActiveTab({ currentPage: newPage });
 
-      // Update URL query param ?page=...&title=... without reload
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        url.searchParams.set("page", String(newPage));
-        if (activeTab.title && activeTab.title !== "Loading Document...") {
-          url.searchParams.set("title", activeTab.title);
-        }
-        window.history.replaceState(null, "", url.toString());
-      }
-
+      // Debounce saving progress to server to handle fast scrolling without DB spam
       if (saveProgressTimer.current) clearTimeout(saveProgressTimer.current);
       saveProgressTimer.current = setTimeout(() => {
         if (isAuthenticated && activeTab.id) {
@@ -122,7 +114,7 @@ export default function ReaderWorkspace() {
             }),
           }).catch(() => {});
         }
-      }, 1000);
+      }, 1200);
     },
     [activeTab, isAuthenticated, numPages, updateActiveTab]
   );
@@ -168,7 +160,7 @@ export default function ReaderWorkspace() {
     }
   }, [activeTab?.id, activeTab?.title, activeTab?.pageCount, isAuthenticated, updateTab]);
 
-  // Synchronize browser URL route /read/[id]?page=...&title=... with active tab
+  // Synchronize browser URL route /read/[id]?page=...&title=... with active tab (Debounced & Safe against browser rate-limits)
   const lastSyncedTabIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -183,18 +175,34 @@ export default function ReaderWorkspace() {
     if (lastSyncedTabIdRef.current === null) {
       lastSyncedTabIdRef.current = activeTab.id;
       if (currentPath !== targetUrl) {
-        window.history.replaceState(null, "", targetUrl);
+        try {
+          window.history.replaceState(null, "", targetUrl);
+        } catch {}
       }
     } else if (lastSyncedTabIdRef.current !== activeTab.id) {
       // Switched tab or opened new book -> push to browser history so refresh & navigation works
       lastSyncedTabIdRef.current = activeTab.id;
       if (currentPath !== targetUrl) {
-        window.history.pushState(null, "", targetUrl);
+        try {
+          window.history.pushState(null, "", targetUrl);
+        } catch {}
       }
-    } else if (currentPath !== targetUrl) {
-      // Page or title changed within same active tab -> replace URL query parameter
-      window.history.replaceState(null, "", targetUrl);
+    } else {
+      // Page changed during reading -> debounce replaceState to avoid SecurityError during fast scrolling
+      if (urlSyncTimer.current) clearTimeout(urlSyncTimer.current);
+      urlSyncTimer.current = setTimeout(() => {
+        try {
+          const freshPath = window.location.pathname + window.location.search;
+          if (freshPath !== targetUrl) {
+            window.history.replaceState(null, "", targetUrl);
+          }
+        } catch {}
+      }, 350);
     }
+
+    return () => {
+      if (urlSyncTimer.current) clearTimeout(urlSyncTimer.current);
+    };
   }, [activeTab?.id, activeTab?.title, activeTab?.currentPage]);
 
   const handlePrevPage = () => {

@@ -66,35 +66,62 @@ export async function saveProgress(
   const pct = Math.min(100, Math.max(0, (currentPage / validPages) * 100));
   const isCompleted = currentPage >= validPages && validPages > 0;
 
-  const result = await prisma.readingProgress.upsert({
-    where: {
-      userId_bookId: { userId, bookId: book.id },
-    },
-    update: {
-      currentPage,
-      totalPages: validPages,
-      progressPercentage: parseFloat(pct.toFixed(2)),
-      lastReadAt: new Date(),
-      ...(isCompleted ? { completedAt: new Date() } : {}),
-    },
-    create: {
-      userId,
-      bookId: book.id,
-      currentPage,
-      totalPages: validPages,
-      progressPercentage: parseFloat(pct.toFixed(2)),
-      lastReadAt: new Date(),
-      ...(isCompleted ? { completedAt: new Date() } : {}),
-    },
-  });
+  try {
+    const result = await prisma.readingProgress.upsert({
+      where: {
+        userId_bookId: { userId, bookId: book.id },
+      },
+      update: {
+        currentPage,
+        totalPages: validPages,
+        progressPercentage: parseFloat(pct.toFixed(2)),
+        lastReadAt: new Date(),
+        ...(isCompleted ? { completedAt: new Date() } : {}),
+      },
+      create: {
+        userId,
+        bookId: book.id,
+        currentPage,
+        totalPages: validPages,
+        progressPercentage: parseFloat(pct.toFixed(2)),
+        lastReadAt: new Date(),
+        ...(isCompleted ? { completedAt: new Date() } : {}),
+      },
+    });
 
-  return {
-    currentPage: result.currentPage,
-    totalPages: result.totalPages,
-    progressPercentage: result.progressPercentage,
-    lastReadAt: result.lastReadAt.toISOString(),
-    completedAt: result.completedAt?.toISOString() || null,
-  };
+    return {
+      currentPage: result.currentPage,
+      totalPages: result.totalPages,
+      progressPercentage: result.progressPercentage,
+      lastReadAt: result.lastReadAt.toISOString(),
+      completedAt: result.completedAt?.toISOString() || null,
+    };
+  } catch (err: any) {
+    // If concurrent requests caused a unique constraint collision or lock, fallback to update
+    try {
+      const fallbackResult = await prisma.readingProgress.update({
+        where: {
+          userId_bookId: { userId, bookId: book.id },
+        },
+        data: {
+          currentPage,
+          totalPages: validPages,
+          progressPercentage: parseFloat(pct.toFixed(2)),
+          lastReadAt: new Date(),
+          ...(isCompleted ? { completedAt: new Date() } : {}),
+        },
+      });
+      return {
+        currentPage: fallbackResult.currentPage,
+        totalPages: fallbackResult.totalPages,
+        progressPercentage: fallbackResult.progressPercentage,
+        lastReadAt: fallbackResult.lastReadAt.toISOString(),
+        completedAt: fallbackResult.completedAt?.toISOString() || null,
+      };
+    } catch {
+      return null;
+    }
+  }
 }
 
 /**

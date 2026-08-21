@@ -263,26 +263,59 @@ function ContinuousViewerComponent({
     }
   }, [numPages, pageWidth, aspectRatio, isActive]);
 
-  // Jump to currentPage when tab becomes active or currentPage changes from outside
+  const isUserScrollingRef = useRef(false);
+  const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Jump to currentPage when requested from outside (e.g. TOC, bookmark, jump input)
+  // BUT do NOT trigger while the user is actively scrolling the viewer!
   useEffect(() => {
-    if (isActive && currentPage && numPages > 0 && initialScrolledRef.current && currentPage !== renderCenter) {
+    if (
+      isActive &&
+      currentPage &&
+      numPages > 0 &&
+      initialScrolledRef.current &&
+      !isUserScrollingRef.current &&
+      !isInternalScrollRef.current &&
+      currentPage !== renderCenter
+    ) {
       scrollToPage(currentPage, true);
     }
   }, [isActive, currentPage, numPages, renderCenter, scrollToPage]);
 
   // Scroll listener to keep renderCenter tightly synced with viewport
   const handleScroll = useCallback(() => {
-    if (!isActive || isInternalScrollRef.current || !initialScrolledRef.current) return;
+    if (!isActive || !initialScrolledRef.current) return;
     const container = containerRef.current;
     if (!container || numPages === 0) return;
 
-    const scrollTop = container.scrollTop;
-    const estimatedHeight = pageWidth ? Math.round(pageWidth / aspectRatio) + 24 : 800;
-    const visiblePage = Math.max(1, Math.min(numPages, Math.round(scrollTop / estimatedHeight) + 1));
+    // Mark active user scrolling to prevent layout fighting
+    isUserScrollingRef.current = true;
+    if (userScrollTimeoutRef.current) clearTimeout(userScrollTimeoutRef.current);
+    userScrollTimeoutRef.current = setTimeout(() => {
+      isUserScrollingRef.current = false;
+    }, 350);
 
-    if (visiblePage !== renderCenter) {
-      setRenderCenter(visiblePage);
-      onPageChangeRef.current(visiblePage);
+    if (isInternalScrollRef.current) return;
+
+    const containerHeight = container.clientHeight || 800;
+    const scrollTarget = container.scrollTop + containerHeight * 0.35;
+    let currentVisible = -1;
+
+    for (const [pageNum, el] of pageEls.current.entries()) {
+      if (el && el.offsetTop <= scrollTarget && el.offsetTop + el.offsetHeight > scrollTarget) {
+        currentVisible = pageNum;
+        break;
+      }
+    }
+
+    if (currentVisible <= 0) {
+      const estimatedHeight = pageWidth ? Math.round(pageWidth / aspectRatio) + 24 : 800;
+      currentVisible = Math.max(1, Math.min(numPages, Math.round(container.scrollTop / estimatedHeight) + 1));
+    }
+
+    if (currentVisible > 0 && currentVisible !== renderCenter) {
+      setRenderCenter(currentVisible);
+      onPageChangeRef.current(currentVisible);
     }
   }, [isActive, numPages, pageWidth, aspectRatio, renderCenter]);
 
@@ -292,7 +325,7 @@ function ContinuousViewerComponent({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (!isActive || isInternalScrollRef.current || !initialScrolledRef.current) return;
+        if (!isActive || isInternalScrollRef.current || isUserScrollingRef.current || !initialScrolledRef.current) return;
 
         let mostVisiblePage = -1;
         let maxRatio = 0;
@@ -305,7 +338,7 @@ function ContinuousViewerComponent({
           }
         }
 
-        if (mostVisiblePage > 0 && maxRatio > 0.15) {
+        if (mostVisiblePage > 0 && maxRatio > 0.15 && mostVisiblePage !== renderCenter) {
           setRenderCenter(mostVisiblePage);
           onPageChangeRef.current(mostVisiblePage);
         }
@@ -320,7 +353,7 @@ function ContinuousViewerComponent({
     pageEls.current.forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
-  }, [isActive, numPages]);
+  }, [isActive, numPages, renderCenter]);
 
   // Robust Text selection handler for floating HUD on Desktop & Mobile
   const handleSelectionCheck = useCallback(() => {
