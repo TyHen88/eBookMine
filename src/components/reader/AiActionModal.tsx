@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   SparklesIcon,
   XIcon,
@@ -51,34 +51,24 @@ export default function AiActionModal({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Dynamic positioning state
-  const [coords, setCoords] = useState<{
-    top?: number;
-    left?: number;
-    placeBelow: boolean;
-    isMobile: boolean;
-  }>({
-    placeBelow: false,
-    isMobile: false,
-  });
-
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const isDark = theme === "dark";
   const isSepia = theme === "sepia";
 
-  // Calculate dynamic coordinate above selected message
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  // Calculate dynamic coordinate above selected message with useMemo
+  const coords = useMemo(() => {
+    if (typeof window === "undefined") {
+      return { placeBelow: false, isMobile: true };
+    }
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const isMobile = vw < 640;
 
     if (isMobile || !position) {
-      setCoords({ isMobile: true, placeBelow: false });
-      return;
+      return { placeBelow: false, isMobile: true };
     }
 
     const cardW = 440;
@@ -105,13 +95,13 @@ export default function AiActionModal({
       placeBelow = false;
     }
 
-    setCoords({
+    return {
       top: targetTop,
       left: targetLeft,
       placeBelow,
       isMobile: false,
-    });
-  }, [position, selectedText]);
+    };
+  }, [position]);
 
   // Outside click & Escape listener
   useEffect(() => {
@@ -134,27 +124,29 @@ export default function AiActionModal({
     };
   }, [onClose]);
 
-  // Card Theme Styling
-  const cardBg = isDark
-    ? "bg-slate-900/95 border-slate-700/80 text-white shadow-slate-950/70"
-    : isSepia
-    ? "bg-[#f4ecd8]/95 border-[#d8cdb4] text-[#433422] shadow-[#6c593f]/25"
-    : "bg-white/95 border-slate-200/90 text-slate-900 shadow-slate-900/20";
+  // Typewriter streaming animation helper
+  const startTypewriterAnimation = useCallback((targetText: string) => {
+    setIsTyping(true);
+    let index = 0;
+    const length = targetText.length;
+    const chunkSize = Math.max(3, Math.floor(length / 70));
 
-  const footerBorder = isDark
-    ? "border-slate-800"
-    : isSepia
-    ? "border-[#d8cdb4]/70"
-    : "border-slate-100";
+    if (typingTimerRef.current) clearInterval(typingTimerRef.current);
 
-  const iconButtonHover = isDark
-    ? "text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15"
-    : isSepia
-    ? "text-[#7b6751] hover:text-[#433422] hover:bg-black/5 active:bg-black/10"
-    : "text-slate-500 hover:text-slate-900 hover:bg-slate-100 active:bg-slate-200";
+    typingTimerRef.current = setInterval(() => {
+      index += chunkSize;
+      if (index >= length) {
+        setDisplayedContent(targetText);
+        setIsTyping(false);
+        if (typingTimerRef.current) clearInterval(typingTimerRef.current);
+      } else {
+        setDisplayedContent(targetText.slice(0, index));
+      }
+    }, 16);
+  }, []);
 
   // Fetch AI Response
-  const fetchAiResponse = async () => {
+  const fetchAiResponse = useCallback(async () => {
     if (!selectedText.trim()) return;
 
     if (typingTimerRef.current) clearInterval(typingTimerRef.current);
@@ -200,28 +192,7 @@ export default function AiActionModal({
       setError(err.message || "Could not connect to AI service.");
       setLoading(false);
     }
-  };
-
-  // Typewriter streaming animation
-  const startTypewriterAnimation = (targetText: string) => {
-    setIsTyping(true);
-    let index = 0;
-    const length = targetText.length;
-    const chunkSize = Math.max(3, Math.floor(length / 70));
-
-    if (typingTimerRef.current) clearInterval(typingTimerRef.current);
-
-    typingTimerRef.current = setInterval(() => {
-      index += chunkSize;
-      if (index >= length) {
-        setDisplayedContent(targetText);
-        setIsTyping(false);
-        if (typingTimerRef.current) clearInterval(typingTimerRef.current);
-      } else {
-        setDisplayedContent(targetText.slice(0, index));
-      }
-    }, 16);
-  };
+  }, [selectedText, actionType, page, bookTitle, author, startTypewriterAnimation]);
 
   const skipTyping = () => {
     if (typingTimerRef.current) clearInterval(typingTimerRef.current);
@@ -230,14 +201,24 @@ export default function AiActionModal({
   };
 
   useEffect(() => {
+    let isMounted = true;
     if (isOpen && selectedText) {
-      fetchAiResponse();
+      const timer = setTimeout(() => {
+        if (isMounted) fetchAiResponse();
+      }, 0);
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+        if (typingTimerRef.current) clearInterval(typingTimerRef.current);
+        if (abortControllerRef.current) abortControllerRef.current.abort();
+      };
     }
     return () => {
+      isMounted = false;
       if (typingTimerRef.current) clearInterval(typingTimerRef.current);
       if (abortControllerRef.current) abortControllerRef.current.abort();
     };
-  }, [isOpen, actionType, selectedText, page]);
+  }, [isOpen, selectedText, fetchAiResponse]);
 
   // Handle Copy to Clipboard
   const handleCopy = async () => {
@@ -272,6 +253,25 @@ export default function AiActionModal({
       onPlayTTS(cleanText);
     }
   };
+
+  // Card Theme Styling
+  const cardBg = isDark
+    ? "bg-slate-900/95 border-slate-700/80 text-white shadow-slate-950/70"
+    : isSepia
+    ? "bg-[#f4ecd8]/95 border-[#d8cdb4] text-[#433422] shadow-[#6c593f]/25"
+    : "bg-white/95 border-slate-200/90 text-slate-900 shadow-slate-900/20";
+
+  const footerBorder = isDark
+    ? "border-slate-800"
+    : isSepia
+    ? "border-[#d8cdb4]/70"
+    : "border-slate-100";
+
+  const iconButtonHover = isDark
+    ? "text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15"
+    : isSepia
+    ? "text-[#7b6751] hover:text-[#433422] hover:bg-black/5 active:bg-black/10"
+    : "text-slate-500 hover:text-slate-900 hover:bg-slate-100 active:bg-slate-200";
 
   if (!isOpen) return null;
 

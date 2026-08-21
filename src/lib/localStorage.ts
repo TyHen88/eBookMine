@@ -22,7 +22,7 @@ export async function saveLocalBookFile(
   const dir = ensureUploadDir();
   const filePath = path.join(dir, `${fileId}.pdf`);
   const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes as any);
-  await fs.promises.writeFile(filePath, buffer);
+  await fs.promises.writeFile(filePath, new Uint8Array(buffer));
   return filePath;
 }
 

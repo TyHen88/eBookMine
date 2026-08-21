@@ -7,6 +7,12 @@ import {
   QuizQuestion,
   Flashcard,
 } from "./aiProvider";
+import {
+  generateWithFailover,
+  getCircuitStatus,
+  resetCircuit,
+  SupportedProvider,
+} from "./providerFailover";
 import { retrieveRelevantChunks } from "@/lib/rag/retriever";
 import { generateEmbedding } from "./embeddingService";
 import {
@@ -14,6 +20,8 @@ import {
   sanitizeKhmerOutput,
   KHMER_SYSTEM_DIRECTIVES,
 } from "@/lib/khmerHelper";
+
+export { getCircuitStatus, resetCircuit };
 
 export class DefaultAIProvider implements AIProvider {
   private buildSystemPrompt(basePrompt: string, context?: BookContext): string {
@@ -287,24 +295,14 @@ ${author ? `As the author *${author}*, here is how this relates to the book:` : 
   According to the structural themes in *"${bookTitle}"*, this topic forms an integral part of the foundational knowledge presented across the chapters. You can highlight specific passages in the viewer or index the book to perform deep vector semantic searches.`;
   }
 
-  private async callLlm(prompt: string, context?: BookContext): Promise<string> {
-    if (process.env.AI_TEST_MODE === "true") {
-      if (prompt.toLowerCase().includes("quantum mechanics")) {
-        return "I couldn't find enough evidence in the available book content to answer this reliably.";
-      }
-
-      const foundSourceIds = Array.from(prompt.matchAll(/SOURCE_ID:\s*([a-zA-Z0-9_-]+)/g)).map((m) => m[1]);
-
-      return JSON.stringify({
-        answer: `The book '${context?.bookTitle || "TOEFL CBT (Cliffs Test Prep)"}' provides key insights covering test structure, Listening Comprehension, Structure adaptive questions, and Reading passages with 70 to 90 minutes time limits.`,
-        sources: foundSourceIds.length > 0 ? foundSourceIds : [],
-      });
-    }
-
+  private async callSpecificProvider(
+    provider: SupportedProvider,
+    prompt: string,
+    context?: BookContext
+  ): Promise<string> {
     const config = await getAIConfig();
     const apiKey = (config.apiKey || process.env.AI_API_KEY || "").trim();
     const model = config.model || process.env.AI_MODEL || "google/gemini-2.5-flash";
-    const provider = (config.provider || "local").toLowerCase();
 
     // Built-in Local Offline Engine
     if (provider === "local") {
@@ -314,7 +312,7 @@ ${author ? `As the author *${author}*, here is how this relates to the book:` : 
 
     if (!apiKey && provider !== "ollama") {
       throw new Error(
-        "Missing AI API Key. Please open Admin Panel → AI Settings to enter your API key, or switch Provider to 'Local Built-in'."
+        `Missing AI API Key for provider "${provider}". Please configure in Admin Settings.`
       );
     }
 
@@ -387,11 +385,11 @@ ${author ? `As the author *${author}*, here is how this relates to the book:` : 
     } catch (networkErr: any) {
       if (provider === "ollama") {
         throw new Error(
-          "Cannot connect to Local Ollama at http://localhost:11434. Please ensure Ollama is running (`ollama serve`), or switch Provider to 'Local Built-in' in Admin Settings."
+          "Cannot connect to Local Ollama at http://localhost:11434. Please ensure Ollama is running (`ollama serve`)."
         );
       }
       throw new Error(
-        `Failed to reach AI Provider (${provider}): ${networkErr?.message || "Network connection failed"}. Please check connection or switch to 'Local Built-in' in Admin Settings.`
+        `Failed to reach AI Provider (${provider}): ${networkErr?.message || "Network connection failed"}.`
       );
     }
 
@@ -404,7 +402,7 @@ ${author ? `As the author *${author}*, here is how this relates to the book:` : 
           ? "HTTP 401 Unauthorized — Invalid API Key. Check API Key in Admin Panel."
           : `HTTP ${res.status}`);
 
-      throw new Error(`AI Provider Call Error: ${errDetail}`);
+      throw new Error(`AI Provider (${provider}) Call Error: ${errDetail}`);
     }
 
     const data = await res.json();
@@ -424,6 +422,33 @@ ${author ? `As the author *${author}*, here is how this relates to the book:` : 
     }
 
     return sanitizeKhmerOutput(rawResult);
+  }
+
+  private async callLlm(prompt: string, context?: BookContext): Promise<string> {
+    if (process.env.AI_TEST_MODE === "true") {
+      if (prompt.toLowerCase().includes("quantum mechanics")) {
+        return "I couldn't find enough evidence in the available book content to answer this reliably.";
+      }
+
+      const foundSourceIds = Array.from(prompt.matchAll(/SOURCE_ID:\s*([a-zA-Z0-9_-]+)/g)).map((m) => m[1]);
+
+      return JSON.stringify({
+        answer: `The book '${context?.bookTitle || "TOEFL CBT (Cliffs Test Prep)"}' provides key insights covering test structure, Listening Comprehension, Structure adaptive questions, and Reading passages with 70 to 90 minutes time limits.`,
+        sources: foundSourceIds.length > 0 ? foundSourceIds : [],
+      });
+    }
+
+    const config = await getAIConfig();
+    const primaryProvider = (config.provider || "local").toLowerCase() as SupportedProvider;
+
+    const result = await generateWithFailover(
+      prompt,
+      context,
+      (provider, p, ctx) => this.callSpecificProvider(provider, p, ctx),
+      primaryProvider
+    );
+
+    return result.text;
   }
 
   async generateText(prompt: string, context?: BookContext): Promise<string> {

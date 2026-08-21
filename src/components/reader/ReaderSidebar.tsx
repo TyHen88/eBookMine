@@ -256,9 +256,24 @@ export default function ReaderSidebar({
                   className="group flex cursor-pointer flex-col gap-1 rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-sm hover:border-brand-400 dark:border-slate-800 dark:bg-slate-800/80 transition"
                 >
                   <div className="flex items-center justify-between text-[10px] text-slate-400">
-                    <span className="font-bold text-brand-600 dark:text-brand-400">
-                      Page {h.page}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`h-2 w-2 rounded-full shrink-0 ${
+                          h.color === "green"
+                            ? "bg-emerald-400"
+                            : h.color === "blue"
+                            ? "bg-sky-400"
+                            : h.color === "purple"
+                            ? "bg-purple-400"
+                            : h.color === "pink"
+                            ? "bg-pink-400"
+                            : "bg-amber-400"
+                        }`}
+                      />
+                      <span className="font-bold text-brand-600 dark:text-brand-400">
+                        Page {h.page}
+                      </span>
+                    </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

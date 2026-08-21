@@ -1,6 +1,7 @@
 import { aiProvider, checkAndTrackUsage, getOrCreateConversation, saveAiMessage } from "@/lib/ai/aiService";
 import { classifyAndRouteQuery } from "./queryRouter";
 import { hybridRetrieveChunks } from "./hybridRetriever";
+import { rerankChunks } from "./reranker";
 import { buildHierarchicalSummaries, getHierarchicalSummaries } from "./summaryService";
 import { buildStructuredContext } from "./contextBuilder";
 import { validateAndResolveCitations, CitationItem } from "./citationValidator";
@@ -61,8 +62,11 @@ export async function chatWithBook(
   // 4. Hybrid Search Engine (pgvector + FTS + Metadata filters + Diversity Reranking)
   const retrievedChunks = await hybridRetrieveChunks(book.id, question, strategy);
 
+  // 4.5. Semantic Reranker: Score and promote highest-relevance evidence chunks
+  const rerankedChunks = await rerankChunks(question, retrievedChunks, { topK: 6 });
+
   // Fallback Check for Low Confidence / Empty Evidence
-  if (retrievedChunks.length === 0 && summaries.length === 0) {
+  if (rerankedChunks.length === 0 && summaries.length === 0) {
     const fallbackAnswer = "I couldn't find enough evidence in the available book content to answer this reliably.";
     const conversation = await getOrCreateConversation(userId, book.id);
     await saveAiMessage(conversation.id, "user", question, pageContext);
@@ -84,7 +88,7 @@ export async function chatWithBook(
     authorName,
     pageContext,
     summaries,
-    chunks: retrievedChunks,
+    chunks: rerankedChunks,
     strategy,
   });
 

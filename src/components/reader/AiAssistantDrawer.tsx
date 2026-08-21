@@ -251,7 +251,7 @@ export default function AiAssistantDrawer({
           </div>
           <div>
             <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <span>Adobe AI Tutor</span>
+              <span>AI Assistant</span>
               <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[9px] font-bold text-brand-700 dark:bg-brand-950 dark:text-brand-300">
                 P.{currentPage}
               </span>

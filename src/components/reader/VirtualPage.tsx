@@ -123,41 +123,200 @@ const VirtualPage = memo(function VirtualPage({
     const textLayer = container.querySelector(".react-pdf__Page__textContent, .textLayer");
     if (!textLayer) return;
 
-    const spans = Array.from(textLayer.querySelectorAll("span"));
-    if (spans.length === 0) return;
+    const rawSpans = Array.from(textLayer.querySelectorAll("span"));
+    // Filter only top-level text layer spans (excluding internal mark elements)
+    const spans = rawSpans.filter((s) => s.parentElement === textLayer || s.getAttribute("role") === "presentation");
+    const targetSpans = spans.length > 0 ? spans : rawSpans;
+    if (targetSpans.length === 0) return;
 
-    // Reset previous highlights on spans
-    spans.forEach((span) => {
+    // 1. Reset previous highlights cleanly
+    targetSpans.forEach((span) => {
       span.style.removeProperty("background");
       span.style.removeProperty("border-radius");
+      if (span.querySelector("mark.ebookmine-highlight")) {
+        span.textContent = span.textContent;
+      }
       span.removeAttribute("data-highlighted");
     });
 
     if (highlights.length === 0) return;
 
-    for (const hl of highlights) {
-      const cleanHl = (hl.selectedText || "").trim().toLowerCase();
-      if (!cleanHl) continue;
+    // 2. Build continuous page text stream and map char offsets to (spanIndex, offsetInSpan)
+    interface CharLocation {
+      spanIndex: number;
+      offset: number;
+    }
 
-      const hlWords = cleanHl.split(/\s+/).filter((w) => w.length > 0);
-      if (hlWords.length === 0) continue;
+    let fullPageText = "";
+    const indexMap: (CharLocation | null)[] = [];
+
+    for (let sIdx = 0; sIdx < targetSpans.length; sIdx++) {
+      const span = targetSpans[sIdx];
+      const text = span.textContent || "";
+      if (!text) continue;
+
+      if (
+        fullPageText.length > 0 &&
+        !/\s/.test(fullPageText[fullPageText.length - 1]) &&
+        !/\s/.test(text[0])
+      ) {
+        fullPageText += " ";
+        indexMap.push(null);
+      }
+
+      for (let cIdx = 0; cIdx < text.length; cIdx++) {
+        fullPageText += text[cIdx];
+        indexMap.push({ spanIndex: sIdx, offset: cIdx });
+      }
+    }
+
+    if (!fullPageText) return;
+
+    // 3. Find exact occurrences of highlighted texts
+    interface SpanRange {
+      start: number;
+      end: number;
+      bg: string;
+    }
+
+    const spanRangesMap = new Map<number, SpanRange[]>();
+
+    for (const hl of highlights) {
+      const target = (hl.selectedText || "").trim();
+      if (!target || target.length < 1) continue;
 
       const bg = HIGHLIGHT_COLOR_MAP[hl.color] || HIGHLIGHT_COLOR_MAP.yellow;
 
-      for (const span of spans) {
-        const spanText = (span.textContent || "").trim().toLowerCase();
-        if (!spanText) continue;
+      const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = escaped.replace(/\s+/g, "\\s+");
 
-        const isExactOrSubstring = cleanHl.includes(spanText) || spanText.includes(cleanHl);
-        const isWordMatch = hlWords.some((w) => w.length >= 2 && spanText.includes(w));
+      let matchRegex: RegExp | null = null;
+      try {
+        matchRegex = new RegExp(pattern, "gi");
+      } catch {
+        matchRegex = null;
+      }
 
-        if (isExactOrSubstring || isWordMatch) {
-          span.style.background = bg;
-          span.style.borderRadius = "3px";
-          span.setAttribute("data-highlighted", "true");
+      const matchIndices: Array<{ start: number; length: number }> = [];
+
+      if (matchRegex) {
+        let match: RegExpExecArray | null;
+        while ((match = matchRegex.exec(fullPageText)) !== null) {
+          matchIndices.push({ start: match.index, length: match[0].length });
+          if (match[0].length === 0) break;
+        }
+      }
+
+      if (matchIndices.length === 0) {
+        const lowerFull = fullPageText.toLowerCase();
+        const lowerTarget = target.toLowerCase();
+        let idx = lowerFull.indexOf(lowerTarget);
+        while (idx !== -1) {
+          matchIndices.push({ start: idx, length: lowerTarget.length });
+          idx = lowerFull.indexOf(lowerTarget, idx + lowerTarget.length);
+        }
+      }
+
+      for (const { start, length } of matchIndices) {
+        const end = start + length;
+        let currentSpanIdx = -1;
+        let rangeStartInSpan = -1;
+        let rangeEndInSpan = -1;
+
+        for (let k = start; k < end && k < indexMap.length; k++) {
+          const loc = indexMap[k];
+          if (!loc) {
+            if (currentSpanIdx !== -1 && rangeStartInSpan !== -1) {
+              const ranges = spanRangesMap.get(currentSpanIdx) || [];
+              ranges.push({ start: rangeStartInSpan, end: rangeEndInSpan, bg });
+              spanRangesMap.set(currentSpanIdx, ranges);
+              currentSpanIdx = -1;
+              rangeStartInSpan = -1;
+              rangeEndInSpan = -1;
+            }
+            continue;
+          }
+
+          if (loc.spanIndex !== currentSpanIdx) {
+            if (currentSpanIdx !== -1 && rangeStartInSpan !== -1) {
+              const ranges = spanRangesMap.get(currentSpanIdx) || [];
+              ranges.push({ start: rangeStartInSpan, end: rangeEndInSpan, bg });
+              spanRangesMap.set(currentSpanIdx, ranges);
+            }
+            currentSpanIdx = loc.spanIndex;
+            rangeStartInSpan = loc.offset;
+            rangeEndInSpan = loc.offset + 1;
+          } else {
+            rangeEndInSpan = loc.offset + 1;
+          }
+        }
+
+        if (currentSpanIdx !== -1 && rangeStartInSpan !== -1) {
+          const ranges = spanRangesMap.get(currentSpanIdx) || [];
+          ranges.push({ start: rangeStartInSpan, end: rangeEndInSpan, bg });
+          spanRangesMap.set(currentSpanIdx, ranges);
         }
       }
     }
+
+    // 4. Apply exact highlights to DOM spans using <mark>
+    spanRangesMap.forEach((ranges, sIdx) => {
+      const span = targetSpans[sIdx];
+      if (!span) return;
+
+      const origText = span.textContent || "";
+      if (!origText) return;
+
+      ranges.sort((a, b) => a.start - b.start);
+      const mergedRanges: SpanRange[] = [];
+      for (const r of ranges) {
+        if (mergedRanges.length === 0) {
+          mergedRanges.push({ ...r });
+        } else {
+          const last = mergedRanges[mergedRanges.length - 1];
+          if (r.start < last.end) {
+            if (r.end > last.end) {
+              last.end = r.end;
+            }
+          } else {
+            mergedRanges.push({ ...r });
+          }
+        }
+      }
+
+      const fragment = document.createDocumentFragment();
+      let lastIdx = 0;
+
+      for (const r of mergedRanges) {
+        const start = Math.max(0, Math.min(r.start, origText.length));
+        const end = Math.max(start, Math.min(r.end, origText.length));
+
+        if (start > lastIdx) {
+          fragment.appendChild(document.createTextNode(origText.slice(lastIdx, start)));
+        }
+
+        if (end > start) {
+          const mark = document.createElement("mark");
+          mark.className = "ebookmine-highlight";
+          mark.style.backgroundColor = r.bg;
+          mark.style.color = "inherit";
+          mark.style.borderRadius = "2px";
+          mark.style.padding = "0";
+          mark.style.margin = "0";
+          mark.textContent = origText.slice(start, end);
+          fragment.appendChild(mark);
+        }
+
+        lastIdx = end;
+      }
+
+      if (lastIdx < origText.length) {
+        fragment.appendChild(document.createTextNode(origText.slice(lastIdx)));
+      }
+
+      span.replaceChildren(fragment);
+      span.setAttribute("data-highlighted", "true");
+    });
   }, [highlights]);
 
   useEffect(() => {

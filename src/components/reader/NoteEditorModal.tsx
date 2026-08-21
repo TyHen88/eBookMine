@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   FileTextIcon,
   XIcon,
@@ -45,12 +45,19 @@ export default function NoteEditorModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const handleSave = useCallback(() => {
+    if (!content.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    onSave(content.trim(), page, editingNoteId);
+    onClose();
+  }, [content, isSubmitting, onSave, page, editingNoteId, onClose]);
+
   useEffect(() => {
     if (isOpen) {
-      setContent(initialContent);
-      setIsSubmitting(false);
-      // Auto-focus textarea when modal opens
-      setTimeout(() => {
+      // Auto-focus textarea and populate initial content when modal opens
+      const timer = setTimeout(() => {
+        setContent(initialContent);
+        setIsSubmitting(false);
         if (textareaRef.current) {
           textareaRef.current.focus();
           textareaRef.current.setSelectionRange(
@@ -58,7 +65,8 @@ export default function NoteEditorModal({
             textareaRef.current.value.length
           );
         }
-      }, 50);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, initialContent]);
 
@@ -77,16 +85,9 @@ export default function NoteEditorModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, content, page, editingNoteId]);
+  }, [isOpen, handleSave, onClose]);
 
   if (!isOpen) return null;
-
-  const handleSave = () => {
-    if (!content.trim() || isSubmitting) return;
-    setIsSubmitting(true);
-    onSave(content.trim(), page, editingNoteId);
-    onClose();
-  };
 
   const handleTagClick = (tagValue: string) => {
     if (!content.startsWith(tagValue)) {

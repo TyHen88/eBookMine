@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/authHelpers";
 import { getAIConfig, saveAIConfig } from "@/lib/aiConfig";
+import { getCircuitStatus } from "@/lib/ai/providerFailover";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/admin/config — Fetch current AI configuration settings.
+ * GET /api/admin/config — Fetch current AI configuration settings and provider circuit health.
  */
 export async function GET() {
   const { response } = await requireAdmin();
@@ -14,7 +15,8 @@ export async function GET() {
 
   try {
     const config = await getAIConfig();
-    return NextResponse.json({ config });
+    const circuitStatus = getCircuitStatus();
+    return NextResponse.json({ config, circuitStatus });
   } catch (err) {
     logger.error("GET /api/admin/config failed", err);
     return NextResponse.json({ error: "Failed to fetch AI config" }, { status: 500 });

@@ -128,7 +128,7 @@ export async function requireBookAccess(
   | { allowed: true; isPublic: boolean; response: null }
   | { allowed: false; isPublic: boolean; response: NextResponse }
 > {
-  if (process.env.AI_TEST_MODE === "true") {
+  if (process.env.AI_TEST_MODE === "true" || process.env.EVAL_MODE === "true") {
     return { allowed: true, isPublic: true, response: null };
   }
 

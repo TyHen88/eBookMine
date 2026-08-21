@@ -1,4 +1,5 @@
 import { getAIConfig } from "@/lib/aiConfig";
+import { embedWithCache } from "./embeddingCache";
 
 export interface EmbeddingResult {
   vector: number[];
@@ -57,9 +58,9 @@ function generateSyntheticEmbedding(text: string, dimensions: number): number[] 
 }
 
 /**
- * Generate a vector embedding for text using configured provider with dimension validation.
+ * Direct provider embedding caller without caching.
  */
-export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
+async function fetchRawEmbedding(text: string): Promise<EmbeddingResult> {
   const config = await getEmbeddingConfig();
   let vector: number[] = [];
 
@@ -131,6 +132,13 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
     model: config.model,
     dimensions: config.dimensions,
   };
+}
+
+/**
+ * Generate a vector embedding for text with multi-tier memory and database caching.
+ */
+export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
+  return embedWithCache(text, (rawText) => fetchRawEmbedding(rawText));
 }
 
 /**

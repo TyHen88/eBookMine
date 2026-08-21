@@ -473,3 +473,17 @@ model SystemSetting {
   value     String   @db.Text
   updatedAt DateTime @updatedAt
 }
+
+model EmbeddingCache {
+  id          String   @id @default(cuid())
+  contentHash String   @unique
+  model       String
+  dimensions  Int      @default(64)
+  vectorJson  String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contentHash])
+  @@index([model, dimensions])
+}
+
