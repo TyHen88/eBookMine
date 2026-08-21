@@ -7,7 +7,15 @@ import { BookLoader } from "@/components/ui";
 
 const noopSubscribe = () => () => {};
 
-export default function Reader({ id }: { id?: string }) {
+export default function Reader({
+  id,
+  initialPage,
+  initialTitle,
+}: {
+  id?: string;
+  initialPage?: number;
+  initialTitle?: string;
+}) {
   const isClient = useSyncExternalStore(
     noopSubscribe,
     () => true,
@@ -23,7 +31,7 @@ export default function Reader({ id }: { id?: string }) {
   }
 
   return (
-    <ReaderTabProvider initialBookId={id}>
+    <ReaderTabProvider initialBookId={id} initialPage={initialPage} initialTitle={initialTitle}>
       <ReaderWorkspace />
     </ReaderTabProvider>
   );

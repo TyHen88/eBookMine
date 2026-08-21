@@ -80,12 +80,22 @@ export default function ReaderWorkspace() {
   const saveProgressTimer = useRef<NodeJS.Timeout | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Debounced reading progress sync to backend
+  // Debounced reading progress sync to backend & URL history sync
   const handlePageChange = useCallback(
     (newPage: number) => {
       if (!activeTab || activeTab.currentPage === newPage) return;
 
       updateActiveTab({ currentPage: newPage });
+
+      // Update URL query param ?page=...&title=... without reload
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("page", String(newPage));
+        if (activeTab.title && activeTab.title !== "Loading Document...") {
+          url.searchParams.set("title", activeTab.title);
+        }
+        window.history.replaceState(null, "", url.toString());
+      }
 
       if (saveProgressTimer.current) clearTimeout(saveProgressTimer.current);
       saveProgressTimer.current = setTimeout(() => {
@@ -104,6 +114,76 @@ export default function ReaderWorkspace() {
     },
     [activeTab, isAuthenticated, numPages, updateActiveTab]
   );
+
+  // Synchronize book metadata and server-saved reading progress/highlights/notes
+  useEffect(() => {
+    if (!activeTab?.id) return;
+    const bookId = activeTab.id;
+
+    // 1. Fetch metadata if incomplete (e.g. direct URL visit or refreshed tab)
+    if (activeTab.title === "Loading Document..." || !activeTab.pageCount) {
+      fetch(`/api/books/${encodeURIComponent(bookId)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.book) {
+            updateTab(bookId, (prev) => ({
+              title: data.book.title || prev.title,
+              author: data.book.author || prev.author,
+              cover: data.book.cover ?? prev.cover,
+              pageCount: data.book.pageCount || prev.pageCount,
+              currentPage: prev.currentPage > 1 ? prev.currentPage : data.book.lastPage || 1,
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 2. Fetch server-saved bookmarks, highlights, and notes for authenticated users
+    if (isAuthenticated) {
+      Promise.all([
+        fetch(`/api/reading/bookmarks?bookId=${encodeURIComponent(bookId)}`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`/api/reading/highlights?bookId=${encodeURIComponent(bookId)}`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`/api/reading/notes?bookId=${encodeURIComponent(bookId)}`).then((r) => (r.ok ? r.json() : [])),
+      ])
+        .then(([bData, hData, nData]) => {
+          updateTab(bookId, {
+            bookmarks: Array.isArray(bData) ? bData : [],
+            highlights: Array.isArray(hData) ? hData : [],
+            notes: Array.isArray(nData) ? nData : [],
+          });
+        })
+        .catch(() => {});
+    }
+  }, [activeTab?.id, activeTab?.title, activeTab?.pageCount, isAuthenticated, updateTab]);
+
+  // Synchronize browser URL route /read/[id]?page=...&title=... with active tab
+  const lastSyncedTabIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!activeTab?.id || typeof window === "undefined") return;
+    const titleParam =
+      activeTab.title && activeTab.title !== "Loading Document..."
+        ? `&title=${encodeURIComponent(activeTab.title)}`
+        : "";
+    const targetUrl = `/read/${encodeURIComponent(activeTab.id)}?page=${activeTab.currentPage || 1}${titleParam}`;
+    const currentPath = window.location.pathname + window.location.search;
+
+    if (lastSyncedTabIdRef.current === null) {
+      lastSyncedTabIdRef.current = activeTab.id;
+      if (currentPath !== targetUrl) {
+        window.history.replaceState(null, "", targetUrl);
+      }
+    } else if (lastSyncedTabIdRef.current !== activeTab.id) {
+      // Switched tab or opened new book -> push to browser history so refresh & navigation works
+      lastSyncedTabIdRef.current = activeTab.id;
+      if (currentPath !== targetUrl) {
+        window.history.pushState(null, "", targetUrl);
+      }
+    } else if (currentPath !== targetUrl) {
+      // Page or title changed within same active tab -> replace URL query parameter
+      window.history.replaceState(null, "", targetUrl);
+    }
+  }, [activeTab?.id, activeTab?.title, activeTab?.currentPage]);
 
   const handlePrevPage = () => {
     if (!activeTab) return;
@@ -243,6 +323,11 @@ export default function ReaderWorkspace() {
     },
     []
   );
+
+  const handleAskAiSelection = useCallback((text: string) => {
+    setAiInitialPrompt(text.trim());
+    setAiDrawerOpen(true);
+  }, []);
 
   // Selection HUD Actions: Open dedicated AI Action popup above selection
   const handleExplainSelection = (text: string, page: number, pos?: { top: number; left: number }) => {
@@ -602,7 +687,14 @@ export default function ReaderWorkspace() {
                 currentPage={tab.currentPage || 1}
                 scale={tab.scale || 1.0}
                 fitWidth={Boolean(tab.fitWidth)}
-                onPageChange={handlePageChange}
+                isActive={isActive}
+                onPageChange={(p) => {
+                  if (isActive) {
+                    handlePageChange(p);
+                  } else {
+                    updateTab(tab.id, { currentPage: p });
+                  }
+                }}
                 onNumPagesChange={(n) => {
                   if (isActive) setNumPages(n);
                   updateTab(tab.id, { pageCount: n });

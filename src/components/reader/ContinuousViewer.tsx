@@ -26,7 +26,7 @@ const PDF_OPTIONS = {
   disableStream: false,
 };
 
-const RENDER_BUFFER = 2; // Active page ± 2 pages rendered with full canvas/text layer
+const RENDER_BUFFER = 4; // Active page ± 4 pages rendered with full canvas/text layer
 const EMPTY_BOOKMARKS: BookmarkData[] = [];
 const EMPTY_HIGHLIGHTS: HighlightData[] = [];
 const EMPTY_NOTES: NoteData[] = [];
@@ -38,6 +38,7 @@ interface ContinuousViewerProps {
   currentPage: number;
   scale: number;
   fitWidth: boolean;
+  isActive?: boolean;
   onPageChange: (page: number) => void;
   onNumPagesChange: (numPages: number) => void;
   onPdfDocLoaded: (doc: any) => void;
@@ -51,6 +52,7 @@ function ContinuousViewerComponent({
   currentPage,
   scale,
   fitWidth,
+  isActive = true,
   onPageChange,
   onNumPagesChange,
   onPdfDocLoaded,
@@ -58,6 +60,11 @@ function ContinuousViewerComponent({
 }: ContinuousViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pageEls = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  const onPageChangeRef = useRef(onPageChange);
+  useEffect(() => {
+    onPageChangeRef.current = onPageChange;
+  });
 
   const [numPages, setNumPages] = useState<number>(tab.pageCount || 0);
   const [renderCenter, setRenderCenter] = useState<number>(currentPage || tab.currentPage || 1);
@@ -70,7 +77,7 @@ function ContinuousViewerComponent({
     }
     return 1.5;
   });
-  const [isScrollingInternally, setIsScrollingInternally] = useState(false);
+  const isInternalScrollRef = useRef<boolean>(true);
 
   // Measure container dimensions
   useEffect(() => {
@@ -115,22 +122,171 @@ function ContinuousViewerComponent({
     }
   };
 
-  // Register page DOM elements for intersection observation & jumping
-  const registerPageElement = useCallback((pageNum: number, el: HTMLDivElement | null) => {
-    if (el) {
-      pageEls.current.set(pageNum, el);
-    } else {
-      pageEls.current.delete(pageNum);
+  const initialScrolledRef = useRef(false);
+  const targetPageRef = useRef<number>(currentPage || tab.currentPage || 1);
+
+  // Keep targetPageRef updated if currentPage changes from outside
+  useEffect(() => {
+    if (currentPage && currentPage > 0) {
+      targetPageRef.current = currentPage;
     }
-  }, []);
+  }, [currentPage]);
+
+  // Register page DOM elements for intersection observation & jumping
+  const registerPageElement = useCallback(
+    (pageNum: number, el: HTMLDivElement | null) => {
+      if (el) {
+        pageEls.current.set(pageNum, el);
+        // Instant fine-tune position if target page element mounts during initial load
+        if (
+          pageNum === targetPageRef.current &&
+          !initialScrolledRef.current &&
+          pageNum > 1
+        ) {
+          const container = containerRef.current;
+          if (container && el.offsetTop > 0) {
+            container.scrollTop = el.offsetTop;
+            setRenderCenter(pageNum);
+          }
+        }
+      } else {
+        pageEls.current.delete(pageNum);
+      }
+    },
+    []
+  );
+
+  // Smooth scroll or instant jump to a target page
+  const scrollToPage = useCallback(
+    (targetPage: number, smooth = true) => {
+      if (!containerRef.current || targetPage <= 0) return;
+      isInternalScrollRef.current = true;
+      setRenderCenter(targetPage);
+
+      const targetEl = pageEls.current.get(targetPage);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+      } else {
+        const estimatedHeight = pageWidth ? Math.round(pageWidth / aspectRatio) + 24 : 800;
+        const targetScrollTop = (targetPage - 1) * estimatedHeight;
+        containerRef.current.scrollTo({
+          top: targetScrollTop,
+          behavior: smooth ? "smooth" : "auto",
+        });
+      }
+
+      setTimeout(() => {
+        isInternalScrollRef.current = false;
+      }, smooth ? 800 : 350);
+    },
+    [aspectRatio, pageWidth]
+  );
+
+  // Initial scroll restore with RAF retry loop to ensure DOM layout has completed
+  useEffect(() => {
+    if (numPages === 0 || !isActive) return;
+    const initialTarget = targetPageRef.current;
+    if (initialTarget <= 1) {
+      initialScrolledRef.current = true;
+      isInternalScrollRef.current = false;
+      return;
+    }
+
+    if (!initialScrolledRef.current) {
+      isInternalScrollRef.current = true;
+      setRenderCenter(initialTarget);
+
+      let rafId: number;
+      let attempts = 0;
+      let unlockTimer: NodeJS.Timeout | null = null;
+
+      const attemptScroll = () => {
+        const container = containerRef.current;
+        const targetEl = pageEls.current.get(initialTarget);
+        const estimatedHeight = pageWidth ? Math.round(pageWidth / aspectRatio) + 24 : 800;
+        const targetScrollTop =
+          targetEl && targetEl.offsetTop > 0
+            ? targetEl.offsetTop
+            : (initialTarget - 1) * estimatedHeight;
+
+        if (container && isActive) {
+          if (targetEl && targetEl.offsetTop > 0) {
+            container.scrollTop = targetEl.offsetTop;
+            if (unlockTimer) clearTimeout(unlockTimer);
+            unlockTimer = setTimeout(() => {
+              initialScrolledRef.current = true;
+              isInternalScrollRef.current = false;
+            }, 350);
+            return;
+          }
+
+          if (container.scrollHeight > estimatedHeight * 1.5) {
+            container.scrollTop = targetScrollTop;
+            if (container.scrollTop > 0) {
+              if (unlockTimer) clearTimeout(unlockTimer);
+              unlockTimer = setTimeout(() => {
+                initialScrolledRef.current = true;
+                isInternalScrollRef.current = false;
+              }, 350);
+              return;
+            }
+          }
+        }
+
+        attempts++;
+        if (attempts < 60) {
+          rafId = requestAnimationFrame(attemptScroll);
+        } else {
+          // Fallback: force scroll to target position and unlock
+          if (container) {
+            container.scrollTop = targetScrollTop;
+          }
+          if (unlockTimer) clearTimeout(unlockTimer);
+          unlockTimer = setTimeout(() => {
+            initialScrolledRef.current = true;
+            isInternalScrollRef.current = false;
+          }, 350);
+        }
+      };
+
+      rafId = requestAnimationFrame(attemptScroll);
+      return () => {
+        cancelAnimationFrame(rafId);
+        if (unlockTimer) clearTimeout(unlockTimer);
+      };
+    }
+  }, [numPages, pageWidth, aspectRatio, isActive]);
+
+  // Jump to currentPage when tab becomes active or currentPage changes from outside
+  useEffect(() => {
+    if (isActive && currentPage && numPages > 0 && initialScrolledRef.current && currentPage !== renderCenter) {
+      scrollToPage(currentPage, true);
+    }
+  }, [isActive, currentPage, numPages, renderCenter, scrollToPage]);
+
+  // Scroll listener to keep renderCenter tightly synced with viewport
+  const handleScroll = useCallback(() => {
+    if (!isActive || isInternalScrollRef.current || !initialScrolledRef.current) return;
+    const container = containerRef.current;
+    if (!container || numPages === 0) return;
+
+    const scrollTop = container.scrollTop;
+    const estimatedHeight = pageWidth ? Math.round(pageWidth / aspectRatio) + 24 : 800;
+    const visiblePage = Math.max(1, Math.min(numPages, Math.round(scrollTop / estimatedHeight) + 1));
+
+    if (visiblePage !== renderCenter) {
+      setRenderCenter(visiblePage);
+      onPageChangeRef.current(visiblePage);
+    }
+  }, [isActive, numPages, pageWidth, aspectRatio, renderCenter]);
 
   // IntersectionObserver to continuously track which page is in viewport
   useEffect(() => {
-    if (numPages === 0 || !containerRef.current) return;
+    if (numPages === 0 || !containerRef.current || !isActive) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (isScrollingInternally) return;
+        if (!isActive || isInternalScrollRef.current || !initialScrolledRef.current) return;
 
         let mostVisiblePage = -1;
         let maxRatio = 0;
@@ -145,7 +301,7 @@ function ContinuousViewerComponent({
 
         if (mostVisiblePage > 0 && maxRatio > 0.15) {
           setRenderCenter(mostVisiblePage);
-          onPageChange(mostVisiblePage);
+          onPageChangeRef.current(mostVisiblePage);
         }
       },
       {
@@ -158,28 +314,7 @@ function ContinuousViewerComponent({
     pageEls.current.forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
-  }, [numPages, isScrollingInternally, onPageChange]);
-
-  // Smooth scroll to a target page when requested (e.g. from toolbar / TOC / AI citations)
-  const scrollToPage = useCallback(
-    (targetPage: number) => {
-      const targetEl = pageEls.current.get(targetPage);
-      if (targetEl && containerRef.current) {
-        setIsScrollingInternally(true);
-        setRenderCenter(targetPage);
-        targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-        setTimeout(() => setIsScrollingInternally(false), 800);
-      }
-    },
-    []
-  );
-
-  // Jump to currentPage on initial mount or when currentPage updates from outside
-  useEffect(() => {
-    if (currentPage && numPages > 0 && currentPage !== renderCenter) {
-      scrollToPage(currentPage);
-    }
-  }, [currentPage, numPages, renderCenter, scrollToPage]);
+  }, [isActive, numPages]);
 
   // Robust Text selection handler for floating HUD on Desktop & Mobile
   const handleSelectionCheck = useCallback(() => {
@@ -286,6 +421,7 @@ function ContinuousViewerComponent({
   return (
     <div
       ref={containerRef}
+      onScroll={handleScroll}
       className={`relative flex-1 h-full w-full overflow-y-auto overflow-x-hidden select-text transition-colors duration-200 ${themeStyle}`}
     >
       <div className="mx-auto flex flex-col items-center py-4 sm:py-6 px-1.5 sm:px-3 pb-24 md:pb-6 min-h-full">

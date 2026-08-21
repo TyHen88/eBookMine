@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authHelpers";
-import { saveProgress } from "@/lib/readingService";
+import { saveProgress, getProgress } from "@/lib/readingService";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/reading/progress?bookId=... — retrieve saved reading position.
+ */
+export async function GET(req: NextRequest) {
+  const { user, response } = await requireUser();
+  if (response) return response;
+
+  const { searchParams } = new URL(req.url);
+  const bookId = searchParams.get("bookId");
+  if (!bookId) {
+    return NextResponse.json({ error: "Missing bookId" }, { status: 400 });
+  }
+
+  const progress = await getProgress(user.id, bookId);
+  return NextResponse.json({ progress });
+}
 
 /**
  * POST /api/reading/progress — save reading position (currentPage, totalPages).

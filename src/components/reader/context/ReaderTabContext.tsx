@@ -71,15 +71,19 @@ function getCurrentAppTheme(): "light" | "dark" | "sepia" {
   return "light";
 }
 
-function createInitialTab(id: string): DocumentTab {
+function createInitialTab(
+  id: string,
+  initialPage?: number,
+  initialTitle?: string
+): DocumentTab {
   return {
     id,
-    title: "Loading Document...",
+    title: initialTitle || "Loading Document...",
     author: "Unknown",
     fileName: `${id}.pdf`,
     cover: null,
     pageCount: 0,
-    currentPage: 1,
+    currentPage: initialPage && initialPage > 0 ? initialPage : 1,
     scrollOffset: 0,
     scale: 1.0,
     fitWidth: true,
@@ -94,14 +98,18 @@ function createInitialTab(id: string): DocumentTab {
 export function ReaderTabProvider({
   children,
   initialBookId,
+  initialPage,
+  initialTitle,
 }: {
   children: React.ReactNode;
   initialBookId?: string;
+  initialPage?: number;
+  initialTitle?: string;
 }) {
   // Lazy state initialization to read from localStorage without cascading effect re-renders
   const [tabs, setTabs] = useState<DocumentTab[]>(() => {
     if (typeof window === "undefined") {
-      return initialBookId ? [createInitialTab(initialBookId)] : [];
+      return initialBookId ? [createInitialTab(initialBookId, initialPage, initialTitle)] : [];
     }
 
     try {
@@ -109,12 +117,22 @@ export function ReaderTabProvider({
       let parsed: DocumentTab[] = raw ? JSON.parse(raw) : [];
       if (!Array.isArray(parsed)) parsed = [];
 
-      if (initialBookId && !parsed.some((t) => t.id === initialBookId)) {
-        parsed.push(createInitialTab(initialBookId));
+      if (initialBookId) {
+        const existing = parsed.find((t) => t.id === initialBookId);
+        if (!existing) {
+          parsed.push(createInitialTab(initialBookId, initialPage, initialTitle));
+        } else {
+          if (initialPage && initialPage > 0) {
+            existing.currentPage = initialPage;
+          }
+          if (initialTitle && (!existing.title || existing.title === "Loading Document...")) {
+            existing.title = initialTitle;
+          }
+        }
       }
       return parsed;
     } catch {
-      return initialBookId ? [createInitialTab(initialBookId)] : [];
+      return initialBookId ? [createInitialTab(initialBookId, initialPage, initialTitle)] : [];
     }
   });
 

@@ -98,6 +98,33 @@ export async function saveProgress(
 }
 
 /**
+ * Fetch user reading progress for a specific book.
+ */
+export async function getProgress(
+  userId: string,
+  bookId: string
+): Promise<ProgressData | null> {
+  const book = await resolveBook(bookId);
+  if (!book) return null;
+
+  const result = await prisma.readingProgress.findUnique({
+    where: {
+      userId_bookId: { userId, bookId: book.id },
+    },
+  });
+
+  if (!result) return null;
+
+  return {
+    currentPage: result.currentPage,
+    totalPages: result.totalPages,
+    progressPercentage: result.progressPercentage,
+    lastReadAt: result.lastReadAt.toISOString(),
+    completedAt: result.completedAt?.toISOString() || null,
+  };
+}
+
+/**
  * Fetch "Continue Reading" shelf items for a user.
  */
 export async function getContinueReading(

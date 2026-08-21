@@ -1,11 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renameFile } from "@/lib/drive";
-import { updateDbBook, deleteDbBook } from "@/lib/booksService";
-import { requireAuth } from "@/lib/authHelpers";
+import { updateDbBook, deleteDbBook, getDbBookById } from "@/lib/booksService";
+import { requireAuth, getSession } from "@/lib/authHelpers";
 import { bookUpdateSchema } from "@/lib/validation";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/books/[id] — fetch single book metadata including reading progress.
+ */
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  try {
+    const session = await getSession();
+    const userId = session?.user?.id;
+    const book = await getDbBookById(id, userId);
+    if (!book) {
+      return NextResponse.json({ error: "Book not found" }, { status: 404 });
+    }
+    return NextResponse.json({ book });
+  } catch (err) {
+    logger.error("GET /api/books/[id] failed", err, { bookId: id });
+    return NextResponse.json({ error: "Failed to fetch book" }, { status: 500 });
+  }
+}
 
 /**
  * PATCH /api/books/[id] — update mutable metadata in PostgreSQL.

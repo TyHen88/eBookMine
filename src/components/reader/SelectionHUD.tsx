@@ -15,6 +15,7 @@ interface SelectionHUDProps {
   position: { top: number; left: number };
   page: number;
   onClose: () => void;
+  onAskAi: (text: string, page: number) => void;
   onExplain: (text: string, page: number, position?: { top: number; left: number }) => void;
   onSimplify: (text: string, page: number, position?: { top: number; left: number }) => void;
   onTranslate: (text: string, page: number) => void;
@@ -36,6 +37,7 @@ export default function SelectionHUD({
   position,
   page,
   onClose,
+  onAskAi,
   onExplain,
   onSimplify,
   onTranslate,
@@ -120,6 +122,20 @@ export default function SelectionHUD({
       }}
       className="fixed z-50 flex max-w-[96vw] items-center gap-0.5 sm:gap-1 overflow-x-auto rounded-2xl border border-slate-700/80 bg-slate-900/95 p-1 sm:p-1.5 text-white shadow-2xl backdrop-blur-xl animate-scaleUp select-none scrollbar-none"
     >
+      {/* Ask AI in Drawer */}
+      <button
+        type="button"
+        onClick={() => {
+          onAskAi(selectedText, page);
+          onClose();
+        }}
+        className="flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 px-2 py-1 text-[11px] sm:px-2.5 sm:py-1.5 sm:text-xs font-bold text-white shadow-sm shadow-brand-500/30 hover:brightness-110 active:scale-95 transition"
+        title="Open in AI Assistant to ask question or edit prompt"
+      >
+        <SparklesIcon size={13} />
+        <span>Ask AI</span>
+      </button>
+
       {/* Explain */}
       <button
         type="button"
@@ -130,7 +146,6 @@ export default function SelectionHUD({
         className="flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-xl px-2 py-1 text-[11px] sm:px-2.5 sm:py-1.5 sm:text-xs font-bold text-amber-300 hover:bg-white/10 active:scale-95 transition"
         title="Explain with AI"
       >
-        <SparklesIcon size={13} />
         <span>Explain</span>
       </button>
 

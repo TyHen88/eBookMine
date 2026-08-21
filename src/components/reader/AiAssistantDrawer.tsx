@@ -114,6 +114,7 @@ export default function AiAssistantDrawer({
   const [inputPrompt, setInputPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const messages = useMemo(() => {
     return [...(tab.chatHistory || []), ...localPending];
@@ -126,6 +127,20 @@ export default function AiAssistantDrawer({
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
+
+  // Auto-resize textarea height as content changes
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      const nextHeight = Math.min(Math.max(textarea.scrollHeight, 38), 160);
+      textarea.style.height = `${nextHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [inputPrompt, adjustTextareaHeight]);
 
   const sendMessage = useCallback(
     async (promptText: string) => {
@@ -141,6 +156,9 @@ export default function AiAssistantDrawer({
 
       setLocalPending([userMsg]);
       setInputPrompt("");
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "38px";
+      }
       setLoading(true);
 
       try {
@@ -215,15 +233,23 @@ export default function AiAssistantDrawer({
     [currentPage, loading, onUpdateChatHistory, tab.author, tab.chatHistory, tab.id, tab.title]
   );
 
+  // When initialPrompt is passed (e.g. from selecting text), fill the input box and DO NOT auto-send
   useEffect(() => {
     if (initialPrompt && initialPrompt.trim() && isOpen) {
-      const timer = setTimeout(() => {
-        sendMessage(initialPrompt);
-        onClearInitialPrompt?.();
-      }, 0);
-      return () => clearTimeout(timer);
+      setInputPrompt(initialPrompt);
+      onClearInitialPrompt?.();
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(
+            textareaRef.current.value.length,
+            textareaRef.current.value.length
+          );
+          adjustTextareaHeight();
+        }
+      }, 50);
     }
-  }, [initialPrompt, isOpen, onClearInitialPrompt, sendMessage]);
+  }, [initialPrompt, isOpen, onClearInitialPrompt, adjustTextareaHeight]);
 
   const handleClearHistory = () => {
     setLocalPending([]);
@@ -361,25 +387,53 @@ export default function AiAssistantDrawer({
       </div>
 
       {/* Input Box */}
-      <div className="border-t border-slate-100 bg-slate-50/60 p-2.5 dark:border-slate-800 dark:bg-slate-900/80">
+      <div className="border-t border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/80">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             sendMessage(inputPrompt);
           }}
-          className="flex items-center gap-1.5"
+          className="flex items-end gap-1.5"
         >
-          <input
-            type="text"
-            value={inputPrompt}
-            onChange={(e) => setInputPrompt(e.target.value)}
-            placeholder={`Ask about Page ${currentPage}...`}
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-          />
+          <div className="relative flex-1 flex items-center">
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={inputPrompt}
+              onChange={(e) => setInputPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (inputPrompt.trim() && !loading) {
+                    sendMessage(inputPrompt);
+                  }
+                }
+              }}
+              placeholder={`Ask about Page ${currentPage}...`}
+              className="w-full resize-none min-h-[38px] max-h-40 rounded-xl border border-slate-200 bg-white px-3 py-2 pr-8 text-xs text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white leading-relaxed overflow-y-auto"
+            />
+            {inputPrompt.trim() && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInputPrompt("");
+                  if (textareaRef.current) {
+                    textareaRef.current.style.height = "38px";
+                    textareaRef.current.focus();
+                  }
+                }}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+                title="Clear text"
+              >
+                <XIcon size={12} />
+              </button>
+            )}
+          </div>
           <button
             type="submit"
             disabled={!inputPrompt.trim() || loading}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-500/25 hover:bg-brand-700 disabled:opacity-40 transition"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-500/25 hover:bg-brand-700 disabled:opacity-40 transition active:scale-95 mb-0.5"
+            title="Send to AI Assistant"
           >
             <SparklesIcon size={14} />
           </button>
