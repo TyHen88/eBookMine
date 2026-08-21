@@ -11,7 +11,7 @@ import { Document } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "@/lib/pdf"; // Worker initialized
-import VirtualPage from "./VirtualPage";
+import VirtualPage, { SelectedAreaBox } from "./VirtualPage";
 import { DocumentTab } from "./context/ReaderTabContext";
 import { BookLoader, Button } from "@/components/ui";
 import { AlertTriangleIcon } from "@/components/ui/icons";
@@ -39,6 +39,9 @@ interface ContinuousViewerProps {
   scale: number;
   fitWidth: boolean;
   isActive?: boolean;
+  selectedArea?: SelectedAreaBox | null;
+  onAskAiArea?: (text: string, page: number) => void;
+  onDismissArea?: () => void;
   onPageChange: (page: number) => void;
   onNumPagesChange: (numPages: number) => void;
   onPdfDocLoaded: (doc: any) => void;
@@ -53,6 +56,9 @@ function ContinuousViewerComponent({
   scale,
   fitWidth,
   isActive = true,
+  selectedArea,
+  onAskAiArea,
+  onDismissArea,
   onPageChange,
   onNumPagesChange,
   onPdfDocLoaded,
@@ -482,6 +488,9 @@ function ContinuousViewerComponent({
                       bookmarks={bookmarksForPage}
                       highlights={highlightsForPage}
                       notes={notesForPage}
+                      selectedArea={selectedArea}
+                      onAskAiArea={onAskAiArea}
+                      onDismissArea={onDismissArea}
                       onPageElementRegister={registerPageElement}
                     />
                   );

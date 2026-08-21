@@ -4,6 +4,17 @@ import React, { memo, useRef, useEffect } from "react";
 import { Page } from "react-pdf";
 import { HighlightData, BookmarkData, NoteData } from "@/lib/readingService";
 import { Spinner } from "@/components/ui";
+import { SparklesIcon, XIcon } from "@/components/ui/icons";
+
+export interface SelectedAreaBox {
+  page: number;
+  relX: number;
+  relY: number;
+  relW: number;
+  relH: number;
+  text: string;
+  isAiOpened?: boolean;
+}
 
 function isAbortError(err: any): boolean {
   if (!err) return false;
@@ -35,6 +46,9 @@ interface VirtualPageProps {
   highlights?: HighlightData[];
   bookmarks?: BookmarkData[];
   notes?: NoteData[];
+  selectedArea?: SelectedAreaBox | null;
+  onAskAiArea?: (text: string, page: number) => void;
+  onDismissArea?: () => void;
   onGetTextSuccess?: (pageNumber: number, hasText: boolean) => void;
   onPageRenderSuccess?: (pageNumber: number) => void;
   onPageElementRegister?: (pageNumber: number, el: HTMLDivElement | null) => void;
@@ -51,6 +65,25 @@ function areEqual(prev: VirtualPageProps, next: VirtualPageProps): boolean {
     prev.onPageElementRegister !== next.onPageElementRegister
   ) {
     return false;
+  }
+
+  // Check selectedArea change on this page
+  const prevArea = prev.selectedArea;
+  const nextArea = next.selectedArea;
+  const areaWasOnThisPage = prevArea?.page === prev.pageNumber;
+  const areaIsOnThisPage = nextArea?.page === next.pageNumber;
+  if (areaWasOnThisPage !== areaIsOnThisPage) return false;
+  if (areaIsOnThisPage && prevArea && nextArea) {
+    if (
+      prevArea.relX !== nextArea.relX ||
+      prevArea.relY !== nextArea.relY ||
+      prevArea.relW !== nextArea.relW ||
+      prevArea.relH !== nextArea.relH ||
+      prevArea.isAiOpened !== nextArea.isAiOpened ||
+      prevArea.text !== nextArea.text
+    ) {
+      return false;
+    }
   }
 
   // Fast length check for bookmarks
@@ -110,6 +143,9 @@ const VirtualPage = memo(function VirtualPage({
   highlights = [],
   bookmarks = [],
   notes = [],
+  selectedArea,
+  onAskAiArea,
+  onDismissArea,
   onGetTextSuccess,
   onPageRenderSuccess,
   onPageElementRegister,
@@ -372,6 +408,85 @@ const VirtualPage = memo(function VirtualPage({
           </div>
         )}
       </div>
+
+      {/* Page-Locked Selected Area Box Overlay & Mini Ask AI HUD */}
+      {selectedArea && selectedArea.page === pageNumber && (
+        <>
+          <div
+            style={{
+              position: "absolute",
+              left: `${selectedArea.relX}%`,
+              top: `${selectedArea.relY}%`,
+              width: `${selectedArea.relW}%`,
+              height: `${selectedArea.relH}%`,
+            }}
+            className="z-30 border-2 border-brand-500 bg-brand-500/15 shadow-2xl ring-2 ring-brand-400/40 rounded-lg animate-scaleUp pointer-events-none"
+          >
+            {/* Corner Handles */}
+            <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+            <div className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+            <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+            <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+
+            {/* Dimensions Badge */}
+            <div className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
+              <span>Selected Area</span>
+            </div>
+
+            {/* Close button on box when AI is already open */}
+            {selectedArea.isAiOpened && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDismissArea?.();
+                }}
+                className="pointer-events-auto absolute -top-3 -right-3 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg ring-2 ring-white hover:bg-red-600 transition active:scale-95"
+                title="Remove selection box"
+              >
+                <XIcon size={12} />
+              </button>
+            )}
+          </div>
+
+          {/* Mini Ask AI HUD (only before clicking Ask AI) */}
+          {!selectedArea.isAiOpened && (
+            <div
+              style={{
+                position: "absolute",
+                left: `${selectedArea.relX + selectedArea.relW / 2}%`,
+                top: `${Math.max(0, selectedArea.relY)}%`,
+                transform: "translate(-50%, -120%)",
+              }}
+              className="z-40 pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-slate-700/90 bg-slate-900/95 p-1.5 text-white shadow-2xl backdrop-blur-xl animate-scaleUp select-none"
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAskAiArea?.(selectedArea.text, selectedArea.page);
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-md shadow-brand-500/30 hover:brightness-110 active:scale-95 transition"
+                title="Open in AI Assistant to analyze this selected area"
+              >
+                <SparklesIcon size={14} className="text-amber-300" />
+                <span>Ask AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDismissArea?.();
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition active:scale-95"
+                title="Dismiss Selection Box"
+              >
+                <XIcon size={14} />
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       {isActive ? (
         <div className="relative w-full flex justify-center">

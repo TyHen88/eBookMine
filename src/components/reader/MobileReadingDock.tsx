@@ -10,6 +10,7 @@ import {
   SearchIcon,
   BookmarkIcon,
   FileTextIcon,
+  MarqueeIcon,
 } from "@/components/ui/icons";
 import { DocumentTab } from "./context/ReaderTabContext";
 
@@ -22,6 +23,7 @@ interface MobileReadingDockProps {
   sidebarOpen: boolean;
   aiDrawerOpen: boolean;
   isBookmarked?: boolean;
+  isAreaSelectMode?: boolean;
   onPrevPage: () => void;
   onNextPage: () => void;
   onJumpPageClick: () => void;
@@ -29,6 +31,7 @@ interface MobileReadingDockProps {
   onToggleAiDrawer: () => void;
   onOpenTabsSheet: () => void;
   onToggleSearch: () => void;
+  onToggleAreaSelect?: () => void;
   onToggleBookmark?: () => void;
   onAddNote?: () => void;
 }
@@ -42,6 +45,7 @@ export default function MobileReadingDock({
   sidebarOpen,
   aiDrawerOpen,
   isBookmarked,
+  isAreaSelectMode,
   onPrevPage,
   onNextPage,
   onJumpPageClick,
@@ -49,6 +53,7 @@ export default function MobileReadingDock({
   onToggleAiDrawer,
   onOpenTabsSheet,
   onToggleSearch,
+  onToggleAreaSelect,
   onToggleBookmark,
   onAddNote,
 }: MobileReadingDockProps) {
@@ -101,6 +106,23 @@ export default function MobileReadingDock({
 
         {/* Quick Tools */}
         <div className="flex items-center gap-1 shrink-0">
+          {/* Area Selection Tool */}
+          {onToggleAreaSelect && (
+            <button
+              type="button"
+              onClick={onToggleAreaSelect}
+              className={`flex h-8 w-8 items-center justify-center rounded-xl transition active:scale-95 ${
+                isAreaSelectMode
+                  ? "bg-brand-600 text-white shadow-sm ring-1 ring-brand-400"
+                  : "text-slate-600 hover:bg-black/5 dark:text-slate-300 dark:hover:bg-white/10"
+              }`}
+              title={isAreaSelectMode ? "Cancel Area Select" : "Area Selection Tool"}
+              aria-label="Area Selection Tool"
+            >
+              <MarqueeIcon size={15} />
+            </button>
+          )}
+
           {/* TOC / Sidebar Toggle */}
           <button
             type="button"

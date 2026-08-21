@@ -16,6 +16,7 @@ import {
   ChevronRightIcon,
   BookmarkIcon,
   FileTextIcon,
+  MarqueeIcon,
 } from "@/components/ui/icons";
 import { DocumentTab } from "./context/ReaderTabContext";
 
@@ -31,6 +32,7 @@ interface ReaderToolbarProps {
   aiDrawerOpen: boolean;
   searchOpen: boolean;
   isBookmarked?: boolean;
+  isAreaSelectMode?: boolean;
   onPageChange: (page: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -39,6 +41,7 @@ interface ReaderToolbarProps {
   onToggleSidebar: () => void;
   onToggleAiDrawer: () => void;
   onToggleSearch: () => void;
+  onToggleAreaSelect?: () => void;
   onToggleFullscreen: () => void;
   onToggleBookmark?: () => void;
   onAddNote?: () => void;
@@ -58,6 +61,7 @@ export default function ReaderToolbar({
   aiDrawerOpen,
   searchOpen,
   isBookmarked,
+  isAreaSelectMode,
   onPageChange,
   onZoomIn,
   onZoomOut,
@@ -66,6 +70,7 @@ export default function ReaderToolbar({
   onToggleSidebar,
   onToggleAiDrawer,
   onToggleSearch,
+  onToggleAreaSelect,
   onToggleFullscreen,
   onToggleBookmark,
   onAddNote,
@@ -242,6 +247,24 @@ export default function ReaderToolbar({
 
       {/* Right Section: Tools, Search, Themes & AI Companion */}
       <div className="flex items-center gap-1 shrink-0">
+        {/* Area Selection Tool (Select Area & Ask AI) */}
+        {onToggleAreaSelect && (
+          <button
+            type="button"
+            onClick={onToggleAreaSelect}
+            className={`flex h-8 items-center gap-1 sm:gap-1.5 rounded-xl px-2 sm:px-2.5 text-xs font-bold transition active:scale-95 ${
+              isAreaSelectMode
+                ? "bg-brand-600 text-white shadow-sm shadow-brand-500/30 ring-2 ring-brand-400/50"
+                : "text-slate-600 hover:bg-black/5 dark:text-slate-300 dark:hover:bg-white/10"
+            }`}
+            title={isAreaSelectMode ? "Cancel Area Selection" : "Area Selection Tool (Select & Ask AI)"}
+            aria-label="Area Selection Tool"
+          >
+            <MarqueeIcon size={16} />
+            <span className="hidden xl:inline">Select Area</span>
+          </button>
+        )}
+
         {/* Desktop-only Bookmark Button */}
         <button
           type="button"

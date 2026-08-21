@@ -624,7 +624,7 @@ export default function GoogleTranslateModal({
               <div className={`rounded-2xl border ${bgPanel} p-4 flex items-center justify-center space-x-2.5`}>
                 <div className="h-4 w-4 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
                 <span className="text-xs font-semibold text-slate-500 animate-pulse">
-                  AI Tutor generating bilingual explanation in English and {targetLangObj?.name || "target language"}...
+                  AI Assistant generating bilingual explanation in English and {targetLangObj?.name || "target language"}...
                 </span>
               </div>
             ) : targetExp ? (

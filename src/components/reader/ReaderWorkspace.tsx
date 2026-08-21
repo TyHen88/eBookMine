@@ -17,8 +17,9 @@ import AiActionModal from "./AiActionModal";
 import GoogleTranslateModal from "@/components/GoogleTranslateModal";
 import { NoteData } from "@/lib/readingService";
 import { useToast } from "@/components/ui/Toast";
-import { BookOpenIcon, PlusIcon } from "@/components/ui/icons";
+import { BookOpenIcon, PlusIcon, MarqueeIcon, SparklesIcon, XIcon } from "@/components/ui/icons";
 import { Button } from "@/components/ui";
+import { SelectedAreaBox } from "./VirtualPage";
 
 export default function ReaderWorkspace() {
   const {
@@ -40,6 +41,17 @@ export default function ReaderWorkspace() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState(0);
+
+  // Area Selection Tool State
+  const [isAreaSelectMode, setIsAreaSelectMode] = useState(false);
+  const [areaBox, setAreaBox] = useState<{
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    isDragging: boolean;
+  } | null>(null);
+  const [selectedAreaBox, setSelectedAreaBox] = useState<SelectedAreaBox | null>(null);
 
   // Text selection & HUD state
   const [selectedText, setSelectedText] = useState("");
@@ -313,6 +325,191 @@ export default function ReaderWorkspace() {
       document.exitFullscreen().catch(() => {});
     }
   };
+
+  // Sync cursor class across document when area selection mode is active
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      if (isAreaSelectMode) {
+        document.body.classList.add("area-select-active");
+      } else {
+        document.body.classList.remove("area-select-active");
+      }
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.body.classList.remove("area-select-active");
+      }
+    };
+  }, [isAreaSelectMode]);
+
+  const extractTextFromBoxRect = (minX: number, minY: number, maxX: number, maxY: number): string => {
+    const textNodes = document.querySelectorAll(
+      ".react-pdf__Page__textLayer span, .react-pdf__Page__textContent span, .textLayer span, .react-pdf__Page__textLayer *, .textLayer *"
+    );
+    const matched: { text: string; top: number; left: number }[] = [];
+    const seenTexts = new Set<string>();
+
+    textNodes.forEach((node) => {
+      if (node.children.length > 0) return;
+      const txt = node.textContent?.trim();
+      if (!txt) return;
+
+      const rect = node.getBoundingClientRect();
+      if (
+        rect.right >= minX - 10 &&
+        rect.left <= maxX + 10 &&
+        rect.bottom >= minY - 10 &&
+        rect.top <= maxY + 10
+      ) {
+        const key = `${Math.round(rect.top)}-${Math.round(rect.left)}-${txt}`;
+        if (!seenTexts.has(key)) {
+          seenTexts.add(key);
+          matched.push({ text: txt, top: rect.top, left: rect.left });
+        }
+      }
+    });
+
+    if (matched.length > 0) {
+      matched.sort((a, b) => (Math.abs(a.top - b.top) < 8 ? a.left - b.left : a.top - b.top));
+      const resultStr = matched.map((m) => m.text).join(" ");
+      if (resultStr.trim()) return resultStr.trim();
+    }
+
+    return "";
+  };
+
+  const handleAreaPointerDown = (e: React.PointerEvent) => {
+    if (!isAreaSelectMode) return;
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
+    try {
+      (e.currentTarget as HTMLElement)?.setPointerCapture?.(e.pointerId);
+    } catch {}
+    setSelectedAreaBox(null);
+    setAreaBox({
+      startX: e.clientX,
+      startY: e.clientY,
+      endX: e.clientX,
+      endY: e.clientY,
+      isDragging: true,
+    });
+  };
+
+  const handleAreaPointerMove = (e: React.PointerEvent) => {
+    if (!isAreaSelectMode || !areaBox?.isDragging) return;
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
+    setAreaBox((prev) =>
+      prev ? { ...prev, endX: e.clientX, endY: e.clientY } : null
+    );
+  };
+
+  const handleAreaPointerUp = async (e: React.PointerEvent) => {
+    try {
+      (e.currentTarget as HTMLElement)?.releasePointerCapture?.(e.pointerId);
+    } catch {}
+
+    if (!isAreaSelectMode || !areaBox?.isDragging) return;
+
+    const minX = Math.min(areaBox.startX, e.clientX);
+    const maxX = Math.max(areaBox.startX, e.clientX);
+    const minY = Math.min(areaBox.startY, e.clientY);
+    const maxY = Math.max(areaBox.startY, e.clientY);
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    setIsAreaSelectMode(false);
+    setAreaBox(null);
+
+    if (width > 15 && height > 15) {
+      let textToUse = extractTextFromBoxRect(minX, minY, maxX, maxY);
+
+      // Find the page element under the selection
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const pageElements = Array.from(document.querySelectorAll<HTMLElement>("[data-page-number]"));
+      let targetPageEl: HTMLElement | null = null;
+      let targetPageNum = activeTab?.currentPage || 1;
+
+      for (const el of pageElements) {
+        const rect = el.getBoundingClientRect();
+        if (
+          centerY >= rect.top &&
+          centerY <= rect.bottom &&
+          centerX >= rect.left &&
+          centerX <= rect.right
+        ) {
+          targetPageEl = el;
+          targetPageNum = parseInt(el.getAttribute("data-page-number") || "1", 10);
+          break;
+        }
+      }
+
+      if (!targetPageEl) {
+        for (const el of pageElements) {
+          const rect = el.getBoundingClientRect();
+          if (maxY >= rect.top && minY <= rect.bottom) {
+            targetPageEl = el;
+            targetPageNum = parseInt(el.getAttribute("data-page-number") || "1", 10);
+            break;
+          }
+        }
+      }
+
+      if (!textToUse && pdfDoc && activeTab) {
+        try {
+          const pdfPage = await pdfDoc.getPage(targetPageNum);
+          const content = await pdfPage.getTextContent();
+          const pageStr = content.items.map((i: any) => i.str).join(" ").trim();
+          if (pageStr) {
+            textToUse = pageStr.substring(0, 400);
+          }
+        } catch {}
+      }
+
+      if (!textToUse || !textToUse.trim()) {
+        textToUse = `Selected Region on Page ${targetPageNum}`;
+      }
+
+      try {
+        window.getSelection()?.removeAllRanges();
+      } catch {}
+
+      if (targetPageEl) {
+        const pageRect = targetPageEl.getBoundingClientRect();
+        const relX = Math.max(0, Math.min(100, ((minX - pageRect.left) / pageRect.width) * 100));
+        const relY = Math.max(0, Math.min(100, ((minY - pageRect.top) / pageRect.height) * 100));
+        const relW = Math.max(2, Math.min(100, ((maxX - minX) / pageRect.width) * 100));
+        const relH = Math.max(2, Math.min(100, ((maxY - minY) / pageRect.height) * 100));
+
+        // Retain persistent highlight of the selected area locked to the exact page
+        setSelectedAreaBox({
+          page: targetPageNum,
+          relX,
+          relY,
+          relW,
+          relH,
+          text: textToUse,
+          isAiOpened: false,
+        });
+      }
+    } else {
+      setSelectedAreaBox(null);
+    }
+  };
+
+  const handleAskAiArea = useCallback((text: string, page: number) => {
+    setSelectedAreaBox((prev) => (prev ? { ...prev, isAiOpened: true } : null));
+    setAiInitialPrompt(text.trim());
+    setAiDrawerOpen(true);
+  }, []);
+
+  const handleDismissArea = useCallback(() => {
+    setSelectedAreaBox(null);
+  }, []);
 
   // Text selection handler
   const handleTextSelected = useCallback(
@@ -635,6 +832,7 @@ export default function ReaderWorkspace() {
         aiDrawerOpen={aiDrawerOpen}
         searchOpen={searchOpen}
         isBookmarked={isCurrentPageBookmarked}
+        isAreaSelectMode={isAreaSelectMode}
         onPageChange={handlePageChange}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
@@ -643,6 +841,10 @@ export default function ReaderWorkspace() {
         onToggleSidebar={() => setSidebarOpen((p) => !p)}
         onToggleAiDrawer={() => setAiDrawerOpen((p) => !p)}
         onToggleSearch={() => setSearchOpen((p) => !p)}
+        onToggleAreaSelect={() => {
+          setIsAreaSelectMode((p) => !p);
+          if (areaBox) setAreaBox(null);
+        }}
         onToggleFullscreen={handleFullscreen}
         onToggleBookmark={() => handleToggleBookmark(activeTab.currentPage || 1)}
         onAddNote={() => handleOpenAddNote(undefined, activeTab.currentPage || 1)}
@@ -651,7 +853,75 @@ export default function ReaderWorkspace() {
       />
 
       {/* 3. Main Split Workspace */}
-      <div className="relative flex flex-1 h-[calc(100vh-48px)] md:h-[calc(100vh-88px)] w-full overflow-hidden">
+      <div
+        onPointerDown={handleAreaPointerDown}
+        onPointerMove={handleAreaPointerMove}
+        onPointerUp={handleAreaPointerUp}
+        onPointerCancel={() => {
+          if (isAreaSelectMode) setAreaBox(null);
+        }}
+        style={{
+          touchAction: isAreaSelectMode ? "none" : undefined,
+        }}
+        className={`relative flex flex-1 h-[calc(100vh-48px)] md:h-[calc(100vh-88px)] w-full overflow-hidden ${
+          isAreaSelectMode ? "cursor-crosshair select-none" : ""
+        }`}
+      >
+        {/* Active Area Select Mode Floating Banner Indicator */}
+        {isAreaSelectMode && (
+          <div className="fixed top-14 sm:top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 whitespace-nowrap rounded-full border border-brand-400 bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-2xl animate-scaleUp">
+            <MarqueeIcon size={16} />
+            <span>
+              <span className="hidden sm:inline">Area Select Active — Drag box over text/diagram</span>
+              <span className="sm:hidden">Drag over area to select</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAreaSelectMode(false);
+                setAreaBox(null);
+              }}
+              className="ml-2 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold hover:bg-white/30 transition active:scale-95"
+              title="Cancel Area Select"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Figma-Style Area Selection Box Overlay (Live Dragging only) */}
+        {areaBox?.isDragging && (() => {
+          const left = Math.min(areaBox.startX, areaBox.endX);
+          const top = Math.min(areaBox.startY, areaBox.endY);
+          const width = Math.abs(areaBox.endX - areaBox.startX);
+          const height = Math.abs(areaBox.endY - areaBox.startY);
+          if (width < 5 && height < 5) return null;
+
+          return (
+            <div
+              style={{
+                position: "fixed",
+                left: `${left}px`,
+                top: `${top}px`,
+                width: `${width}px`,
+                height: `${height}px`,
+              }}
+              className="z-40 border-2 border-brand-500 bg-brand-500/15 shadow-2xl ring-2 ring-brand-400/40 rounded-lg pointer-events-none"
+            >
+              {/* Figma Corner Handles */}
+              <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+              <div className="absolute -right-1.5 -top-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+              <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+              <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm bg-brand-600 ring-2 ring-white shadow-sm" />
+
+              {/* Dimensions Badge */}
+              <div className="absolute -top-7 left-0 inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-md">
+                <span>Selecting Area ({Math.round(width)}×{Math.round(height)})</span>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Left Navigation Sidebar */}
         <ReaderSidebar
           tab={activeTab}
@@ -688,6 +958,9 @@ export default function ReaderWorkspace() {
                 scale={tab.scale || 1.0}
                 fitWidth={Boolean(tab.fitWidth)}
                 isActive={isActive}
+                selectedArea={isActive ? selectedAreaBox : null}
+                onAskAiArea={handleAskAiArea}
+                onDismissArea={handleDismissArea}
                 onPageChange={(p) => {
                   if (isActive) {
                     handlePageChange(p);
@@ -734,6 +1007,7 @@ export default function ReaderWorkspace() {
         sidebarOpen={sidebarOpen}
         aiDrawerOpen={aiDrawerOpen}
         isBookmarked={isCurrentPageBookmarked}
+        isAreaSelectMode={isAreaSelectMode}
         onPrevPage={handlePrevPage}
         onNextPage={handleNextPage}
         onJumpPageClick={handleJumpPageClick}
@@ -741,6 +1015,10 @@ export default function ReaderWorkspace() {
         onToggleAiDrawer={() => setAiDrawerOpen((p) => !p)}
         onOpenTabsSheet={() => setMobileTabsSheetOpen(true)}
         onToggleSearch={() => setSearchOpen((p) => !p)}
+        onToggleAreaSelect={() => {
+          setIsAreaSelectMode((p) => !p);
+          if (areaBox) setAreaBox(null);
+        }}
         onToggleBookmark={() => handleToggleBookmark(activeTab.currentPage || 1)}
         onAddNote={() => handleOpenAddNote(undefined, activeTab.currentPage || 1)}
       />
