@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { pdfjs } from "@/lib/pdf";
 import { BookMeta } from "@/lib/types";
 import { BookmarkData, HighlightData, NoteData } from "@/lib/readingService";
+import { prefetchPdf } from "@/lib/pdfCache";
 import Header from "./Header";
 import BookCard from "./BookCard";
 import AuthPromptModal from "./AuthPromptModal";
@@ -386,6 +387,8 @@ export default function BookDetail({ id }: { id: string }) {
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <Link
                       href={`/read/${book.id}`}
+                      onMouseEnter={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
+                      onTouchStart={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
                       className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-brand-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     >
                       <BookOpenIcon size={15} />
@@ -480,6 +483,8 @@ export default function BookDetail({ id }: { id: string }) {
                     </h3>
                     <Link
                       href={`/read/${book.id}`}
+                      onMouseEnter={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
+                      onTouchStart={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
                       className="text-xs font-bold text-brand-600 hover:underline dark:text-brand-400"
                     >
                       Open in Reader →

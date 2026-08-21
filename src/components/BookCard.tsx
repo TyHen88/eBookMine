@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BookMeta } from "@/lib/types";
+import { prefetchPdf } from "@/lib/pdfCache";
 import { buttonClass, Chip } from "./ui";
 import {
   BookOpenIcon,
@@ -138,6 +139,8 @@ export default function BookCard({
           <div className="flex shrink-0 items-center gap-2 pt-1 sm:pt-0">
             <Link
               href={`/read/${book.id}`}
+              onMouseEnter={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
+              onTouchStart={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
               className={`whitespace-nowrap ${buttonClass({ variant: isReading ? "primary" : "secondary", size: "sm" })}`}
             >
               <BookOpenIcon size={14} />
@@ -172,6 +175,8 @@ export default function BookCard({
     >
       <Link
         href={`/book/${book.id}`}
+        onMouseEnter={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
+        onTouchStart={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
         className="relative block overflow-hidden"
         {...wrapProps}
       >
@@ -241,6 +246,8 @@ export default function BookCard({
         <div className="mt-auto flex items-center gap-1.5 pt-2.5">
           <Link
             href={`/read/${book.id}`}
+            onMouseEnter={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
+            onTouchStart={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
             className={`flex w-full items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold transition-all active:scale-[0.98] ${
               isReading
                 ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-500/20 hover:shadow-md"

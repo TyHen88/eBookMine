@@ -59,20 +59,41 @@ export async function GET(
       );
     }
 
-    const data = await driveRes.arrayBuffer();
+    const { cacheStreamToDisk } = await import("@/lib/localStorage");
 
     const headers = new Headers();
     headers.set("Content-Type", "application/pdf");
-    headers.set("Cache-Control", "public, max-age=3600");
+    headers.set("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
     headers.set("Accept-Ranges", "bytes");
     headers.set("Access-Control-Allow-Origin", "*");
     headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-    headers.set("Content-Length", String(data.byteLength));
+
+    const contentLength = driveRes.headers.get("content-length");
+    if (contentLength) headers.set("Content-Length", contentLength);
+
     const contentRange = driveRes.headers.get("content-range");
     if (contentRange) headers.set("Content-Range", contentRange);
+
     if (download) {
       headers.set("Content-Disposition", `attachment; filename="${safeName}"`);
     }
+
+    if (driveRes.body) {
+      // If full file requested without range header, tee and cache to disk in background
+      if (!range && driveRes.status === 200) {
+        try {
+          const [streamForClient, streamForDisk] = driveRes.body.tee();
+          cacheStreamToDisk(driveFileId, streamForDisk).catch(() => {});
+          return new NextResponse(streamForClient, { status: driveRes.status, headers });
+        } catch {
+          return new NextResponse(driveRes.body, { status: driveRes.status, headers });
+        }
+      }
+      return new NextResponse(driveRes.body, { status: driveRes.status, headers });
+    }
+
+    const data = await driveRes.arrayBuffer();
+    headers.set("Content-Length", String(data.byteLength));
     return new NextResponse(data, { status: driveRes.status, headers });
   } catch (err: any) {
     console.error("Error streaming public book file:", err);

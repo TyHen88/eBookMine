@@ -65,7 +65,7 @@ export function streamLocalFile(filePath: string, range?: string): Response {
         "Accept-Ranges": "bytes",
         "Content-Length": String(chunksize),
         "Content-Type": "application/pdf",
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
       },
     });
   }
@@ -79,7 +79,38 @@ export function streamLocalFile(filePath: string, range?: string): Response {
       "Content-Length": String(fileSize),
       "Accept-Ranges": "bytes",
       "Content-Type": "application/pdf",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
     },
   });
+}
+
+/**
+ * Saves a stream to disk in the background without blocking the HTTP response.
+ */
+export async function cacheStreamToDisk(
+  fileId: string,
+  stream: ReadableStream<Uint8Array>
+): Promise<string | null> {
+  try {
+    const dir = ensureUploadDir();
+    const filePath = path.join(dir, `${fileId}.pdf`);
+    const tempPath = path.join(dir, `${fileId}.tmp`);
+
+    const writeStream = fs.createWriteStream(tempPath);
+    const nodeStream = Readable.fromWeb(stream as any);
+
+    await new Promise<void>((resolve, reject) => {
+      nodeStream.pipe(writeStream);
+      writeStream.on("finish", resolve);
+      writeStream.on("error", reject);
+    });
+
+    if (fs.existsSync(tempPath)) {
+      await fs.promises.rename(tempPath, filePath);
+      return filePath;
+    }
+  } catch (err) {
+    console.warn(`[cacheStreamToDisk] Failed to cache ${fileId} in background:`, err);
+  }
+  return null;
 }

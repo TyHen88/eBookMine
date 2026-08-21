@@ -25,3 +25,10 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 scratch/
+
+# uploads & generated assets
+/uploads/
+/public/cmaps/
+/public/standard_fonts/
+/public/pdf.worker.min.mjs
+

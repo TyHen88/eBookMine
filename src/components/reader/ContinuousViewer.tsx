@@ -19,9 +19,9 @@ import { AlertTriangleIcon } from "@/components/ui/icons";
 import { BookmarkData, HighlightData, NoteData } from "@/lib/readingService";
 
 const PDF_OPTIONS = {
-  cMapUrl: "https://unpkg.com/pdfjs-dist@4.4.168/cmaps/",
+  cMapUrl: "/cmaps/",
   cMapPacked: true,
-  standardFontDataUrl: "https://unpkg.com/pdfjs-dist@4.4.168/standard_fonts/",
+  standardFontDataUrl: "/standard_fonts/",
   disableAutoFetch: false,
   disableStream: false,
 };

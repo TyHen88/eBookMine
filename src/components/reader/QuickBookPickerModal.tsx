@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui";
 import BookThumbnailImg from "@/components/BookThumbnailImg";
+import { prefetchPdf } from "@/lib/pdfCache";
 
 interface QuickBookPickerModalProps {
   theme?: "light" | "dark" | "sepia";
@@ -258,6 +259,20 @@ export default function QuickBookPickerModal({
                 return (
                   <button
                     key={book.id}
+                    onMouseEnter={() =>
+                      prefetchPdf(
+                        isAuthenticated
+                          ? `/api/books/${book.id}/file`
+                          : `/api/public/books/${book.id}/file`
+                      )
+                    }
+                    onTouchStart={() =>
+                      prefetchPdf(
+                        isAuthenticated
+                          ? `/api/books/${book.id}/file`
+                          : `/api/public/books/${book.id}/file`
+                      )
+                    }
                     onClick={() => {
                       openTab(book, true);
                       setQuickPickerOpen(false);

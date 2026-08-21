@@ -17,6 +17,7 @@ import {
 import { useToast } from "./ui/Toast";
 import { useSession } from "next-auth/react";
 import BookThumbnailImg from "./BookThumbnailImg";
+import { prefetchPdf } from "@/lib/pdfCache";
 
 const PAGE_SIZE = 12;
 
@@ -190,6 +191,8 @@ export default function Library() {
             <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0 justify-end">
               <Link
                 href={`/read/${topContinue.book.id}`}
+                onMouseEnter={() => prefetchPdf(`/api/books/${topContinue.book.id}/file`)}
+                onTouchStart={() => prefetchPdf(`/api/books/${topContinue.book.id}/file`)}
                 className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-bold text-brand-700 shadow-sm transition-all hover:bg-brand-50 hover:shadow-md active:scale-95"
               >
                 <BookOpenIcon size={14} /> Continue

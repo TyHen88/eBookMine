@@ -8,6 +8,7 @@ import { Button, buttonClass, Spinner, BookLoader } from "./ui";
 import { useToast } from "./ui/Toast";
 import AuthPromptModal from "./AuthPromptModal";
 import BookThumbnailImg from "./BookThumbnailImg";
+import { prefetchPdf } from "@/lib/pdfCache";
 import {
   BookmarkIcon,
   BookOpenIcon,
@@ -361,6 +362,8 @@ export default function Dashboard() {
                   <div className="mt-3 flex justify-end">
                     <Link
                       href={`/read/${item.book.id}`}
+                      onMouseEnter={() => prefetchPdf(`/api/books/${item.book.id}/file`)}
+                      onTouchStart={() => prefetchPdf(`/api/books/${item.book.id}/file`)}
                       className="inline-flex items-center gap-1 rounded-xl bg-brand-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm transition-all hover:bg-brand-700 active:scale-95"
                     >
                       <span>Read</span>
