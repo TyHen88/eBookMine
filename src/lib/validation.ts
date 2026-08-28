@@ -5,6 +5,7 @@ export const bookCreateSchema = z.object({
   description: z.string().optional(),
   author: z.string().optional(),
   category: z.string().optional(),
+  language: z.string().optional(),
   driveFileId: z.string().optional(),
   visibility: z.enum(["PUBLIC", "PRIVATE"]).optional(),
   published: z.boolean().optional(),
@@ -15,6 +16,7 @@ export const bookUpdateSchema = z.object({
   description: z.string().optional(),
   author: z.string().optional(),
   category: z.string().optional(),
+  language: z.string().optional(),
   visibility: z.enum(["PUBLIC", "PRIVATE"]).optional(),
   published: z.boolean().optional(),
 });

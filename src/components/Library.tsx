@@ -23,6 +23,7 @@ const PAGE_SIZE = 12;
 
 type ShelfTab = "all" | "reading" | "unread" | "completed" | "favorites";
 type SortOption = "recent" | "last_read" | "title" | "author" | "progress";
+type LanguageFilter = "all" | "en" | "km";
 
 const TAB_LABELS: Record<ShelfTab, string> = {
   all: "All",
@@ -42,6 +43,7 @@ export default function Library() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<ShelfTab>("all");
   const [category, setCategory] = useState<string>("");
+  const [selectedLang, setSelectedLang] = useState<LanguageFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [editing, setEditing] = useState<BookMeta | null>(null);
@@ -74,15 +76,26 @@ export default function Library() {
     return Array.from(set).sort();
   }, [books]);
 
+  const languageCounts = useMemo(() => {
+    let en = 0;
+    let km = 0;
+    books.forEach((b) => {
+      if (b.language === "km") km++;
+      else en++;
+    });
+    return { all: books.length, en, km };
+  }, [books]);
+
   // Reset visible count when filters change
-  const [prevFilter, setPrevFilter] = useState({ query, activeTab, category, sortBy });
+  const [prevFilter, setPrevFilter] = useState({ query, activeTab, category, sortBy, selectedLang });
   if (
     prevFilter.query !== query ||
     prevFilter.activeTab !== activeTab ||
     prevFilter.category !== category ||
-    prevFilter.sortBy !== sortBy
+    prevFilter.sortBy !== sortBy ||
+    prevFilter.selectedLang !== selectedLang
   ) {
-    setPrevFilter({ query, activeTab, category, sortBy });
+    setPrevFilter({ query, activeTab, category, sortBy, selectedLang });
     setVisible(PAGE_SIZE);
   }
 
@@ -98,6 +111,11 @@ export default function Library() {
       if (activeTab === "completed" && !isCompleted) return false;
       if (activeTab === "reading" && !isReading) return false;
       if (activeTab === "unread" && !isUnread) return false;
+
+      if (selectedLang !== "all") {
+        const bookLang = b.language || "en";
+        if (bookLang !== selectedLang) return false;
+      }
 
       if (category && (b.category || "Other") !== category) return false;
       if (q && !`${b.title} ${b.author}`.toLowerCase().includes(q)) return false;
@@ -116,7 +134,7 @@ export default function Library() {
     });
 
     return result;
-  }, [books, query, activeTab, category, sortBy]);
+  }, [books, query, activeTab, category, selectedLang, sortBy]);
 
   const hasMore = filteredAndSorted.length > visible;
 
@@ -297,6 +315,45 @@ export default function Library() {
               </Select>
             </div>
           </div>
+        </div>
+
+        {/* Language Filter Chips */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mr-1">
+            Language:
+          </span>
+          <button
+            onClick={() => setSelectedLang("all")}
+            className={`rounded-xl px-3 py-1 text-xs font-bold transition-all ${
+              selectedLang === "all"
+                ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
+                : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
+            }`}
+          >
+            All ({languageCounts.all})
+          </button>
+          <button
+            onClick={() => setSelectedLang("en")}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold transition-all ${
+              selectedLang === "en"
+                ? "bg-brand-600 text-white shadow-md shadow-brand-500/25"
+                : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
+            }`}
+          >
+            <span>🇬🇧</span>
+            <span>English ({languageCounts.en})</span>
+          </button>
+          <button
+            onClick={() => setSelectedLang("km")}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold transition-all ${
+              selectedLang === "km"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
+                : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
+            }`}
+          >
+            <span>🇰🇭</span>
+            <span>ភាសាខ្មែរ / Khmer ({languageCounts.km})</span>
+          </button>
         </div>
       </div>
 

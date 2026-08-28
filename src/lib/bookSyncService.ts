@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { Library, loadLibrary, loadPublicLibrary } from "@/lib/metadata";
+import { containsKhmer } from "@/lib/khmerHelper";
 
 export interface SyncStats {
   total: number;
@@ -97,15 +98,21 @@ export async function syncLibraryMetadata(
       const addedAtDate = new Date(book.addedAt);
       const validDate = Number.isNaN(addedAtDate.getTime()) ? new Date() : addedAtDate;
 
+      const bookTitle = book.title || book.fileName || "Untitled";
+      const detectedLang =
+        (book as any).language ||
+        (containsKhmer(bookTitle) || containsKhmer(book.fileName) ? "km" : "en");
+
       const dbBook = await prisma.book.create({
         data: {
           driveFileId: book.id,
-          title: book.title || book.fileName || "Untitled",
+          title: bookTitle,
           fileName: book.fileName || `${book.title || "book"}.pdf`,
           pageCount: book.pageCount || 0,
           sizeBytes: BigInt(book.sizeBytes || 0),
           coverUrl: book.cover || null,
           favorite: Boolean(book.favorite),
+          language: detectedLang,
           published: true,
           visibility: "PUBLIC",
           createdAt: validDate,
@@ -251,12 +258,15 @@ async function fastBatchSyncDrivePdfs(
       chunk.map(async (file) => {
         try {
           const categoryId = await getOrCreateCategory(categorize(file.name));
+          const bookTitle = cleanTitle(file.name.replace(/\.pdf$/i, ""));
+          const detectedLang = containsKhmer(bookTitle) || containsKhmer(file.name) ? "km" : "en";
           const dbBook = await prisma.book.create({
             data: {
               driveFileId: file.id,
-              title: cleanTitle(file.name.replace(/\.pdf$/i, "")),
+              title: bookTitle,
               fileName: file.name,
               sizeBytes: file.size ? BigInt(file.size) : BigInt(0),
+              language: detectedLang,
               published: true,
               visibility: "PUBLIC",
             },

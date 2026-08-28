@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
       description: b.description || "",
       author: b.authors[0]?.author.name || "Unknown",
       category: b.categories[0]?.category.name || "General",
+      language: b.language || "en",
       visibility: b.visibility,
       published: b.published,
       createdAt: b.createdAt,
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { title, author, category, description, visibility, published, coverUrl, driveFileId } = body;
+    const { title, author, category, language, description, visibility, published, coverUrl, driveFileId } = body;
 
     if (!title || !title.trim()) {
       return NextResponse.json({ ok: false, error: "Title is required" }, { status: 400 });
@@ -130,6 +131,7 @@ export async function POST(req: NextRequest) {
 
     const authorName = author && author.trim() ? author.trim() : "Unknown";
     const catName = category && category.trim() ? category.trim() : "General";
+    const lang = language && language.trim() ? language.trim().toLowerCase() : "en";
 
     // 1. Author upsert
     const dbAuthor = await prisma.author.upsert({
@@ -153,6 +155,7 @@ export async function POST(req: NextRequest) {
         description: description?.trim() || null,
         fileName: `${title.trim()}.pdf`,
         coverUrl: coverUrl?.trim() || null,
+        language: lang,
         visibility: visibility || "PUBLIC",
         published: published !== false,
         driveFileId: driveFileId?.trim() || null,
@@ -177,6 +180,7 @@ export async function POST(req: NextRequest) {
         title: dbBook.title,
         author: dbAuthor.name,
         category: dbCategory.name,
+        language: dbBook.language,
         visibility: dbBook.visibility,
         published: dbBook.published,
       },

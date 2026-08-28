@@ -30,6 +30,7 @@ export default function QuickBookPickerModal({
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [langFilter, setLangFilter] = useState<"all" | "en" | "km">("all");
 
   useEffect(() => {
     if (!quickPickerOpen) return;
@@ -82,9 +83,12 @@ export default function QuickBookPickerModal({
         categoryFilter === "all" ||
         b.category?.toLowerCase() === categoryFilter.toLowerCase();
 
-      return matchSearch && matchCat;
+      const bookLang = b.language || "en";
+      const matchLang = langFilter === "all" || bookLang === langFilter;
+
+      return matchSearch && matchCat && matchLang;
     });
-  }, [books, search, categoryFilter]);
+  }, [books, search, categoryFilter, langFilter]);
 
   if (!quickPickerOpen) return null;
 
@@ -216,11 +220,50 @@ export default function QuickBookPickerModal({
             />
           </div>
 
+          {/* Quick Language Toggle */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            <span className={`text-[10px] font-bold ${subtitleColor}`}>Lang:</span>
+            <button
+              type="button"
+              onClick={() => setLangFilter("all")}
+              className={`rounded-lg px-2 py-0.5 text-[10px] font-bold transition ${
+                langFilter === "all"
+                  ? "bg-brand-600 text-white shadow-sm shadow-brand-500/25"
+                  : catInactive
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setLangFilter("en")}
+              className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold transition ${
+                langFilter === "en"
+                  ? "bg-brand-600 text-white shadow-sm shadow-brand-500/25"
+                  : catInactive
+              }`}
+            >
+              <span>🇬🇧</span> English
+            </button>
+            <button
+              type="button"
+              onClick={() => setLangFilter("km")}
+              className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold transition ${
+                langFilter === "km"
+                  ? "bg-emerald-600 text-white shadow-sm shadow-emerald-500/25"
+                  : catInactive
+              }`}
+            >
+              <span>🇰🇭</span> ភាសាខ្មែរ
+            </button>
+          </div>
+
           {categories.length > 2 && (
             <div className="flex flex-wrap gap-1.5 overflow-x-auto pb-1 max-h-20 no-scrollbar">
               {categories.map((cat) => (
                 <button
                   key={cat}
+                  type="button"
                   onClick={() => setCategoryFilter(cat)}
                   className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold transition ${
                     categoryFilter === cat

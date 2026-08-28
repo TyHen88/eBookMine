@@ -345,6 +345,15 @@ export default function BookDetail({ id }: { id: string }) {
                 <div className="flex-1 space-y-3 min-w-0">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-1.5">
+                      {book.language === "km" ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                          🇰🇭 Khmer / ភាសាខ្មែរ
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          🇬🇧 English
+                        </span>
+                      )}
                       {book.category && book.category !== "Other" && (
                         <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700 dark:bg-brand-950/60 dark:text-brand-300">
                           <TagIcon size={11} />

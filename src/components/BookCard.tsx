@@ -125,6 +125,11 @@ export default function BookCard({
               </p>
             )}
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {book.language === "km" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  🇰🇭 Khmer
+                </span>
+              )}
               {book.category && book.category !== "Other" && (
                 <Chip tone="neutral">{book.category}</Chip>
               )}
@@ -230,11 +235,16 @@ export default function BookCard({
         )}
 
         <div className="mt-2 flex items-center justify-between gap-1">
-          {book.category && book.category !== "Other" ? (
-            <Chip tone="neutral">{book.category}</Chip>
-          ) : (
-            <span />
-          )}
+          <div className="flex items-center gap-1 flex-wrap min-w-0">
+            {book.language === "km" && (
+              <span className="shrink-0 inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300">
+                🇰🇭 KM
+              </span>
+            )}
+            {book.category && book.category !== "Other" ? (
+              <Chip tone="neutral">{book.category}</Chip>
+            ) : null}
+          </div>
 
           {isReading && (
             <span className="text-[10px] sm:text-[11px] font-bold tabular-nums text-brand-600 dark:text-brand-400 shrink-0">

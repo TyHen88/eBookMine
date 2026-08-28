@@ -31,6 +31,7 @@ export interface BookMeta {
   lastPage: number;
   bookmarks: Bookmark[];
   sizeBytes: number;
+  language?: string;
 }
 
 export interface Library {

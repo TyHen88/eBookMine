@@ -20,6 +20,7 @@ export default function BookDetailModal({
   const [title, setTitle] = useState(book.title);
   const [author, setAuthor] = useState(book.author);
   const [category, setCategory] = useState(book.category || "Other");
+  const [language, setLanguage] = useState(book.language || "en");
   const [tags, setTags] = useState(book.tags.join(", "));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -37,6 +38,7 @@ export default function BookDetailModal({
       title: title.trim() || book.title,
       author: author.trim() || "Unknown",
       category: category.trim() || "Other",
+      language: language.trim() || "en",
       tags: tags
         .split(",")
         .map((t) => t.trim())
@@ -106,6 +108,15 @@ export default function BookDetailModal({
                   {c}
                 </option>
               ))}
+            </Select>
+          </Field>
+          <Field label="Language">
+            <Select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+            >
+              <option value="en">🇬🇧 English (en)</option>
+              <option value="km">🇰🇭 ភាសាខ្មែរ / Khmer (km)</option>
             </Select>
           </Field>
           <Field label="Tags (comma-separated)">

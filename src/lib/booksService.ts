@@ -4,6 +4,7 @@ import { getOrCreateAppFolder } from "@/lib/drive";
 import { syncFromDrive, syncFromPublicDrive, slugify } from "@/lib/bookSyncService";
 import { cleanTitle } from "@/lib/title";
 import { memoryCache } from "@/lib/cache";
+import { containsKhmer } from "@/lib/khmerHelper";
 
 /**
  * Lightweight Prisma inclusion for list views (Public Library & User Library).
@@ -72,6 +73,10 @@ export function transformDbBookToMeta(
       ? dbBook.createdAt.toISOString()
       : String(dbBook.createdAt ?? new Date().toISOString());
 
+  const lang =
+    dbBook.language ||
+    (containsKhmer(dbBook.title) || containsKhmer(dbBook.fileName) ? "km" : "en");
+
   return {
     id: dbBook.driveFileId || dbBook.id,
     title: dbBook.title,
@@ -86,6 +91,7 @@ export function transformDbBookToMeta(
     lastPage: userProgress?.currentPage || 1,
     bookmarks: userBookmarks,
     sizeBytes: Number(dbBook.sizeBytes || 0),
+    language: lang,
   };
 }
 
@@ -203,6 +209,7 @@ export async function createDbBook(data: {
   fileName: string;
   author?: string;
   category?: string;
+  language?: string;
   pageCount?: number;
   sizeBytes?: number;
   coverUrl?: string | null;
@@ -232,6 +239,10 @@ export async function createDbBook(data: {
     where: { driveFileId: data.driveFileId },
   });
 
+  const detectedLang =
+    data.language?.trim().toLowerCase() ||
+    (containsKhmer(data.title) || containsKhmer(data.fileName) ? "km" : "en");
+
   const bookData = {
     driveFileId: data.driveFileId,
     title: cleanTitle(data.title || data.fileName),
@@ -239,6 +250,7 @@ export async function createDbBook(data: {
     pageCount: data.pageCount || 0,
     sizeBytes: BigInt(data.sizeBytes || 0),
     coverUrl: data.coverUrl || null,
+    language: detectedLang,
     published: true,
     visibility: "PUBLIC",
   };
@@ -294,6 +306,9 @@ export async function updateDbBook(
 
   const updateData: any = {};
   if (typeof patch.title === "string") updateData.title = cleanTitle(patch.title);
+  if (typeof patch.language === "string" && patch.language.trim()) {
+    updateData.language = patch.language.trim().toLowerCase();
+  }
   if (typeof patch.favorite === "boolean") updateData.favorite = patch.favorite;
   if (typeof patch.cover === "string" || patch.cover === null) updateData.coverUrl = patch.cover;
   if (typeof patch.pageCount === "number" && patch.pageCount > 0) updateData.pageCount = patch.pageCount;

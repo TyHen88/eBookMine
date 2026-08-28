@@ -14,6 +14,8 @@ import {
   TagIcon,
 } from "./ui/icons";
 
+type LanguageFilter = "all" | "en" | "km";
+
 const PAGE_SIZE = 12;
 
 export default function PublicLibrary() {
@@ -21,6 +23,7 @@ export default function PublicLibrary() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
+  const [selectedLang, setSelectedLang] = useState<LanguageFilter>("all");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [visible, setVisible] = useState(PAGE_SIZE);
 
@@ -40,19 +43,33 @@ export default function PublicLibrary() {
     return Array.from(set).sort();
   }, [books]);
 
+  const languageCounts = useMemo(() => {
+    let en = 0;
+    let km = 0;
+    books.forEach((b) => {
+      if (b.language === "km") km++;
+      else en++;
+    });
+    return { all: books.length, en, km };
+  }, [books]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return books.filter((b) => {
+      if (selectedLang !== "all") {
+        const bookLang = b.language || "en";
+        if (bookLang !== selectedLang) return false;
+      }
       if (category && (b.category || "Other") !== category) return false;
       if (q && !`${b.title} ${b.author}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [books, query, category]);
+  }, [books, query, category, selectedLang]);
 
   // Reset visible count when filters change
-  const [prevFilter, setPrevFilter] = useState({ query, category });
-  if (prevFilter.query !== query || prevFilter.category !== category) {
-    setPrevFilter({ query, category });
+  const [prevFilter, setPrevFilter] = useState({ query, category, selectedLang });
+  if (prevFilter.query !== query || prevFilter.category !== category || prevFilter.selectedLang !== selectedLang) {
+    setPrevFilter({ query, category, selectedLang });
     setVisible(PAGE_SIZE);
   }
 
@@ -158,38 +175,78 @@ export default function PublicLibrary() {
           </div>
         </div>
 
-        {/* Quick Filter Tag Chips */}
-        {categoriesList.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+        {/* Quick Filter Tag Chips (Language & Categories) */}
+        <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+          {/* Language Selector */}
+          <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
-              <TagIcon size={12} />
-              Filter:
+              🌐 Lang:
             </span>
             <button
-              onClick={() => setCategory("")}
+              onClick={() => setSelectedLang("all")}
               className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all ${
-                category === ""
+                selectedLang === "all"
+                  ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              All ({languageCounts.all})
+            </button>
+            <button
+              onClick={() => setSelectedLang("en")}
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold transition-all ${
+                selectedLang === "en"
                   ? "bg-brand-600 text-white shadow-sm"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               }`}
             >
-              All
+              <span>🇬🇧</span> English ({languageCounts.en})
             </button>
-            {categoriesList.map((c) => (
+            <button
+              onClick={() => setSelectedLang("km")}
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold transition-all ${
+                selectedLang === "km"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              <span>🇰🇭</span> ភាសាខ្មែរ ({languageCounts.km})
+            </button>
+          </div>
+
+          {/* Category Chips */}
+          {categoriesList.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-100/70 dark:border-slate-800/50">
+              <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">
+                <TagIcon size={12} />
+                Category:
+              </span>
               <button
-                key={c}
-                onClick={() => setCategory(c === category ? "" : c)}
+                onClick={() => setCategory("")}
                 className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all ${
-                  category === c
+                  category === ""
                     ? "bg-brand-600 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 }`}
               >
-                {c}
+                All
               </button>
-            ))}
-          </div>
-        )}
+              {categoriesList.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCategory(c === category ? "" : c)}
+                  className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all ${
+                    category === c
+                      ? "bg-brand-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Grid View vs List View */}
