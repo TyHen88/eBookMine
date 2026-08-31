@@ -15,7 +15,7 @@ export default function TranslatePage() {
       <Header />
       <VerticalNav />
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-6 md:pl-24">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-3 sm:px-6 pt-3 sm:pt-6 pb-28 md:pb-12 md:pl-24">
         {/* Only Google Translate Page */}
         <div className="w-full">
           <GoogleTranslateModal

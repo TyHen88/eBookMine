@@ -74,7 +74,7 @@ export default function PublicLibrary() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-3.5 sm:space-y-5 px-3 sm:px-6 py-3 sm:py-5 md:pl-24 md:pr-10 animate-fade-in">
+    <div className="mx-auto max-w-6xl space-y-3.5 sm:space-y-5 px-3 sm:px-6 pt-3 sm:pt-5 pb-32 md:pb-12 md:pl-24 md:pr-10 animate-fade-in">
       {/* Creative Hero Banner */}
       <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-brand-200/60 bg-gradient-to-br from-brand-600 via-brand-500 to-indigo-700 p-3.5 sm:p-5 text-white shadow-md shadow-brand-500/20 dark:border-brand-900/60">
         <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10 blur-3xl pointer-events-none" />

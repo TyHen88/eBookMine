@@ -124,7 +124,7 @@ export default function ProfilePage() {
       <Header />
       <VerticalNav />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 py-3 sm:py-6 md:pl-24">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 pt-3 sm:pt-6 pb-28 md:pb-12 md:pl-24">
         {/* Profile Hero Section */}
         <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-indigo-50/15 to-brand-50/20 p-3.5 sm:p-5 shadow-xs backdrop-blur-xl dark:border-slate-800/80 dark:from-slate-900/90 dark:via-slate-900/60 dark:to-indigo-950/20 mb-3.5 sm:mb-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">

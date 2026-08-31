@@ -214,7 +214,7 @@ export default function GroupDetailPage({ params }: PageProps) {
       <Header />
       <VerticalNav />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 py-3 sm:py-6 md:pl-24">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 pt-3 sm:pt-6 pb-28 md:pb-12 md:pl-24">
         {/* Navigation Breadcrumb & Code */}
         <div className="flex items-center justify-between gap-2 mb-2.5 sm:mb-4">
           <Link

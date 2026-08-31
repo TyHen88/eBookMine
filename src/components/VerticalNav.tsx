@@ -185,7 +185,12 @@ export default function VerticalNav() {
       </aside>
 
       {/* Mobile Floating Bottom Navigation Dock (Icons Only) */}
-      <div className="fixed bottom-4 left-4 right-4 z-40 flex items-center justify-around rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/95 md:hidden">
+      <div
+        style={{
+          bottom: "max(0.75rem, env(safe-area-inset-bottom, 0.75rem))",
+        }}
+        className="fixed left-3 right-3 sm:left-4 sm:right-4 z-40 flex items-center justify-around rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-2xl shadow-slate-900/15 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/95 md:hidden"
+      >
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -193,13 +198,13 @@ export default function VerticalNav() {
               key={item.href}
               href={item.href}
               title={item.label}
-              className={`flex items-center justify-center p-2.5 rounded-xl transition-all ${
+              className={`flex items-center justify-center p-2 rounded-xl transition-all ${
                 item.active
                   ? "bg-brand-50 text-brand-600 dark:bg-brand-950/60 dark:text-brand-300 scale-105"
                   : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
             >
-              <Icon size={20} className={item.active ? "text-brand-600 dark:text-brand-400" : item.iconClass} />
+              <Icon size={18} className={item.active ? "text-brand-600 dark:text-brand-400" : item.iconClass} />
             </Link>
           );
         })}
@@ -208,16 +213,15 @@ export default function VerticalNav() {
           <Link
             href="/admin"
             title="Admin Settings"
-            className={`flex items-center justify-center p-2.5 rounded-xl transition-all ${
+            className={`flex items-center justify-center p-2 rounded-xl transition-all ${
               pathname === "/admin"
                 ? "bg-brand-50 text-brand-600 dark:bg-brand-950/60 dark:text-brand-300 scale-105"
                 : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
-            <SettingsIcon size={20} />
+            <SettingsIcon size={18} />
           </Link>
         )}
-
 
         <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-800">
           <ThemeToggle />

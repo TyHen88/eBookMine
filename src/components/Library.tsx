@@ -157,7 +157,7 @@ export default function Library() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-3.5 sm:space-y-5 px-3 sm:px-6 pt-3 sm:pt-5 pb-24 md:pb-10">
+    <div className="mx-auto max-w-6xl space-y-3.5 sm:space-y-5 px-3 sm:px-6 pt-3 sm:pt-5 pb-32 md:pb-12">
       {/* Library Title Banner */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
