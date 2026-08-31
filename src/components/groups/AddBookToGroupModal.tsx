@@ -6,11 +6,20 @@ import { XIcon, BookOpenIcon, SearchIcon, CheckIcon } from "../ui/icons";
 interface AddBookToGroupModalProps {
   isOpen: boolean;
   groupId: string;
-  folders: Array<{ id: string; name: string }>;
+  folders: Array<{ id: string; name: string; color?: string | null }>;
   defaultFolderId?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
+
+const FOLDER_COLOR_EMOJI: Record<string, string> = {
+  blue: "🔵",
+  emerald: "🟢",
+  purple: "🟣",
+  amber: "🟡",
+  rose: "🔴",
+  indigo: "🟣",
+};
 
 export default function AddBookToGroupModal({
   isOpen,
@@ -129,7 +138,7 @@ export default function AddBookToGroupModal({
               >
                 {folders.map((f) => (
                   <option key={f.id} value={f.id}>
-                    📁 {f.name}
+                    {FOLDER_COLOR_EMOJI[f.color || "blue"] || "📁"} {f.name}
                   </option>
                 ))}
               </select>

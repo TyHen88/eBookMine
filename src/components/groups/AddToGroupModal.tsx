@@ -11,6 +11,15 @@ interface AddToGroupModalProps {
   onSuccess?: () => void;
 }
 
+const FOLDER_COLOR_EMOJI: Record<string, string> = {
+  blue: "🔵",
+  emerald: "🟢",
+  purple: "🟣",
+  amber: "🟡",
+  rose: "🔴",
+  indigo: "🟣",
+};
+
 export default function AddToGroupModal({
   isOpen,
   bookId,
@@ -28,7 +37,7 @@ export default function AddToGroupModal({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // 1. Fetch user groups
+  // 1. Fetch user groups where user has permission to add books (OWNER or ADMIN)
   useEffect(() => {
     if (!isOpen) return;
     setLoadingGroups(true);
@@ -37,7 +46,9 @@ export default function AddToGroupModal({
     fetch("/api/groups")
       .then((r) => (r.ok ? r.json() : { myGroups: [] }))
       .then((d) => {
-        const my = d.myGroups || [];
+        const my = (d.myGroups || []).filter(
+          (g: any) => g.myRole === "OWNER" || g.myRole === "ADMIN"
+        );
         setGroups(my);
         if (my.length > 0) {
           setSelectedGroupId(my[0].id);
@@ -191,7 +202,7 @@ export default function AddToGroupModal({
                     <option value="">📁 Main (No specific folder)</option>
                     {folders.map((f) => (
                       <option key={f.id} value={f.id}>
-                        📁 {f.name}
+                        {FOLDER_COLOR_EMOJI[f.color || "blue"] || "📁"} {f.name}
                       </option>
                     ))}
                   </select>

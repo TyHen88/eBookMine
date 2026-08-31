@@ -146,6 +146,69 @@ export default function GroupDetailPage({ params }: PageProps) {
       ? allGroupBooks
       : allGroupBooks.filter((b: any) => b.groupFolderId === selectedFolderId);
 
+  const currentUserId = session?.user?.id;
+  const myMembership = groupData.members?.find(
+    (m: any) => m.userId === currentUserId || m.user?.id === currentUserId
+  );
+  const isOwnerOrAdmin =
+    groupData.ownerId === currentUserId ||
+    myMembership?.role === "OWNER" ||
+    myMembership?.role === "ADMIN";
+
+  const FOLDER_COLOR_THEMES: Record<
+    string,
+    {
+      dot: string;
+      iconText: string;
+      activeBg: string;
+      inactiveBorder: string;
+      badgeBg: string;
+    }
+  > = {
+    blue: {
+      dot: "bg-blue-500",
+      iconText: "text-blue-500 dark:text-blue-400",
+      activeBg: "bg-blue-600 text-white shadow-md shadow-blue-500/25",
+      inactiveBorder: "border-blue-200/80 dark:border-blue-900/60 hover:border-blue-400",
+      badgeBg: "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
+    },
+    emerald: {
+      dot: "bg-emerald-500",
+      iconText: "text-emerald-500 dark:text-emerald-400",
+      activeBg: "bg-emerald-600 text-white shadow-md shadow-emerald-500/25",
+      inactiveBorder: "border-emerald-200/80 dark:border-emerald-900/60 hover:border-emerald-400",
+      badgeBg: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+    },
+    purple: {
+      dot: "bg-purple-500",
+      iconText: "text-purple-500 dark:text-purple-400",
+      activeBg: "bg-purple-600 text-white shadow-md shadow-purple-500/25",
+      inactiveBorder: "border-purple-200/80 dark:border-purple-900/60 hover:border-purple-400",
+      badgeBg: "bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300",
+    },
+    amber: {
+      dot: "bg-amber-500",
+      iconText: "text-amber-500 dark:text-amber-400",
+      activeBg: "bg-amber-600 text-white shadow-md shadow-amber-500/25",
+      inactiveBorder: "border-amber-200/80 dark:border-amber-900/60 hover:border-amber-400",
+      badgeBg: "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
+    },
+    rose: {
+      dot: "bg-rose-500",
+      iconText: "text-rose-500 dark:text-rose-400",
+      activeBg: "bg-rose-600 text-white shadow-md shadow-rose-500/25",
+      inactiveBorder: "border-rose-200/80 dark:border-rose-900/60 hover:border-rose-400",
+      badgeBg: "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300",
+    },
+    indigo: {
+      dot: "bg-indigo-500",
+      iconText: "text-indigo-500 dark:text-indigo-400",
+      activeBg: "bg-indigo-600 text-white shadow-md shadow-indigo-500/25",
+      inactiveBorder: "border-indigo-200/80 dark:border-indigo-900/60 hover:border-indigo-400",
+      badgeBg: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300",
+    },
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       <Header />
@@ -187,16 +250,26 @@ export default function GroupDetailPage({ params }: PageProps) {
                   )}
                 </span>
 
-                {/* Invite Code Pill */}
-                <button
-                  onClick={handleCopyCode}
-                  title="Click to copy invite code"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-0.5 text-[11px] font-mono font-bold text-slate-800 shadow-sm border border-slate-200 hover:border-brand-300 transition-all dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
-                >
-                  <span className="text-slate-400 font-sans font-normal">Code:</span>
-                  <span className="tracking-wider">{groupData.code}</span>
-                  {copiedCode ? <CheckIcon size={12} className="text-emerald-500" /> : <CopyIcon size={12} />}
-                </button>
+                {/* User Role Badge */}
+                {myMembership && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 border border-brand-200/60 dark:border-brand-900/60 uppercase tracking-wider">
+                    {isOwnerOrAdmin && <CrownIcon size={10} className="text-amber-500" />}
+                    {myMembership.role}
+                  </span>
+                )}
+
+                {/* Invite Code Pill - Visible only to owner and admins */}
+                {isOwnerOrAdmin && (
+                  <button
+                    onClick={handleCopyCode}
+                    title="Click to copy invite code"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-0.5 text-[11px] font-mono font-bold text-slate-800 shadow-sm border border-slate-200 hover:border-brand-300 transition-all dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+                  >
+                    <span className="text-slate-400 font-sans font-normal">Code:</span>
+                    <span className="tracking-wider">{groupData.code}</span>
+                    {copiedCode ? <CheckIcon size={12} className="text-emerald-500" /> : <CopyIcon size={12} />}
+                  </button>
+                )}
               </div>
 
               {/* Title & Description */}
@@ -234,32 +307,34 @@ export default function GroupDetailPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={() => setIsInviteModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition-all hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <UserPlusIcon size={15} />
-                <span>Invite Friends</span>
-              </button>
+            {/* Action Buttons - Only for Group Owners & Admins */}
+            {isOwnerOrAdmin && (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={() => setIsInviteModalOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition-all hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <UserPlusIcon size={15} />
+                  <span>Invite Friends</span>
+                </button>
 
-              <button
-                onClick={() => setIsFolderModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition-all hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <FolderPlusIcon size={15} />
-                <span>New Folder</span>
-              </button>
+                <button
+                  onClick={() => setIsFolderModalOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition-all hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <FolderPlusIcon size={15} />
+                  <span>New Folder</span>
+                </button>
 
-              <button
-                onClick={() => setIsAddBookModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 text-xs font-bold text-white shadow-md shadow-brand-500/25 transition-all hover:scale-105 active:scale-95"
-              >
-                <PlusIcon size={15} />
-                <span>Add Book to Group</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => setIsAddBookModalOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 text-xs font-bold text-white shadow-md shadow-brand-500/25 transition-all hover:scale-105 active:scale-95"
+                >
+                  <PlusIcon size={15} />
+                  <span>Add Book to Group</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -279,48 +354,55 @@ export default function GroupDetailPage({ params }: PageProps) {
               <span>All Books ({allGroupBooks.length})</span>
             </button>
 
-            {/* Group Sub-folders */}
+            {/* Group Sub-folders with Color Tag Indicators */}
             {groupData.folders?.map((folder: any) => {
               const count = allGroupBooks.filter((b: any) => b.groupFolderId === folder.id).length;
               const isActive = selectedFolderId === folder.id;
+              const colorTheme = FOLDER_COLOR_THEMES[folder.color || "blue"] || FOLDER_COLOR_THEMES.blue;
+
               return (
                 <div
                   key={folder.id}
                   className={`group/f flex items-center rounded-2xl transition-all ${
                     isActive
-                      ? "bg-brand-600 text-white shadow-md shadow-brand-500/25 scale-105"
-                      : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+                      ? `${colorTheme.activeBg} scale-105`
+                      : `bg-white border ${colorTheme.inactiveBorder} text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800`
                   }`}
                 >
                   <button
                     onClick={() => setSelectedFolderId(folder.id)}
-                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold whitespace-nowrap"
+                    className="flex items-center gap-2 px-3.5 py-2 text-xs font-bold whitespace-nowrap"
                   >
-                    <FolderIcon size={14} />
+                    <span className={`h-2 w-2 rounded-full ${colorTheme.dot} ${isActive ? "ring-2 ring-white/60" : ""}`} />
+                    <FolderIcon size={14} className={isActive ? "text-white" : colorTheme.iconText} />
                     <span>{folder.name} ({count})</span>
                   </button>
 
-                  <button
-                    onClick={() => handleDeleteFolder(folder.id)}
-                    title="Delete folder"
-                    className={`pr-2.5 opacity-0 group-hover/f:opacity-100 transition-opacity ${
-                      isActive ? "text-white/80 hover:text-white" : "text-slate-400 hover:text-red-500"
-                    }`}
-                  >
-                    <TrashIcon size={12} />
-                  </button>
+                  {isOwnerOrAdmin && (
+                    <button
+                      onClick={() => handleDeleteFolder(folder.id)}
+                      title="Delete folder"
+                      className={`pr-2.5 opacity-0 group-hover/f:opacity-100 transition-opacity ${
+                        isActive ? "text-white/80 hover:text-white" : "text-slate-400 hover:text-red-500"
+                      }`}
+                    >
+                      <TrashIcon size={12} />
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          <button
-            onClick={() => setIsFolderModalOpen(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-dashed border-slate-300 text-xs font-semibold text-slate-600 hover:border-brand-400 hover:text-brand-600 dark:border-slate-700 dark:text-slate-400 whitespace-nowrap"
-          >
-            <PlusIcon size={13} />
-            <span>Folder</span>
-          </button>
+          {isOwnerOrAdmin && (
+            <button
+              onClick={() => setIsFolderModalOpen(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-dashed border-slate-300 text-xs font-semibold text-slate-600 hover:border-brand-400 hover:text-brand-600 dark:border-slate-700 dark:text-slate-400 whitespace-nowrap"
+            >
+              <PlusIcon size={13} />
+              <span>Folder</span>
+            </button>
+          )}
         </div>
 
         {/* Bookshelf Grid */}
@@ -378,13 +460,15 @@ export default function GroupDetailPage({ params }: PageProps) {
 
                     <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
                       <span>{book.pageCount ? `${book.pageCount} pgs` : "PDF"}</span>
-                      <button
-                        onClick={() => handleRemoveBook(book.id)}
-                        title="Remove from group"
-                        className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                      >
-                        <TrashIcon size={12} />
-                      </button>
+                      {isOwnerOrAdmin && (
+                        <button
+                          onClick={() => handleRemoveBook(book.id)}
+                          title="Remove from group"
+                          className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                        >
+                          <TrashIcon size={12} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -398,15 +482,19 @@ export default function GroupDetailPage({ params }: PageProps) {
               No Books in this Folder Yet
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-sm">
-              Add books from your library so everyone in this group can read them together.
+              {isOwnerOrAdmin
+                ? "Add books from your library so everyone in this group can read them together."
+                : "No books have been shared in this folder yet. Check back soon!"}
             </p>
-            <button
-              onClick={() => setIsAddBookModalOpen(true)}
-              className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-brand-600 text-xs font-bold text-white shadow-md shadow-brand-500/20 hover:bg-brand-500"
-            >
-              <PlusIcon size={15} />
-              <span>Add Book to Group</span>
-            </button>
+            {isOwnerOrAdmin && (
+              <button
+                onClick={() => setIsAddBookModalOpen(true)}
+                className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-brand-600 text-xs font-bold text-white shadow-md shadow-brand-500/20 hover:bg-brand-500"
+              >
+                <PlusIcon size={15} />
+                <span>Add Book to Group</span>
+              </button>
+            )}
           </div>
         )}
       </main>
@@ -443,8 +531,8 @@ export default function GroupDetailPage({ params }: PageProps) {
         groupName={groupData.name}
         members={groupData.members || []}
         ownerId={groupData.ownerId}
-        currentUserId={session?.user?.id}
-        isOwner={groupData.ownerId === session?.user?.id || (groupData.members?.find((m: any) => m.userId === session?.user?.id)?.role === "OWNER")}
+        currentUserId={currentUserId}
+        isOwner={isOwnerOrAdmin}
         onClose={() => setIsMembersModalOpen(false)}
         onRefresh={() => fetchGroup()}
       />

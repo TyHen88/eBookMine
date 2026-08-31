@@ -76,6 +76,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     // 1. Create a new folder
     if (action === "CREATE_FOLDER") {
+      if (membership.role === "MEMBER") {
+        return NextResponse.json({ error: "Only group administrators and owners can create folders" }, { status: 403 });
+      }
+
       const { name, description, color = "blue", icon = "folder" } = body;
       if (!name || typeof name !== "string" || !name.trim()) {
         return NextResponse.json({ error: "Folder name is required" }, { status: 400 });
@@ -99,6 +103,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     // 2. Add Book to group / folder
     if (action === "ADD_BOOK") {
+      if (membership.role === "MEMBER") {
+        return NextResponse.json({ error: "Only group administrators and owners can add books to the group" }, { status: 403 });
+      }
+
       const { bookId, groupFolderId } = body;
       if (!bookId) {
         return NextResponse.json({ error: "Book ID is required" }, { status: 400 });
@@ -187,8 +195,12 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Remove book from group
+    // Remove book from group (Admin/Owner only)
     if (bookId) {
+      if (membership.role === "MEMBER") {
+        return NextResponse.json({ error: "Only group administrators and owners can remove books" }, { status: 403 });
+      }
+
       const book = await prisma.book.findFirst({
         where: {
           OR: [{ id: bookId }, { driveFileId: bookId }],
@@ -208,10 +220,6 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
         return NextResponse.json({ error: "Book not found in group" }, { status: 404 });
       }
 
-      if (groupBook.addedById !== user.id && membership.role === "MEMBER") {
-        return NextResponse.json({ error: "Only admins or the contributor can remove this book" }, { status: 403 });
-      }
-
       await prisma.groupBook.delete({
         where: { id: groupBook.id },
       });
@@ -222,7 +230,7 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     // Delete folder (Only Admin/Owner)
     if (folderId) {
       if (membership.role === "MEMBER") {
-        return NextResponse.json({ error: "Only group admins can delete folders" }, { status: 403 });
+        return NextResponse.json({ error: "Only group administrators and owners can delete folders" }, { status: 403 });
       }
 
       await prisma.groupFolder.delete({

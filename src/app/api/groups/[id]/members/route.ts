@@ -103,6 +103,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "You must be a group member to invite others" }, { status: 403 });
     }
 
+    if (currentMember.role === "MEMBER") {
+      return NextResponse.json({ error: "Only group administrators and owners can invite new members" }, { status: 403 });
+    }
+
     const targetUser = await prisma.user.findFirst({
       where: {
         OR: [
