@@ -266,75 +266,11 @@ export default function ProfilePage() {
           favorites.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
               {favorites.map((book: any) => (
-                <div
+                <ProfileFavoriteCard
                   key={book.id}
-                  className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-500/10 dark:border-slate-800/80 dark:bg-slate-900/80"
-                >
-                  {/* Cover */}
-                  <Link href={`/read/${book.id}`} className="relative block aspect-[3/4] w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={book.cover || book.coverUrl || `/api/books/${book.id}/thumb`}
-                      alt={book.title}
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                        const next = e.currentTarget.nextElementSibling as HTMLElement;
-                        if (next) next.style.display = "flex";
-                      }}
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="hidden h-full w-full flex-col items-center justify-center p-4 text-center">
-                      <BookOpenIcon size={32} className="text-slate-300 dark:text-slate-600 mb-2" />
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 line-clamp-3">
-                        {book.title}
-                      </span>
-                    </div>
-
-                    {/* Unfavorite trigger */}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleToggleFavorite(book.id, true);
-                      }}
-                      title="Remove from favorites"
-                      className="absolute top-2 right-2 p-1.5 rounded-full bg-white/90 dark:bg-slate-900/90 text-amber-500 shadow-md hover:scale-110 transition-transform"
-                    >
-                      <StarIcon size={14} filled />
-                    </button>
-
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                      <span className="px-3 py-1.5 rounded-full bg-white text-slate-900 text-xs font-extrabold shadow-lg">
-                        Read Now
-                      </span>
-                    </div>
-                  </Link>
-
-                  {/* Details */}
-                  <div className="p-3 flex flex-col flex-1 justify-between">
-                    <div>
-                      <Link
-                        href={`/book/${book.id}`}
-                        className="block text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-1 hover:text-brand-600 transition-colors"
-                      >
-                        {book.title}
-                      </Link>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                        {book.author || "Unknown Author"}
-                      </p>
-                    </div>
-
-                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-                      <span>{book.pageCount ? `${book.pageCount} pgs` : "PDF"}</span>
-                      <Link
-                        href={`/read/${book.id}`}
-                        className="font-bold text-brand-600 hover:underline"
-                      >
-                        Read →
-                      </Link>
-                    </div>
-                  </div>
-                </div>
+                  book={book}
+                  onToggleFavorite={handleToggleFavorite}
+                />
               ))}
             </div>
           ) : (
@@ -357,61 +293,9 @@ export default function ProfilePage() {
         ) : activeTab === "in-progress" ? (
           inProgress.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {inProgress.map((prog: any) => {
-                const book = prog.book;
-                if (!book) return null;
-                const totalPages = book.pageCount || 1;
-                const pct = Math.min(100, Math.round((prog.currentPage / totalPages) * 100));
-
-                return (
-                  <div
-                    key={prog.id}
-                    className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm dark:border-slate-800/80 dark:bg-slate-900/80"
-                  >
-                    <div className="h-16 w-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 flex-shrink-0 shadow-sm">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={book.coverUrl || book.cover || `/api/books/${book.id}/thumb`}
-                        alt=""
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                          const next = e.currentTarget.nextElementSibling as HTMLElement;
-                          if (next) next.style.display = "flex";
-                        }}
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="hidden h-full w-full items-center justify-center text-slate-400">
-                        <BookOpenIcon size={16} />
-                      </div>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                        {book.title}
-                      </h4>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                        Page {prog.currentPage} of {book.pageCount || "—"} ({pct}%)
-                      </p>
-
-                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div
-                          className="h-full rounded-full bg-brand-600 transition-all duration-300"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-
-                      <div className="mt-2.5 flex items-center justify-end">
-                        <Link
-                          href={`/read/${book.driveFileId || book.id}`}
-                          className="text-xs font-bold text-brand-600 hover:underline"
-                        >
-                          Continue Reading →
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {inProgress.map((prog: any) => (
+                <ProfileProgressCard key={prog.id} prog={prog} />
+              ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/50 p-12 text-center dark:border-slate-800 dark:bg-slate-900/50">
@@ -450,6 +334,150 @@ export default function ProfilePage() {
           )
         )}
       </main>
+    </div>
+  );
+}
+
+function ProfileFavoriteCard({
+  book,
+  onToggleFavorite,
+}: {
+  book: any;
+  onToggleFavorite: (bookId: string, currentFav: boolean) => void;
+}) {
+  const [failed, setFailed] = useState(false);
+  const bookId = book.driveFileId || book.id;
+  const src = book.cover || book.coverUrl || `/api/books/${bookId}/thumb`;
+  const readUrl = `/read/${bookId}?from=${encodeURIComponent("/profile")}`;
+
+  return (
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-500/10 dark:border-slate-800/80 dark:bg-slate-900/80">
+      {/* Cover */}
+      <Link
+        href={readUrl}
+        className="relative block aspect-[3/4] w-full overflow-hidden bg-slate-100 dark:bg-slate-800"
+      >
+        {!failed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={book.title}
+            onError={() => setFailed(true)}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
+            <BookOpenIcon size={32} className="text-slate-300 dark:text-slate-600 mb-2" />
+            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 line-clamp-3">
+              {book.title}
+            </span>
+          </div>
+        )}
+
+        {/* Unfavorite trigger */}
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleFavorite(book.id, true);
+          }}
+          title="Remove from favorites"
+          className="absolute top-2 right-2 p-1.5 rounded-full bg-white/90 dark:bg-slate-900/90 text-amber-500 shadow-md hover:scale-110 transition-transform z-10"
+        >
+          <StarIcon size={14} filled />
+        </button>
+
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+          <span className="px-3 py-1.5 rounded-full bg-white text-slate-900 text-xs font-extrabold shadow-lg">
+            Read Now
+          </span>
+        </div>
+      </Link>
+
+      {/* Details */}
+      <div className="p-3 flex flex-col flex-1 justify-between">
+        <div>
+          <Link
+            href={`/book/${bookId}`}
+            className="block text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-1 hover:text-brand-600 transition-colors"
+          >
+            {book.title}
+          </Link>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+            {book.author || "Unknown Author"}
+          </p>
+        </div>
+
+        <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+          <span>{book.pageCount ? `${book.pageCount} pgs` : "PDF"}</span>
+          <Link href={readUrl} className="font-bold text-brand-600 hover:underline">
+            Read →
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileProgressCard({ prog }: { prog: any }) {
+  const [failed, setFailed] = useState(false);
+  const book = prog.book;
+  if (!book) return null;
+
+  const totalPages = book.pageCount || 1;
+  const pct = Math.min(100, Math.round((prog.currentPage / totalPages) * 100));
+  const bookId = book.driveFileId || book.id;
+  const src = book.coverUrl || book.cover || `/api/books/${bookId}/thumb`;
+  const readUrl = `/read/${bookId}?from=${encodeURIComponent("/profile")}`;
+
+  return (
+    <div className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm dark:border-slate-800/80 dark:bg-slate-900/80">
+      <Link
+        href={readUrl}
+        className="h-16 w-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 flex-shrink-0 shadow-sm relative block group"
+      >
+        {!failed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt=""
+            onError={() => setFailed(true)}
+            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+          />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center text-slate-400">
+            <BookOpenIcon size={16} />
+          </div>
+        )}
+      </Link>
+
+      <div className="flex-1 min-w-0">
+        <Link href={readUrl} className="hover:text-brand-600 transition-colors">
+          <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+            {book.title}
+          </h4>
+        </Link>
+        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+          Page {prog.currentPage} of {book.pageCount || "—"} ({pct}%)
+        </p>
+
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+          <div
+            className="h-full rounded-full bg-brand-600 transition-all duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        <div className="mt-2.5 flex items-center justify-end">
+          <Link
+            href={readUrl}
+            className="text-xs font-bold text-brand-600 hover:underline"
+          >
+            Continue Reading →
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
