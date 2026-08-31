@@ -74,67 +74,67 @@ export default function PublicLibrary() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:pl-24 md:pr-10 animate-fade-in">
+    <div className="mx-auto max-w-6xl space-y-3.5 sm:space-y-5 px-3 sm:px-6 py-3 sm:py-5 md:pl-24 md:pr-10 animate-fade-in">
       {/* Creative Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-brand-200/60 bg-gradient-to-br from-brand-600 via-brand-500 to-indigo-700 p-6 text-white shadow-xl shadow-brand-500/20 dark:border-brand-900/60 sm:p-8">
-        <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-brand-200/60 bg-gradient-to-br from-brand-600 via-brand-500 to-indigo-700 p-3.5 sm:p-5 text-white shadow-md shadow-brand-500/20 dark:border-brand-900/60">
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur-md">
-              <SparklesIcon size={14} className="text-amber-300" />
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold backdrop-blur-md">
+              <SparklesIcon size={12} className="text-amber-300" />
               <span>Public eBook Collection</span>
             </div>
-            <h1 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-1.5 text-lg sm:text-2xl font-black tracking-tight text-white">
               Explore eBookMine Library
             </h1>
-            <p className="mt-2 max-w-xl text-xs text-brand-100/90 sm:text-sm">
+            <p className="mt-0.5 max-w-xl text-xs text-brand-100/90 line-clamp-1 sm:line-clamp-none">
               Discover curated eBooks, interactive RAG AI study notes, and personal reading progress trackers.
             </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 rounded-2xl bg-white/15 px-4 py-3 backdrop-blur-md ring-1 ring-white/20">
-            <span className="text-xl">📚</span>
+          <div className="flex shrink-0 items-center gap-2 rounded-xl bg-white/15 px-3 py-1.5 backdrop-blur-md ring-1 ring-white/20">
+            <span className="text-base">📚</span>
             <div>
-              <span className="block text-sm font-black text-white">{books.length} eBooks</span>
-              <span className="block text-[10px] text-brand-100 font-medium">Available in eBookMine</span>
+              <span className="block text-xs font-black text-white">{books.length} eBooks</span>
+              <span className="block text-[9px] text-brand-100 font-medium">Available in eBookMine</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Floating Glassmorphic Command & Filter Control Bar */}
-      <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-3 shadow-xl backdrop-blur-2xl dark:border-slate-800/80 dark:bg-slate-900/80 space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {/* Enhanced Search Input */}
+      {/* Floating Command & Filter Control Bar */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-2.5 sm:p-3 shadow-xs backdrop-blur-2xl dark:border-slate-800/80 dark:bg-slate-900/80 space-y-2.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {/* Search Input */}
           <div className="relative flex-1">
             <SearchIcon
-              size={18}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search books by title, author, or keyword..."
-              className="w-full rounded-2xl border border-slate-200/90 bg-slate-50/50 py-2.5 pl-11 pr-10 text-xs font-medium outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-slate-700/80 dark:bg-slate-800/50 dark:text-white dark:focus:border-brand-400"
+              className="w-full rounded-xl border border-slate-200/90 bg-slate-50/50 py-1.5 pl-9 pr-8 text-xs font-medium outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/10 dark:border-slate-700/80 dark:bg-slate-800/50 dark:text-white dark:focus:border-brand-400"
             />
             {query && (
               <button
                 onClick={() => setQuery("")}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
-                <XIcon size={14} />
+                <XIcon size={13} />
               </button>
             )}
           </div>
 
           {/* Category Dropdown & View Mode Switcher */}
           <div className="flex items-center gap-2">
-            <div className="w-44 shrink-0">
+            <div className="w-36 sm:w-44 shrink-0">
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full cursor-pointer rounded-2xl border border-slate-200/90 bg-slate-50/50 py-2.5 px-3 text-xs font-bold text-slate-700 outline-none transition-all focus:border-brand-500 dark:border-slate-700/80 dark:bg-slate-800/50 dark:text-slate-200"
+                className="w-full cursor-pointer rounded-xl border border-slate-200/90 bg-slate-50/50 py-1.5 px-2.5 text-xs font-bold text-slate-700 outline-none transition-all focus:border-brand-500 dark:border-slate-700/80 dark:bg-slate-800/50 dark:text-slate-200"
               >
                 <option value="">All Categories ({books.length})</option>
                 {categoriesList.map((c) => (
@@ -146,37 +146,37 @@ export default function PublicLibrary() {
             </div>
 
             {/* Segmented View Toggle */}
-            <div className="flex shrink-0 items-center rounded-2xl border border-slate-200/90 bg-slate-50/50 p-1 dark:border-slate-700/80 dark:bg-slate-800/50">
+            <div className="flex shrink-0 items-center rounded-xl border border-slate-200/90 bg-slate-50/50 p-0.5 dark:border-slate-700/80 dark:bg-slate-800/50">
               <button
                 type="button"
                 onClick={() => setView("grid")}
                 title="Grid View"
-                className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all ${
+                className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
                   view === "grid"
-                    ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-500/30"
+                    ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-xs shadow-brand-500/30"
                     : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <GridIcon size={16} />
+                <GridIcon size={14} />
               </button>
               <button
                 type="button"
                 onClick={() => setView("list")}
                 title="List View"
-                className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all ${
+                className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
                   view === "list"
-                    ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-500/30"
+                    ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-xs shadow-brand-500/30"
                     : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <ListIcon size={16} />
+                <ListIcon size={14} />
               </button>
             </div>
           </div>
         </div>
 
         {/* Quick Filter Tag Chips (Language & Categories) */}
-        <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+        <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80">
           {/* Language Selector */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-bold text-slate-400 mr-1 flex items-center gap-1">

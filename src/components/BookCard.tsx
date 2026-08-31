@@ -172,7 +172,7 @@ export default function BookCard({
     <div
       ref={rootRef}
       style={staggerStyle}
-      className={`${staggerClass} group relative flex flex-col overflow-hidden rounded-2xl border bg-white/90 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-brand-500/10 dark:bg-slate-900/80 ${
+      className={`${staggerClass} group relative flex flex-col overflow-hidden rounded-xl sm:rounded-2xl border bg-white/90 shadow-xs backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:shadow-brand-500/10 dark:bg-slate-900/80 ${
         selected
           ? "border-brand-500 ring-2 ring-brand-500"
           : "border-slate-200/80 hover:border-brand-300 dark:border-slate-800 dark:hover:border-brand-700"
@@ -188,18 +188,18 @@ export default function BookCard({
         <Cover
           book={book}
           apiBase={apiBase}
-          className="aspect-[3/4] w-full transition-transform duration-500 ease-out group-hover:scale-[1.05]"
+          className="aspect-[3/4] w-full transition-transform duration-300 ease-out group-hover:scale-[1.05]"
         />
 
         {/* State Badges */}
         {isCompleted && (
-          <div className="absolute left-2 top-2 rounded-full bg-emerald-600/90 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-md backdrop-blur-sm flex items-center gap-1">
-            <CheckIcon size={11} /> Completed
+          <div className="absolute left-1.5 top-1.5 rounded-full bg-emerald-600/90 px-2 py-0.5 text-[9px] font-bold text-white shadow-xs backdrop-blur-sm flex items-center gap-1">
+            <CheckIcon size={10} /> Completed
           </div>
         )}
 
         {pct > 0 && (
-          <div className="absolute inset-x-0 bottom-0 h-1.5 bg-slate-900/20 backdrop-blur-sm">
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-900/20 backdrop-blur-sm">
             <div
               className="h-full bg-gradient-to-r from-brand-600 to-brand-400 transition-all duration-500"
               style={{ width: `${pct}%` }}
@@ -214,30 +214,30 @@ export default function BookCard({
             e.preventDefault();
             onToggleFavorite(book);
           }}
-          className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:scale-110 dark:bg-slate-900/90 ${
+          className={`absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 shadow-xs backdrop-blur-sm transition-transform hover:scale-110 dark:bg-slate-900/90 ${
             book.favorite ? "text-amber-400" : "text-slate-400 hover:text-amber-400"
           }`}
         >
-          <StarIcon size={16} filled={book.favorite} />
+          <StarIcon size={13} filled={book.favorite} />
         </button>
       )}
 
-      <div className="flex flex-1 flex-col p-2.5 sm:p-3.5">
+      <div className="flex flex-1 flex-col p-2 sm:p-2.5">
         <Link href={`/book/${book.id}`} {...wrapProps}>
-          <h3 className="line-clamp-2 text-xs font-bold text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400 break-words">
+          <h3 className="line-clamp-1 text-[11px] sm:text-xs font-bold text-slate-900 transition-colors group-hover:text-brand-600 dark:text-slate-100 dark:group-hover:text-brand-400 break-words">
             {book.title}
           </h3>
         </Link>
         {authorLabel(book.author) && (
-          <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+          <p className="mt-0.5 truncate text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400">
             {book.author}
           </p>
         )}
 
-        <div className="mt-2 flex items-center justify-between gap-1">
+        <div className="mt-1.5 flex items-center justify-between gap-1">
           <div className="flex items-center gap-1 flex-wrap min-w-0">
             {book.language === "km" && (
-              <span className="shrink-0 inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300">
+              <span className="shrink-0 inline-flex items-center rounded bg-emerald-50 px-1 py-0.2 text-[8px] font-extrabold text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300">
                 🇰🇭 KM
               </span>
             )}
@@ -247,24 +247,24 @@ export default function BookCard({
           </div>
 
           {isReading && (
-            <span className="text-[10px] sm:text-[11px] font-bold tabular-nums text-brand-600 dark:text-brand-400 shrink-0">
+            <span className="text-[9px] sm:text-[10px] font-bold tabular-nums text-brand-600 dark:text-brand-400 shrink-0">
               {pct}%
             </span>
           )}
         </div>
 
-        <div className="mt-auto flex items-center gap-1.5 pt-2.5">
+        <div className="mt-auto flex items-center gap-1 pt-2">
           <Link
             href={`/read/${book.id}`}
             onMouseEnter={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
             onTouchStart={() => prefetchPdf(`${apiBase}/${book.id}/file`)}
-            className={`flex w-full items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold transition-all active:scale-[0.98] ${
+            className={`flex w-full items-center justify-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition-all active:scale-[0.98] ${
               isReading
-                ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-500/20 hover:shadow-md"
+                ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-xs hover:shadow-sm"
                 : "border border-slate-200/90 bg-slate-50/80 text-slate-700 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:border-brand-700 dark:hover:bg-brand-900/40"
             }`}
           >
-            <BookOpenIcon size={13} className="shrink-0" />
+            <BookOpenIcon size={12} className="shrink-0" />
             <span className="truncate">
               {isCompleted ? "Read Again" : isReading ? "Continue" : "Read"}
             </span>

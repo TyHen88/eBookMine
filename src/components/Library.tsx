@@ -157,14 +157,14 @@ export default function Library() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-4 pt-6 pb-28 md:pb-12">
+    <div className="mx-auto max-w-6xl space-y-3.5 sm:space-y-5 px-3 sm:px-6 pt-3 sm:pt-5 pb-24 md:pb-10">
       {/* Library Title Banner */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+          <h1 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
             Personal Library
           </h1>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Your personal reading space • Read, understand, and remember.
           </p>
         </div>
@@ -172,32 +172,32 @@ export default function Library() {
 
       {/* Continue Reading Hero Banner (Compact & Mobile-Optimized) */}
       {topContinue ? (
-        <div className="group relative overflow-hidden rounded-2xl border border-brand-400/40 bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 p-3 sm:p-4 text-white shadow-lg shadow-brand-500/15">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="group relative overflow-hidden rounded-2xl border border-brand-400/40 bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 p-2.5 sm:p-3.5 text-white shadow-md shadow-brand-500/15">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <BookThumbnailImg
                 bookId={topContinue.book.id}
                 cover={topContinue.book.cover}
                 title={topContinue.book.title}
-                className="h-16 w-11 sm:h-18 sm:w-13 shrink-0 rounded-xl shadow-md ring-2 ring-white/30"
+                className="h-14 w-10 sm:h-16 sm:w-11 shrink-0 rounded-lg shadow-sm ring-1 ring-white/30"
               />
 
               <div className="min-w-0 flex-1 space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-extrabold text-white backdrop-blur-md">
-                    <BookOpenIcon size={11} /> Continue Reading
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-extrabold text-white backdrop-blur-md">
+                    <BookOpenIcon size={10} /> Continue Reading
                   </span>
                   <span className="text-[10px] font-bold text-brand-100">
                     {topContinue.progress.progressPercentage}%
                   </span>
                 </div>
 
-                <h2 className="line-clamp-1 text-sm sm:text-base font-bold text-white leading-snug">
+                <h2 className="line-clamp-1 text-xs sm:text-sm font-bold text-white leading-snug">
                   {topContinue.book.title}
                 </h2>
 
-                <div className="flex items-center gap-2 text-[11px] text-brand-100">
-                  <span className="truncate max-w-[140px] sm:max-w-none">{topContinue.book.author || "Unknown"}</span>
+                <div className="flex items-center gap-1.5 text-[10px] text-brand-100">
+                  <span className="truncate max-w-[120px] sm:max-w-none">{topContinue.book.author || "Unknown"}</span>
                   <span>•</span>
                   <span className="font-semibold text-white">
                     Page {topContinue.progress.currentPage} / {topContinue.progress.totalPages}
@@ -206,49 +206,49 @@ export default function Library() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0 justify-end">
+            <div className="flex items-center gap-1.5 shrink-0 justify-end">
               <Link
                 href={`/read/${topContinue.book.id}`}
                 onMouseEnter={() => prefetchPdf(`/api/books/${topContinue.book.id}/file`)}
                 onTouchStart={() => prefetchPdf(`/api/books/${topContinue.book.id}/file`)}
-                className="flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs font-bold text-brand-700 shadow-sm transition-all hover:bg-brand-50 hover:shadow-md active:scale-95"
+                className="flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-brand-700 shadow-xs transition-all hover:bg-brand-50 hover:scale-105 active:scale-95"
               >
-                <BookOpenIcon size={14} /> Continue
+                <BookOpenIcon size={13} /> Continue
               </Link>
               <Link
                 href={`/book/${topContinue.book.id}`}
-                className="flex items-center gap-1 rounded-xl bg-white/15 px-3 py-2 text-xs font-bold text-white backdrop-blur-md transition-all hover:bg-white/25"
+                className="flex items-center gap-1 rounded-xl bg-white/15 px-2.5 py-1.5 text-xs font-bold text-white backdrop-blur-md transition-all hover:bg-white/25"
               >
-                <SparklesIcon size={14} /> Ask AI
+                <SparklesIcon size={13} /> Ask AI
               </Link>
             </div>
           </div>
         </div>
       ) : (
         /* Empty State for New Users */
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 p-8 text-center dark:border-slate-800 dark:bg-slate-900/40">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
-            <BookOpenIcon size={28} />
+        <div className="rounded-2xl sm:rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 p-6 sm:p-8 text-center dark:border-slate-800 dark:bg-slate-900/40">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
+            <BookOpenIcon size={24} />
           </div>
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">Start your learning journey</h3>
-          <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
+          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Start your learning journey</h3>
+          <p className="mx-auto mt-0.5 max-w-sm text-xs text-slate-500 dark:text-slate-400">
             Choose a book from your library and eBookMine will help you read, understand, and remember it.
           </p>
         </div>
       )}
 
       {/* Filter Tabs & Search Toolbar */}
-      <div className="space-y-3.5">
+      <div className="space-y-2.5 sm:space-y-3">
         {/* Shelf Tabs & View Mode Segmented Pill */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3 dark:border-slate-800/80">
-          <div className="flex items-center gap-1.5 overflow-x-auto [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 flex-1">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200/80 pb-2.5 dark:border-slate-800/80">
+          <div className="flex items-center gap-1 overflow-x-auto [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 flex-1">
             {(["all", "reading", "unread", "completed", "favorites"] as ShelfTab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setActiveTab(t)}
-                className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
                   activeTab === t
-                    ? "bg-brand-600 text-white shadow-md shadow-brand-500/20"
+                    ? "bg-brand-600 text-white shadow-xs shadow-brand-500/20"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/70"
                 }`}
               >
