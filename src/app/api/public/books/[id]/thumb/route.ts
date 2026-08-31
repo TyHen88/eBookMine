@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { publicThumbnailUrl } from "@/lib/drive";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,19 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const res = await fetch(publicThumbnailUrl(id, 400));
+    const dbBook = await prisma.book
+      .findFirst({
+        where: { OR: [{ id }, { driveFileId: id }] },
+        select: { driveFileId: true, coverUrl: true },
+      })
+      .catch(() => null);
+
+    if (dbBook?.coverUrl) {
+      return NextResponse.redirect(dbBook.coverUrl);
+    }
+
+    const fileId = dbBook?.driveFileId || id;
+    const res = await fetch(publicThumbnailUrl(fileId, 400));
     if (!res.ok || !res.body) return new NextResponse(null, { status: 404 });
 
     const headers = new Headers();

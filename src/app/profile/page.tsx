@@ -272,21 +272,23 @@ export default function ProfilePage() {
                 >
                   {/* Cover */}
                   <Link href={`/read/${book.id}`} className="relative block aspect-[3/4] w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                    {book.cover ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={book.cover}
-                        alt={book.title}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
-                        <BookOpenIcon size={32} className="text-slate-300 dark:text-slate-600 mb-2" />
-                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 line-clamp-3">
-                          {book.title}
-                        </span>
-                      </div>
-                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={book.cover || book.coverUrl || `/api/books/${book.id}/thumb`}
+                      alt={book.title}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        const next = e.currentTarget.nextElementSibling as HTMLElement;
+                        if (next) next.style.display = "flex";
+                      }}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div className="hidden h-full w-full flex-col items-center justify-center p-4 text-center">
+                      <BookOpenIcon size={32} className="text-slate-300 dark:text-slate-600 mb-2" />
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 line-clamp-3">
+                        {book.title}
+                      </span>
+                    </div>
 
                     {/* Unfavorite trigger */}
                     <button
@@ -367,14 +369,20 @@ export default function ProfilePage() {
                     className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm dark:border-slate-800/80 dark:bg-slate-900/80"
                   >
                     <div className="h-16 w-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 flex-shrink-0 shadow-sm">
-                      {book.coverUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={book.coverUrl} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-slate-400">
-                          <BookOpenIcon size={16} />
-                        </div>
-                      )}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={book.coverUrl || book.cover || `/api/books/${book.id}/thumb`}
+                        alt=""
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          const next = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (next) next.style.display = "flex";
+                        }}
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="hidden h-full w-full items-center justify-center text-slate-400">
+                        <BookOpenIcon size={16} />
+                      </div>
                     </div>
 
                     <div className="flex-1 min-w-0">

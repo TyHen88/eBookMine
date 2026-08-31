@@ -408,72 +408,15 @@ export default function GroupDetailPage({ params }: PageProps) {
         {/* Bookshelf Grid */}
         {currentBooks.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
-            {currentBooks.map((item: any) => {
-              const book = item.book;
-              if (!book) return null;
-              const authors = book.authors?.map((a: any) => a.author?.name || a.name).join(", ");
-
-              return (
-                <div
-                  key={item.id}
-                  className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-500/10 dark:border-slate-800/80 dark:bg-slate-900/80"
-                >
-                  {/* Book Cover */}
-                  <Link href={`/read/${book.driveFileId || book.id}`} className="relative block aspect-[3/4] w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                    {book.coverUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={book.coverUrl}
-                        alt={book.title}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
-                        <BookOpenIcon size={32} className="text-slate-300 dark:text-slate-600 mb-2" />
-                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 line-clamp-3">
-                          {book.title}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Hover Read Overlay */}
-                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="px-3 py-1.5 rounded-full bg-white text-slate-900 text-xs font-extrabold shadow-lg">
-                        Read Book
-                      </span>
-                    </div>
-                  </Link>
-
-                  {/* Book Details */}
-                  <div className="p-3 flex flex-col flex-1 justify-between">
-                    <div>
-                      <Link
-                        href={`/read/${book.driveFileId || book.id}`}
-                        className="block text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-1 hover:text-brand-600 transition-colors"
-                      >
-                        {book.title}
-                      </Link>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                        {authors || "Unknown Author"}
-                      </p>
-                    </div>
-
-                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-                      <span>{book.pageCount ? `${book.pageCount} pgs` : "PDF"}</span>
-                      {isOwnerOrAdmin && (
-                        <button
-                          onClick={() => handleRemoveBook(book.id)}
-                          title="Remove from group"
-                          className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                        >
-                          <TrashIcon size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {currentBooks.map((item: any) => (
+              <GroupBookCard
+                key={item.id}
+                item={item}
+                groupId={groupData.id}
+                isOwnerOrAdmin={isOwnerOrAdmin}
+                onRemove={handleRemoveBook}
+              />
+            ))}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/50 p-12 text-center dark:border-slate-800 dark:bg-slate-900/50">
@@ -536,6 +479,88 @@ export default function GroupDetailPage({ params }: PageProps) {
         onClose={() => setIsMembersModalOpen(false)}
         onRefresh={() => fetchGroup()}
       />
+    </div>
+  );
+}
+
+function GroupBookCard({
+  item,
+  groupId,
+  isOwnerOrAdmin,
+  onRemove,
+}: {
+  item: any;
+  groupId: string;
+  isOwnerOrAdmin: boolean;
+  onRemove: (bookId: string) => void;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const book = item.book;
+  if (!book) return null;
+
+  const authors = book.authors?.map((a: any) => a.author?.name || a.name).join(", ");
+  const readUrl = `/read/${book.driveFileId || book.id}?from=${encodeURIComponent(`/groups/${groupId}`)}`;
+  const coverSrc = book.coverUrl || `/api/books/${book.id}/thumb`;
+
+  return (
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-500/10 dark:border-slate-800/80 dark:bg-slate-900/80">
+      {/* Book Cover */}
+      <Link
+        href={readUrl}
+        className="relative block aspect-[3/4] w-full overflow-hidden bg-slate-100 dark:bg-slate-800"
+      >
+        {!imgFailed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={coverSrc}
+            alt={book.title}
+            onError={() => setImgFailed(true)}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
+            <BookOpenIcon size={32} className="text-slate-300 dark:text-slate-600 mb-2" />
+            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 line-clamp-3">
+              {book.title}
+            </span>
+          </div>
+        )}
+
+        {/* Hover Read Overlay */}
+        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <span className="px-3 py-1.5 rounded-full bg-white text-slate-900 text-xs font-extrabold shadow-lg">
+            Read Book
+          </span>
+        </div>
+      </Link>
+
+      {/* Book Details */}
+      <div className="p-3 flex flex-col flex-1 justify-between">
+        <div>
+          <Link
+            href={readUrl}
+            className="block text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-1 hover:text-brand-600 transition-colors"
+          >
+            {book.title}
+          </Link>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+            {authors || "Unknown Author"}
+          </p>
+        </div>
+
+        <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+          <span>{book.pageCount ? `${book.pageCount} pgs` : "PDF"}</span>
+          {isOwnerOrAdmin && (
+            <button
+              onClick={() => onRemove(book.id)}
+              title="Remove from group"
+              className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+            >
+              <TrashIcon size={12} />
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

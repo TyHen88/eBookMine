@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowLeftIcon,
   MinusIcon,
@@ -78,6 +79,9 @@ export default function ReaderToolbar({
   onOpenTabsSheet,
 }: ReaderToolbarProps) {
   const [editingPage, setEditingPage] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const fromUrl = searchParams?.get("from") || searchParams?.get("returnUrl");
+  const backHref = fromUrl || "/library";
 
   const displayPage = editingPage !== null ? editingPage : String(currentPage);
 
@@ -113,9 +117,9 @@ export default function ReaderToolbar({
       {/* Left section: Back & Mobile Tab Switcher Chip & New Book (+) & Desktop Sidebar toggle */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
         <Link
-          href="/library"
+          href={backHref}
           className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 hover:bg-black/5 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white transition"
-          title="Back to Library"
+          title={fromUrl ? "Back" : "Back to Library"}
         >
           <ArrowLeftIcon size={18} />
         </Link>

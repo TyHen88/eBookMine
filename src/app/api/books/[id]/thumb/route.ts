@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessToken } from "@/lib/session";
 import { fetchThumbnail, publicThumbnailUrl } from "@/lib/drive";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,21 @@ export async function GET(
   const token = await getAccessToken();
 
   try {
+    const dbBook = await prisma.book
+      .findFirst({
+        where: { OR: [{ id }, { driveFileId: id }] },
+        select: { driveFileId: true, coverUrl: true },
+      })
+      .catch(() => null);
+
+    if (dbBook?.coverUrl) {
+      return NextResponse.redirect(dbBook.coverUrl);
+    }
+
+    const fileId = dbBook?.driveFileId || id;
+
     if (token) {
-      const res = await fetchThumbnail(token, id);
+      const res = await fetchThumbnail(token, fileId);
       if (res && res.body) {
         const headers = new Headers();
         headers.set("Content-Type", res.headers.get("content-type") ?? "image/jpeg");
@@ -28,7 +42,7 @@ export async function GET(
     }
 
     // Fallback: Try fetching public thumbnail (for link-shared files or API key access)
-    const pubRes = await fetch(publicThumbnailUrl(id, 400));
+    const pubRes = await fetch(publicThumbnailUrl(fileId, 400));
     if (pubRes.ok && pubRes.body) {
       const headers = new Headers();
       headers.set("Content-Type", pubRes.headers.get("content-type") ?? "image/jpeg");

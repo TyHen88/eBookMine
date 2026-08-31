@@ -188,18 +188,7 @@ export default function AddBookToGroupModal({
                       }`}
                     >
                       <div className="flex items-center gap-3 overflow-hidden">
-                        {book.coverUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={book.coverUrl}
-                            alt=""
-                            className="h-11 w-8 rounded-lg object-cover shadow-sm flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="h-11 w-8 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400 flex-shrink-0">
-                            <BookOpenIcon size={14} />
-                          </div>
-                        )}
+                        <ModalBookThumb book={book} />
                         <div className="overflow-hidden">
                           <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
                             {book.title}
@@ -244,6 +233,29 @@ export default function AddBookToGroupModal({
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function ModalBookThumb({ book }: { book: any }) {
+  const [failed, setFailed] = useState(false);
+  const src = book.coverUrl || `/api/books/${book.id}/thumb`;
+
+  if (!failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        onError={() => setFailed(true)}
+        className="h-11 w-8 rounded-lg object-cover shadow-sm flex-shrink-0 bg-slate-100 dark:bg-slate-800"
+      />
+    );
+  }
+
+  return (
+    <div className="h-11 w-8 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400 flex-shrink-0">
+      <BookOpenIcon size={14} />
     </div>
   );
 }
