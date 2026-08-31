@@ -214,24 +214,37 @@ export default function GroupDetailPage({ params }: PageProps) {
       <Header />
       <VerticalNav />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-8 md:pl-24">
-        {/* Back Link */}
-        <Link
-          href="/groups"
-          className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-300 mb-4 transition-colors"
-        >
-          <ArrowLeftIcon size={14} />
-          <span>All Reading Groups</span>
-        </Link>
+      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 py-3 sm:py-6 md:pl-24">
+        {/* Navigation Breadcrumb & Code */}
+        <div className="flex items-center justify-between gap-2 mb-2.5 sm:mb-4">
+          <Link
+            href="/groups"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/80 border border-slate-200/80 hover:bg-slate-100 text-xs font-bold text-slate-700 dark:bg-slate-900/80 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 transition-all shadow-xs"
+          >
+            <ArrowLeftIcon size={13} />
+            <span>Groups</span>
+          </Link>
 
-        {/* Group Header Hero */}
-        <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-brand-50/20 to-indigo-50/30 p-6 sm:p-8 shadow-xl shadow-brand-500/5 backdrop-blur-xl dark:border-slate-800/80 dark:from-slate-900/90 dark:via-slate-900/60 dark:to-indigo-950/20 mb-8">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-            <div>
-              {/* Badges */}
-              <div className="flex flex-wrap items-center gap-2 mb-2.5">
+          {isOwnerOrAdmin && (
+            <button
+              onClick={handleCopyCode}
+              title="Click to copy invite code"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/90 px-2.5 py-1 text-xs font-mono font-bold text-slate-800 shadow-xs border border-slate-200 hover:border-brand-300 transition-all dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
+            >
+              <span className="text-slate-400 font-sans font-normal text-[10px]">Code:</span>
+              <span className="tracking-wider">{groupData.code}</span>
+              {copiedCode ? <CheckIcon size={12} className="text-emerald-500" /> : <CopyIcon size={12} />}
+            </button>
+          )}
+        </div>
+
+        {/* Compact Hero Card */}
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-brand-50/15 to-indigo-50/20 p-3.5 sm:p-5 shadow-sm backdrop-blur-xl dark:border-slate-800/80 dark:from-slate-900/90 dark:via-slate-900/60 dark:to-indigo-950/20 mb-3.5 sm:mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap mb-1">
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide uppercase ${
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold tracking-wide uppercase ${
                     groupData.privacy === "PUBLIC"
                       ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60"
                       : "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/60"
@@ -240,98 +253,82 @@ export default function GroupDetailPage({ params }: PageProps) {
                   {groupData.privacy === "PUBLIC" ? (
                     <>
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      Public Group
+                      Public
                     </>
                   ) : (
                     <>
-                      <LockIcon size={10} />
-                      Private Group
+                      <LockIcon size={9} />
+                      Private
                     </>
                   )}
                 </span>
 
-                {/* User Role Badge */}
                 {myMembership && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 border border-brand-200/60 dark:border-brand-900/60 uppercase tracking-wider">
-                    {isOwnerOrAdmin && <CrownIcon size={10} className="text-amber-500" />}
+                  <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 border border-brand-200/60 dark:border-brand-900/60 uppercase">
+                    {isOwnerOrAdmin && <CrownIcon size={9} className="text-amber-500" />}
                     {myMembership.role}
                   </span>
                 )}
-
-                {/* Invite Code Pill - Visible only to owner and admins */}
-                {isOwnerOrAdmin && (
-                  <button
-                    onClick={handleCopyCode}
-                    title="Click to copy invite code"
-                    className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-0.5 text-[11px] font-mono font-bold text-slate-800 shadow-sm border border-slate-200 hover:border-brand-300 transition-all dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
-                  >
-                    <span className="text-slate-400 font-sans font-normal">Code:</span>
-                    <span className="tracking-wider">{groupData.code}</span>
-                    {copiedCode ? <CheckIcon size={12} className="text-emerald-500" /> : <CopyIcon size={12} />}
-                  </button>
-                )}
               </div>
 
-              {/* Title & Description */}
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                {groupData.name}
-              </h1>
-              {groupData.description && (
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
-                  {groupData.description}
-                </p>
-              )}
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 truncate">
+                  {groupData.name}
+                </h1>
 
-              {/* Members Preview */}
-              <div className="mt-4 flex items-center gap-2">
                 <button
                   onClick={() => setIsMembersModalOpen(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/80 border border-slate-200 shadow-sm hover:border-brand-400 hover:shadow-md transition-all dark:bg-slate-800 dark:border-slate-700"
-                  title="Click to view all members"
+                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-white/80 border border-slate-200 shadow-xs hover:border-brand-400 transition dark:bg-slate-800 dark:border-slate-700"
+                  title="View members"
                 >
-                  <div className="flex -space-x-2 overflow-hidden">
-                    {groupData.members?.slice(0, 5).map((m: any) => (
+                  <div className="flex -space-x-1.5 overflow-hidden">
+                    {groupData.members?.slice(0, 3).map((m: any) => (
                       <div
                         key={m.id}
-                        title={m.user?.name || m.user?.email}
-                        className="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-slate-900 bg-gradient-to-tr from-brand-600 to-indigo-500 text-white flex items-center justify-center font-bold text-[9px] shadow-sm"
+                        className="inline-block h-4 w-4 rounded-full ring-1 ring-white dark:ring-slate-900 bg-gradient-to-tr from-brand-600 to-indigo-500 text-white flex items-center justify-center font-bold text-[7px]"
                       >
                         {m.user?.name?.[0]?.toUpperCase() || "U"}
                       </div>
                     ))}
                   </div>
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    {groupData.members?.length || 1} {groupData.members?.length === 1 ? "member" : "members"}
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300">
+                    {groupData.members?.length || 1}
                   </span>
                 </button>
               </div>
+
+              {groupData.description && (
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-1 max-w-xl">
+                  {groupData.description}
+                </p>
+              )}
             </div>
 
-            {/* Action Buttons - Only for Group Owners & Admins */}
+            {/* Compact Action Buttons */}
             {isOwnerOrAdmin && (
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800/60">
                 <button
-                  onClick={() => setIsInviteModalOpen(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition-all hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  onClick={() => setIsAddBookModalOpen(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 text-xs font-bold text-white shadow-xs shadow-brand-500/25 transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
                 >
-                  <UserPlusIcon size={15} />
-                  <span>Invite Friends</span>
+                  <PlusIcon size={13} />
+                  <span>Add Book</span>
                 </button>
 
                 <button
                   onClick={() => setIsFolderModalOpen(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition-all hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-xs transition-all active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 whitespace-nowrap"
                 >
-                  <FolderPlusIcon size={15} />
-                  <span>New Folder</span>
+                  <FolderPlusIcon size={13} />
+                  <span>Folder</span>
                 </button>
 
                 <button
-                  onClick={() => setIsAddBookModalOpen(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 text-xs font-bold text-white shadow-md shadow-brand-500/25 transition-all hover:scale-105 active:scale-95"
+                  onClick={() => setIsInviteModalOpen(true)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-xs transition-all active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 whitespace-nowrap"
                 >
-                  <PlusIcon size={15} />
-                  <span>Add Book to Group</span>
+                  <UserPlusIcon size={13} />
+                  <span>Invite</span>
                 </button>
               </div>
             )}
@@ -339,18 +336,18 @@ export default function GroupDetailPage({ params }: PageProps) {
         </div>
 
         {/* Folders Navigation Bar */}
-        <div className="flex items-center justify-between gap-3 overflow-x-auto pb-2 mb-6">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1.5 mb-3.5 sm:mb-5 scrollbar-none">
+          <div className="flex items-center gap-1.5">
             {/* All Books Tab */}
             <button
               onClick={() => setSelectedFolderId("ALL")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 selectedFolderId === "ALL"
-                  ? "bg-brand-600 text-white shadow-md shadow-brand-500/25 scale-105"
-                  : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+                  ? "bg-brand-600 text-white shadow-xs shadow-brand-500/20"
+                  : "bg-white/80 border border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900/80 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
-              <BookOpenIcon size={14} />
+              <BookOpenIcon size={13} />
               <span>All Books ({allGroupBooks.length})</span>
             </button>
 
@@ -363,18 +360,18 @@ export default function GroupDetailPage({ params }: PageProps) {
               return (
                 <div
                   key={folder.id}
-                  className={`group/f flex items-center rounded-2xl transition-all ${
+                  className={`group/f flex items-center rounded-xl transition-all ${
                     isActive
-                      ? `${colorTheme.activeBg} scale-105`
-                      : `bg-white border ${colorTheme.inactiveBorder} text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800`
+                      ? colorTheme.activeBg
+                      : `bg-white/80 border ${colorTheme.inactiveBorder} text-slate-700 hover:bg-slate-50 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:bg-slate-800`
                   }`}
                 >
                   <button
                     onClick={() => setSelectedFolderId(folder.id)}
-                    className="flex items-center gap-2 px-3.5 py-2 text-xs font-bold whitespace-nowrap"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold whitespace-nowrap"
                   >
                     <span className={`h-2 w-2 rounded-full ${colorTheme.dot} ${isActive ? "ring-2 ring-white/60" : ""}`} />
-                    <FolderIcon size={14} className={isActive ? "text-white" : colorTheme.iconText} />
+                    <FolderIcon size={13} className={isActive ? "text-white" : colorTheme.iconText} />
                     <span>{folder.name} ({count})</span>
                   </button>
 
@@ -382,11 +379,11 @@ export default function GroupDetailPage({ params }: PageProps) {
                     <button
                       onClick={() => handleDeleteFolder(folder.id)}
                       title="Delete folder"
-                      className={`pr-2.5 opacity-0 group-hover/f:opacity-100 transition-opacity ${
+                      className={`pr-2 opacity-0 group-hover/f:opacity-100 transition-opacity ${
                         isActive ? "text-white/80 hover:text-white" : "text-slate-400 hover:text-red-500"
                       }`}
                     >
-                      <TrashIcon size={12} />
+                      <TrashIcon size={11} />
                     </button>
                   )}
                 </div>
@@ -397,9 +394,9 @@ export default function GroupDetailPage({ params }: PageProps) {
           {isOwnerOrAdmin && (
             <button
               onClick={() => setIsFolderModalOpen(true)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-dashed border-slate-300 text-xs font-semibold text-slate-600 hover:border-brand-400 hover:text-brand-600 dark:border-slate-700 dark:text-slate-400 whitespace-nowrap"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-dashed border-slate-300 text-xs font-semibold text-slate-500 hover:border-brand-400 hover:text-brand-600 dark:border-slate-700 dark:text-slate-400 whitespace-nowrap"
             >
-              <PlusIcon size={13} />
+              <PlusIcon size={12} />
               <span>Folder</span>
             </button>
           )}
@@ -407,7 +404,7 @@ export default function GroupDetailPage({ params }: PageProps) {
 
         {/* Bookshelf Grid */}
         {currentBooks.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-4">
             {currentBooks.map((item: any) => (
               <GroupBookCard
                 key={item.id}
@@ -419,9 +416,9 @@ export default function GroupDetailPage({ params }: PageProps) {
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/50 p-12 text-center dark:border-slate-800 dark:bg-slate-900/50">
-            <BookOpenIcon size={36} className="text-slate-300 dark:text-slate-600 mb-3" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+          <div className="flex flex-col items-center justify-center rounded-2xl sm:rounded-3xl border border-dashed border-slate-200 bg-white/50 p-8 sm:p-12 text-center dark:border-slate-800 dark:bg-slate-900/50">
+            <BookOpenIcon size={32} className="text-slate-300 dark:text-slate-600 mb-2.5" />
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">
               No Books in this Folder Yet
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-sm">
@@ -432,9 +429,9 @@ export default function GroupDetailPage({ params }: PageProps) {
             {isOwnerOrAdmin && (
               <button
                 onClick={() => setIsAddBookModalOpen(true)}
-                className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-brand-600 text-xs font-bold text-white shadow-md shadow-brand-500/20 hover:bg-brand-500"
+                className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 text-xs font-bold text-white shadow-xs shadow-brand-500/20 hover:bg-brand-500 transition"
               >
-                <PlusIcon size={15} />
+                <PlusIcon size={14} />
                 <span>Add Book to Group</span>
               </button>
             )}
@@ -503,7 +500,7 @@ function GroupBookCard({
   const coverSrc = book.coverUrl || `/api/books/${book.id}/thumb`;
 
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-500/10 dark:border-slate-800/80 dark:bg-slate-900/80">
+    <div className="group relative flex flex-col overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white/90 shadow-xs backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:shadow-brand-500/10 dark:border-slate-800/80 dark:bg-slate-900/80">
       {/* Book Cover */}
       <Link
         href={readUrl}
@@ -515,12 +512,12 @@ function GroupBookCard({
             src={coverSrc}
             alt={book.title}
             onError={() => setImgFailed(true)}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
-            <BookOpenIcon size={32} className="text-slate-300 dark:text-slate-600 mb-2" />
-            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 line-clamp-3">
+          <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center">
+            <BookOpenIcon size={24} className="text-slate-300 dark:text-slate-600 mb-1.5" />
+            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 line-clamp-2">
               {book.title}
             </span>
           </div>
@@ -528,27 +525,27 @@ function GroupBookCard({
 
         {/* Hover Read Overlay */}
         <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <span className="px-3 py-1.5 rounded-full bg-white text-slate-900 text-xs font-extrabold shadow-lg">
-            Read Book
+          <span className="px-2.5 py-1 rounded-full bg-white text-slate-900 text-[10px] sm:text-xs font-extrabold shadow-sm">
+            Read
           </span>
         </div>
       </Link>
 
       {/* Book Details */}
-      <div className="p-3 flex flex-col flex-1 justify-between">
+      <div className="p-2 sm:p-2.5 flex flex-col flex-1 justify-between">
         <div>
           <Link
             href={readUrl}
-            className="block text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-1 hover:text-brand-600 transition-colors"
+            className="block text-[11px] sm:text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-1 hover:text-brand-600 transition-colors"
           >
             {book.title}
           </Link>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+          <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
             {authors || "Unknown Author"}
           </p>
         </div>
 
-        <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+        <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[9px] sm:text-[10px] text-slate-400">
           <span>{book.pageCount ? `${book.pageCount} pgs` : "PDF"}</span>
           {isOwnerOrAdmin && (
             <button
@@ -556,7 +553,7 @@ function GroupBookCard({
               title="Remove from group"
               className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
             >
-              <TrashIcon size={12} />
+              <TrashIcon size={11} />
             </button>
           )}
         </div>
