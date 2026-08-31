@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { translateText } from "@/lib/translateService";
-import { requireUser } from "@/lib/authHelpers";
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/translate
- * Body: { text: string, to?: string }
+ * Body: { text: string, to?: string, from?: string }
  */
 export async function POST(req: NextRequest) {
-  const { response } = await requireUser();
-  if (response) return response;
 
   try {
     const { text, to = "en", from = "auto" } = await req.json();
