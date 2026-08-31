@@ -10,6 +10,7 @@ import { prefetchPdf } from "@/lib/pdfCache";
 import Header from "./Header";
 import BookCard from "./BookCard";
 import AuthPromptModal from "./AuthPromptModal";
+import AddToGroupModal from "./groups/AddToGroupModal";
 import { buttonClass, Spinner } from "./ui";
 import { useToast } from "./ui/Toast";
 import {
@@ -23,6 +24,7 @@ import {
   StarIcon,
   TagIcon,
   CheckIcon,
+  UsersIcon,
 } from "./ui/icons";
 
 function formatBytes(bytes: number): string {
@@ -64,6 +66,7 @@ export default function BookDetail({ id }: { id: string }) {
   const [coverFailed, setCoverFailed] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isAddToGroupOpen, setIsAddToGroupOpen] = useState(false);
 
   // Saved Items for this book
   const [notes, setNotes] = useState<NoteData[]>([]);
@@ -412,6 +415,21 @@ export default function BookDetail({ id }: { id: string }) {
                       <DownloadIcon size={15} />
                       <span>Download PDF</span>
                     </a>
+
+                    <button
+                      onClick={() => {
+                        if (!isOwner) {
+                          setShowAuthModal(true);
+                        } else {
+                          setIsAddToGroupOpen(true);
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50/70 px-4 py-2.5 text-xs font-bold text-brand-600 shadow-sm transition-all hover:bg-brand-100 hover:scale-[1.02] active:scale-[0.98] dark:border-brand-900/60 dark:bg-brand-950/40 dark:text-brand-300"
+                      title="Add this book to a Reading Group"
+                    >
+                      <UsersIcon size={15} />
+                      <span>Add to Reading Group</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -522,6 +540,19 @@ export default function BookDetail({ id }: { id: string }) {
 
       {/* Auth Prompt Modal */}
       {showAuthModal && <AuthPromptModal onClose={() => setShowAuthModal(false)} />}
+
+      {/* Add To Reading Group Modal */}
+      {book && (
+        <AddToGroupModal
+          isOpen={isAddToGroupOpen}
+          bookId={book.id}
+          bookTitle={book.title}
+          onClose={() => setIsAddToGroupOpen(false)}
+          onSuccess={() => {
+            showToast("Book added to Reading Group!", "success");
+          }}
+        />
+      )}
     </div>
   );
 }

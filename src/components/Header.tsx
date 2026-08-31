@@ -46,28 +46,32 @@ export default function Header() {
         <div className="flex items-center gap-2">
           {isAuthenticated ? (
             <div className="flex items-center gap-3 rounded-full border border-slate-200/80 bg-slate-50/80 p-1.5 pr-2.5 shadow-sm backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/80">
-              <div className="flex items-center gap-2">
+              <Link
+                href="/profile"
+                className="flex items-center gap-2 group/user hover:opacity-90 transition-opacity"
+                title="View My Profile & Favorites"
+              >
                 {session?.user?.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={session.user.image}
                     alt={userName}
-                    className="h-8 w-8 rounded-full ring-2 ring-brand-500/50 shadow-sm transition-transform duration-300 hover:scale-105"
+                    className="h-8 w-8 rounded-full ring-2 ring-brand-500/50 shadow-sm transition-transform duration-300 group-hover/user:scale-105"
                   />
                 ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-brand-600 to-brand-500 font-bold text-xs text-white shadow-md">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-brand-600 to-brand-500 font-bold text-xs text-white shadow-md transition-transform duration-300 group-hover/user:scale-105">
                     {userName[0]?.toUpperCase()}
                   </div>
                 )}
                 <div className="hidden flex-col sm:flex">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[120px] truncate">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[120px] truncate group-hover/user:text-brand-600 dark:group-hover/user:text-brand-300 transition-colors">
                     {userName}
                   </span>
                   <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    ● Connected
+                    ● Profile & Favs
                   </span>
                 </div>
-              </div>
+              </Link>
 
               <div className="h-4 w-px bg-slate-200 dark:bg-slate-700" />
 

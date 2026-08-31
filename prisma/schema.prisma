@@ -15,6 +15,25 @@ enum Role {
   ADMIN
 }
 
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  BLOCKED
+}
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum GroupPrivacy {
+  PUBLIC
+  PRIVATE
+  SECRET
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -26,17 +45,23 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  readingProgresses ReadingProgress[]
-  bookmarks         Bookmark[]
-  highlights        Highlight[]
-  notes             Note[]
-  readingGoals      ReadingGoal[]
-  aiConversations   AIConversation[]
-  aiUsages          AIUsage[]
-  quizzes           Quiz[]
-  quizAttempts      QuizAttempt[]
-  flashcards        Flashcard[]
-  readingLogs       ReadingLog[]
+  readingProgresses    ReadingProgress[]
+  bookmarks            Bookmark[]
+  highlights           Highlight[]
+  notes                Note[]
+  readingGoals         ReadingGoal[]
+  aiConversations      AIConversation[]
+  aiUsages             AIUsage[]
+  quizzes              Quiz[]
+  quizAttempts         QuizAttempt[]
+  flashcards           Flashcard[]
+  readingLogs          ReadingLog[]
+  sentFriendships      Friendship[]       @relation("SentFriendships")
+  receivedFriendships  Friendship[]       @relation("ReceivedFriendships")
+  ownedGroups          Group[]            @relation("GroupOwner")
+  groupMemberships     GroupMember[]
+  groupDiscussions     GroupDiscussion[]
+  addedGroupBooks      GroupBook[]
 }
 
 model OtpCode {
@@ -84,6 +109,8 @@ model Book {
   documentSummaries  DocumentSummary[]
   quizzes            Quiz[]
   flashcards         Flashcard[]
+  groupBooks         GroupBook[]
+  groupDiscussions   GroupDiscussion[]
 
   @@index([driveFileId])
   @@index([published, visibility])
@@ -486,4 +513,115 @@ model EmbeddingCache {
   @@index([contentHash])
   @@index([model, dimensions])
 }
+
+model Friendship {
+  id         String           @id @default(cuid())
+  senderId   String
+  receiverId String
+  status     FriendshipStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  sender   User @relation("SentFriendships", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedFriendships", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+}
+
+model Group {
+  id          String       @id @default(cuid())
+  name        String
+  description String?      @db.Text
+  avatar      String?
+  banner      String?
+  code        String       @unique
+  privacy     GroupPrivacy @default(PUBLIC)
+  ownerId     String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  owner       User              @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     GroupMember[]
+  folders     GroupFolder[]
+  books       GroupBook[]
+  discussions GroupDiscussion[]
+
+  @@index([ownerId])
+  @@index([code])
+  @@index([privacy])
+}
+
+model GroupMember {
+  id       String    @id @default(cuid())
+  groupId  String
+  userId   String
+  role     GroupRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model GroupFolder {
+  id          String   @id @default(cuid())
+  groupId     String
+  name        String
+  description String?
+  color       String?  @default("blue")
+  icon        String?  @default("folder")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  group Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  books GroupBook[]
+
+  @@index([groupId])
+}
+
+model GroupBook {
+  id            String   @id @default(cuid())
+  groupId       String
+  groupFolderId String?
+  bookId        String
+  addedById     String
+  addedAt       DateTime @default(now())
+
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupFolder GroupFolder? @relation(fields: [groupFolderId], references: [id], onDelete: SetNull)
+  book        Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  addedBy     User         @relation(fields: [addedById], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, bookId])
+  @@index([groupId])
+  @@index([groupFolderId])
+  @@index([bookId])
+}
+
+model GroupDiscussion {
+  id           String   @id @default(cuid())
+  groupId      String
+  userId       String
+  bookId       String?
+  page         Int?
+  selectedText String?  @db.Text
+  content      String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book  Book? @relation(fields: [bookId], references: [id], onDelete: SetNull)
+
+  @@index([groupId])
+  @@index([userId])
+  @@index([bookId])
+}
+
 

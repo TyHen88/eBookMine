@@ -14,6 +14,8 @@ import {
   SparklesIcon,
   GridIcon,
   TranslateIcon,
+  UsersIcon,
+  UserIcon,
 } from "./ui/icons";
 
 export default function VerticalNav() {
@@ -53,18 +55,31 @@ export default function VerticalNav() {
       href: "/translate",
       label: "eBookMine Translate",
       icon: TranslateIcon,
-
       active: pathname === "/translate",
       iconClass: "text-blue-500",
     },
     ...(isAuthenticated
       ? [
           {
+            href: "/groups",
+            label: "Reading Groups",
+            icon: UsersIcon,
+            active: pathname === "/groups" || pathname?.startsWith("/groups/"),
+            iconClass: "text-emerald-500",
+          },
+          {
             href: "/ai-tutor",
             label: "AI Assistant",
             icon: SparklesIcon,
             active: pathname === "/ai-tutor",
             iconClass: "text-amber-500",
+          },
+          {
+            href: "/profile",
+            label: "My Profile & Favorites",
+            icon: UserIcon,
+            active: pathname === "/profile",
+            iconClass: "text-indigo-500",
           },
         ]
       : []),

@@ -148,7 +148,7 @@ export async function requireBookAccess(
         return { allowed: true, isPublic: true, response: null };
       }
 
-      // Private books require authentication
+      // Private books require authentication or group membership
       if (!session) {
         return {
           allowed: false,
@@ -158,6 +158,24 @@ export async function requireBookAccess(
             { status: 401 }
           ),
         };
+      }
+
+      // Check if user is owner, admin, or member of a group sharing this book
+      const user = await getCurrentUser();
+      if (user) {
+        const groupBook = await prisma.groupBook.findFirst({
+          where: {
+            bookId: book.id,
+            group: {
+              members: {
+                some: { userId: user.id },
+              },
+            },
+          },
+        });
+        if (groupBook) {
+          return { allowed: true, isPublic: false, response: null };
+        }
       }
 
       return { allowed: true, isPublic: false, response: null };
