@@ -18,6 +18,7 @@ import {
   BookmarkIcon,
   FileTextIcon,
   MarqueeIcon,
+  ClockIcon,
 } from "@/components/ui/icons";
 import { DocumentTab } from "./context/ReaderTabContext";
 
@@ -32,6 +33,7 @@ interface ReaderToolbarProps {
   sidebarOpen: boolean;
   aiDrawerOpen: boolean;
   searchOpen: boolean;
+  timerOpen?: boolean;
   isBookmarked?: boolean;
   isAreaSelectMode?: boolean;
   onPageChange: (page: number) => void;
@@ -42,6 +44,7 @@ interface ReaderToolbarProps {
   onToggleSidebar: () => void;
   onToggleAiDrawer: () => void;
   onToggleSearch: () => void;
+  onToggleTimer?: () => void;
   onToggleAreaSelect?: () => void;
   onToggleFullscreen: () => void;
   onToggleBookmark?: () => void;
@@ -61,6 +64,7 @@ export default function ReaderToolbar({
   sidebarOpen,
   aiDrawerOpen,
   searchOpen,
+  timerOpen,
   isBookmarked,
   isAreaSelectMode,
   onPageChange,
@@ -71,6 +75,7 @@ export default function ReaderToolbar({
   onToggleSidebar,
   onToggleAiDrawer,
   onToggleSearch,
+  onToggleTimer,
   onToggleAreaSelect,
   onToggleFullscreen,
   onToggleBookmark,
@@ -100,8 +105,8 @@ export default function ReaderToolbar({
     theme === "sepia"
       ? "bg-[#f4ecd8] border-[#d8cdb4] text-[#433422]"
       : theme === "dark"
-      ? "bg-slate-900/95 border-slate-800 text-white"
-      : "bg-white/95 border-slate-200/90 text-slate-900";
+        ? "bg-slate-900/95 border-slate-800 text-white"
+        : "bg-white/95 border-slate-200/90 text-slate-900";
 
   // Cycle theme for single mobile button
   const handleCycleTheme = () => {
@@ -156,11 +161,10 @@ export default function ReaderToolbar({
         <button
           type="button"
           onClick={onToggleSidebar}
-          className={`hidden md:flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition ${
-            sidebarOpen
+          className={`hidden md:flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold transition ${sidebarOpen
               ? "bg-brand-600 text-white shadow-sm shadow-brand-500/25"
               : "text-slate-600 hover:bg-black/5 dark:text-slate-300 dark:hover:bg-white/10"
-          }`}
+            }`}
           title="Toggle Navigation & Notes Sidebar"
         >
           <PanelLeftIcon size={16} />
@@ -228,11 +232,10 @@ export default function ReaderToolbar({
           <button
             type="button"
             onClick={onToggleFitWidth}
-            className={`rounded-lg px-2 py-1 text-[11px] font-bold transition ${
-              fitWidth
+            className={`rounded-lg px-2 py-1 text-[11px] font-bold transition ${fitWidth
                 ? "bg-brand-50 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-950 dark:text-brand-300"
                 : "text-slate-600 hover:bg-black/5 dark:text-slate-300 dark:hover:bg-white/10"
-            }`}
+              }`}
             title="Toggle Fit to Width"
           >
             {fitWidth ? "Fit Width" : `${Math.round(scale * 100)}%`}
@@ -256,16 +259,15 @@ export default function ReaderToolbar({
           <button
             type="button"
             onClick={onToggleAreaSelect}
-            className={`flex h-8 items-center gap-1 sm:gap-1.5 rounded-xl px-2 sm:px-2.5 text-xs font-bold transition active:scale-95 ${
-              isAreaSelectMode
+            className={`flex h-8 items-center gap-1 sm:gap-1.5 rounded-xl px-2 sm:px-2.5 text-xs font-bold transition active:scale-95 ${isAreaSelectMode
                 ? "bg-brand-600 text-white shadow-sm shadow-brand-500/30 ring-2 ring-brand-400/50"
                 : "text-slate-600 hover:bg-black/5 dark:text-slate-300 dark:hover:bg-white/10"
-            }`}
+              }`}
             title={isAreaSelectMode ? "Cancel Area Selection" : "Area Selection Tool (Select & Ask AI)"}
             aria-label="Area Selection Tool"
           >
             <MarqueeIcon size={16} />
-            <span className="hidden xl:inline">Select Area</span>
+            {/* <span className="hidden xl:inline">Select Area</span> */}
           </button>
         )}
 
@@ -273,11 +275,10 @@ export default function ReaderToolbar({
         <button
           type="button"
           onClick={onToggleBookmark}
-          className={`hidden md:flex h-8 w-8 items-center justify-center rounded-xl transition ${
-            isBookmarked
+          className={`hidden md:flex h-8 w-8 items-center justify-center rounded-xl transition ${isBookmarked
               ? "bg-amber-500 text-white shadow-sm shadow-amber-500/25 scale-105"
               : "text-slate-500 hover:bg-black/5 dark:text-slate-400 dark:hover:bg-white/10"
-          }`}
+            }`}
           title={isBookmarked ? `Remove bookmark from Page ${currentPage}` : `Bookmark Page ${currentPage}`}
         >
           <BookmarkIcon size={16} filled={isBookmarked} />
@@ -295,15 +296,36 @@ export default function ReaderToolbar({
           </button>
         )}
 
+        {/* Desktop & Mobile Reading Timer Button */}
+        {onToggleTimer && (
+          <button
+            type="button"
+            onClick={onToggleTimer}
+            className={`relative flex h-8 w-8 items-center justify-center rounded-xl transition active:scale-95 ${timerOpen
+                ? "bg-brand-600 text-white shadow-sm shadow-brand-500/30"
+                : "text-slate-500 hover:bg-black/5 dark:text-slate-400 dark:hover:bg-white/10"
+              }`}
+            title="Reading Timer & Goals (T)"
+            aria-label="Reading Timer"
+          >
+            <ClockIcon size={16} />
+            {timerOpen && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
+              </span>
+            )}
+          </button>
+        )}
+
         {/* Document Search (Desktop & Mobile) */}
         <button
           type="button"
           onClick={onToggleSearch}
-          className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
-            searchOpen
+          className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${searchOpen
               ? "bg-brand-600 text-white shadow-sm shadow-brand-500/25"
               : "text-slate-500 hover:bg-black/5 dark:text-slate-400 dark:hover:bg-white/10"
-          }`}
+            }`}
           title="Search Document (Cmd+F / Ctrl+F)"
         >
           <SearchIcon size={16} />
@@ -326,11 +348,10 @@ export default function ReaderToolbar({
           <button
             type="button"
             onClick={() => onThemeChange("light")}
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
-              theme === "light"
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${theme === "light"
                 ? "bg-white text-brand-600 shadow-sm dark:bg-slate-700 dark:text-brand-300 font-bold"
                 : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-            }`}
+              }`}
             title="Light Theme"
           >
             <SunIcon size={13} />
@@ -338,11 +359,10 @@ export default function ReaderToolbar({
           <button
             type="button"
             onClick={() => onThemeChange("sepia")}
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
-              theme === "sepia"
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${theme === "sepia"
                 ? "bg-[#e8dec8] text-[#433422] shadow-sm font-bold"
                 : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-            }`}
+              }`}
             title="Warm Sepia Theme"
           >
             <span className="text-[11px] font-black">S</span>
@@ -350,11 +370,10 @@ export default function ReaderToolbar({
           <button
             type="button"
             onClick={() => onThemeChange("dark")}
-            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${
-              theme === "dark"
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition ${theme === "dark"
                 ? "bg-slate-900 text-amber-300 shadow-sm font-bold"
                 : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-            }`}
+              }`}
             title="Night Dark Theme"
           >
             <MoonIcon size={13} />
@@ -375,11 +394,10 @@ export default function ReaderToolbar({
         <button
           type="button"
           onClick={onToggleAiDrawer}
-          className={`flex h-8 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 text-xs font-bold transition-all duration-200 ${
-            aiDrawerOpen
+          className={`flex h-8 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 text-xs font-bold transition-all duration-200 ${aiDrawerOpen
               ? "bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md shadow-brand-500/30 scale-[1.02]"
               : "bg-gradient-to-r from-brand-500/10 to-indigo-500/10 text-brand-700 hover:from-brand-500/20 hover:to-indigo-500/20 dark:from-brand-400/20 dark:to-indigo-400/20 dark:text-brand-300 ring-1 ring-brand-500/20"
-          }`}
+            }`}
           title="Open Adobe AI Assistant"
         >
           <SparklesIcon size={14} className="animate-pulse" />

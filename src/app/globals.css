@@ -778,3 +778,77 @@ body.area-select-active *,
 .animate-tab-preview {
   animation: tab-preview-pop 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* =========================================================================
+   READING TIMER - 3D FLIP CLOCK & GLOW ANIMATIONS
+   ========================================================================= */
+
+.flip-clock-perspective {
+  perspective: 600px;
+  -webkit-perspective: 600px;
+}
+
+.flip-card-3d {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@keyframes flip-card-top {
+  0% {
+    transform: rotateX(0deg);
+  }
+  100% {
+    transform: rotateX(-90deg);
+  }
+}
+
+@keyframes flip-card-bottom {
+  0% {
+    transform: rotateX(90deg);
+  }
+  100% {
+    transform: rotateX(0deg);
+  }
+}
+
+.animate-flip-top {
+  transform-origin: 50% 100%;
+  animation: flip-card-top 0.28s cubic-bezier(0.37, 0, 0.63, 1) forwards;
+}
+
+.animate-flip-bottom {
+  transform-origin: 50% 0%;
+  animation: flip-card-bottom 0.28s cubic-bezier(0.37, 0, 0.63, 1) 0.28s forwards;
+}
+
+@keyframes timer-glow-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px rgba(147, 51, 234, 0.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 22px rgba(168, 85, 247, 0.65));
+  }
+}
+
+.animate-timer-glow {
+  animation: timer-glow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes orbit-dot-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.9));
+  }
+}
+
+.animate-orbit-dot {
+  animation: orbit-dot-pulse 1.8s ease-in-out infinite;
+}
+

@@ -11,6 +11,7 @@ import {
   BookmarkIcon,
   FileTextIcon,
   MarqueeIcon,
+  ClockIcon,
 } from "@/components/ui/icons";
 import { DocumentTab } from "./context/ReaderTabContext";
 
@@ -22,6 +23,7 @@ interface MobileReadingDockProps {
   tabsCount: number;
   sidebarOpen: boolean;
   aiDrawerOpen: boolean;
+  timerOpen?: boolean;
   isBookmarked?: boolean;
   isAreaSelectMode?: boolean;
   onPrevPage: () => void;
@@ -31,6 +33,7 @@ interface MobileReadingDockProps {
   onToggleAiDrawer: () => void;
   onOpenTabsSheet: () => void;
   onToggleSearch: () => void;
+  onToggleTimer?: () => void;
   onToggleAreaSelect?: () => void;
   onToggleBookmark?: () => void;
   onAddNote?: () => void;
@@ -44,6 +47,7 @@ export default function MobileReadingDock({
   tabsCount,
   sidebarOpen,
   aiDrawerOpen,
+  timerOpen,
   isBookmarked,
   isAreaSelectMode,
   onPrevPage,
@@ -53,6 +57,7 @@ export default function MobileReadingDock({
   onToggleAiDrawer,
   onOpenTabsSheet,
   onToggleSearch,
+  onToggleTimer,
   onToggleAreaSelect,
   onToggleBookmark,
   onAddNote,
@@ -160,6 +165,29 @@ export default function MobileReadingDock({
               title={`Add Note for Page ${currentPage}`}
             >
               <FileTextIcon size={15} />
+            </button>
+          )}
+
+          {/* Reading Timer Toggle */}
+          {onToggleTimer && (
+            <button
+              type="button"
+              onClick={onToggleTimer}
+              className={`relative flex h-8 w-8 items-center justify-center rounded-xl transition active:scale-95 ${
+                timerOpen
+                  ? "bg-brand-600 text-white shadow-sm ring-1 ring-brand-400"
+                  : "text-slate-600 hover:bg-black/5 dark:text-slate-300 dark:hover:bg-white/10"
+              }`}
+              title="Reading Timer"
+              aria-label="Reading Timer"
+            >
+              <ClockIcon size={15} />
+              {timerOpen && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
+                </span>
+              )}
             </button>
           )}
 

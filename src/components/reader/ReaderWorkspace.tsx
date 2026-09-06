@@ -15,6 +15,7 @@ import MobileReadingDock from "./MobileReadingDock";
 import NoteEditorModal from "./NoteEditorModal";
 import AiActionModal from "./AiActionModal";
 import GoogleTranslateModal from "@/components/GoogleTranslateModal";
+import FloatingReadingTimer from "./FloatingReadingTimer";
 import { NoteData } from "@/lib/readingService";
 import { useToast } from "@/components/ui/Toast";
 import { BookOpenIcon, PlusIcon, MarqueeIcon, SparklesIcon, XIcon } from "@/components/ui/icons";
@@ -39,6 +40,7 @@ export default function ReaderWorkspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [timerOpen, setTimerOpen] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState(0);
 
@@ -874,6 +876,7 @@ export default function ReaderWorkspace() {
         sidebarOpen={sidebarOpen}
         aiDrawerOpen={aiDrawerOpen}
         searchOpen={searchOpen}
+        timerOpen={timerOpen}
         isBookmarked={isCurrentPageBookmarked}
         isAreaSelectMode={isAreaSelectMode}
         onPageChange={handlePageChange}
@@ -884,6 +887,7 @@ export default function ReaderWorkspace() {
         onToggleSidebar={() => setSidebarOpen((p) => !p)}
         onToggleAiDrawer={() => setAiDrawerOpen((p) => !p)}
         onToggleSearch={() => setSearchOpen((p) => !p)}
+        onToggleTimer={() => setTimerOpen((p) => !p)}
         onToggleAreaSelect={() => {
           setIsAreaSelectMode((p) => !p);
           if (areaBox) setAreaBox(null);
@@ -1052,6 +1056,7 @@ export default function ReaderWorkspace() {
         tabsCount={tabs.length}
         sidebarOpen={sidebarOpen}
         aiDrawerOpen={aiDrawerOpen}
+        timerOpen={timerOpen}
         isBookmarked={isCurrentPageBookmarked}
         isAreaSelectMode={isAreaSelectMode}
         onPrevPage={handlePrevPage}
@@ -1061,6 +1066,7 @@ export default function ReaderWorkspace() {
         onToggleAiDrawer={() => setAiDrawerOpen((p) => !p)}
         onOpenTabsSheet={() => setMobileTabsSheetOpen(true)}
         onToggleSearch={() => setSearchOpen((p) => !p)}
+        onToggleTimer={() => setTimerOpen((p) => !p)}
         onToggleAreaSelect={() => {
           setIsAreaSelectMode((p) => !p);
           if (areaBox) setAreaBox(null);
@@ -1136,6 +1142,15 @@ export default function ReaderWorkspace() {
 
       {/* 9. Quick Book Switcher Modal */}
       <QuickBookPickerModal theme={activeTab.theme || "light"} />
+
+      {/* 10. Floating Animated Reading Timer Overlay */}
+      <FloatingReadingTimer
+        isOpen={timerOpen}
+        onClose={() => setTimerOpen(false)}
+        theme={activeTab.theme || "light"}
+        bookTitle={activeTab.title}
+        currentPage={activeTab.currentPage || 1}
+      />
     </div>
   );
 }
