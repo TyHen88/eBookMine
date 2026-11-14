@@ -30,13 +30,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const keyToUse = (apiKey || savedConfig.apiKey || process.env.AI_API_KEY || "").trim();
+    const keyToUse = (apiKey || savedConfig.apiKey || process.env.AI_API_KEY || process.env.OLLAMA_API_KEY || "").trim();
 
-    if (!keyToUse && activeProvider !== "ollama") {
+    if (!keyToUse) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Please paste your API key in the API Key box above before testing.",
+          error:
+            activeProvider === "ollama"
+              ? "Please paste your Ollama Cloud API Key (from https://ollama.com/settings/keys) in the API Key box above before testing."
+              : "Please paste your API key in the API Key box above before testing.",
         },
         { status: 400 }
       );
@@ -83,11 +86,14 @@ export async function POST(req: NextRequest) {
         contents: [{ parts: [{ text: "Ping" }] }],
       };
     } else if (activeProvider === "ollama") {
-      endpoint = "http://localhost:11434/api/generate";
-      delete fetchHeaders["Authorization"];
+      endpoint = process.env.OLLAMA_API_URL || "https://ollama.com/api/chat";
+      fetchHeaders = {
+        "Content-Type": "application/json",
+        ...(keyToUse ? { Authorization: `Bearer ${keyToUse}` } : {}),
+      };
       requestBody = {
-        model: targetModel,
-        prompt: "Ping",
+        model: targetModel || "gpt-oss:20b",
+        messages: [{ role: "user", content: "Ping" }],
         stream: false,
       };
     }
@@ -104,7 +110,7 @@ export async function POST(req: NextRequest) {
       if (activeProvider === "ollama") {
         return NextResponse.json({
           ok: false,
-          error: "Cannot connect to Local Ollama at http://localhost:11434. Please make sure Ollama is running (`ollama serve`).",
+          error: `Cannot connect to Ollama Cloud at ${endpoint}. Please check your network or Ollama API Key.`,
         });
       }
       return NextResponse.json({

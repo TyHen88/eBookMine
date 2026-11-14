@@ -103,9 +103,14 @@ async function fetchRawEmbedding(text: string): Promise<EmbeddingResult> {
     const data = await res.json();
     vector = data.data?.[0]?.embedding || [];
   } else if (config.provider === "ollama") {
-    const res = await fetch("http://localhost:11434/api/embeddings", {
+    const aiConfig = await getAIConfig();
+    const ollamaKey = (aiConfig.apiKey || process.env.AI_API_KEY || process.env.OLLAMA_API_KEY || "").trim();
+    const res = await fetch(process.env.OLLAMA_EMBEDDING_URL || "https://ollama.com/api/embeddings", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(ollamaKey ? { Authorization: `Bearer ${ollamaKey}` } : {}),
+      },
       body: JSON.stringify({
         model: config.model || "nomic-embed-text",
         prompt: cleanText,
