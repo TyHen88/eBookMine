@@ -3,6 +3,8 @@ export interface BookContext {
   author?: string;
   page?: number;
   selectedText?: string;
+  modelOverride?: string;
+  fastMode?: boolean;
 }
 
 export interface QuizQuestion {

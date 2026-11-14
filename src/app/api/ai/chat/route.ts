@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { bookId, page, selectedText, message: rawMessage, prompt: rawPrompt, bookTitle, author, chatHistory } = validation.data;
+    const { bookId, page, selectedText, message: rawMessage, prompt: rawPrompt, bookTitle, author, model, fastMode, chatHistory } = validation.data;
     const message = (rawMessage || rawPrompt || "").trim();
 
     if (!message) {
@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
       author,
       page,
       selectedText,
+      modelOverride: model,
+      fastMode,
     };
 
     const history: ChatHistoryMessage[] =

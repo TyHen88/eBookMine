@@ -45,15 +45,49 @@ export function sanitizeKhmerOutput(text: string): string {
 }
 
 /**
+ * Detect whether a user query is requesting a Khmer response.
+ * Returns true ONLY if:
+ * 1. The query itself contains Khmer script characters (U+1780-U+17FF), OR
+ * 2. The query explicitly asks for Khmer (e.g., "in khmer", "to khmer", "khmer meaning", "translate to km").
+ * If the user explicitly asks for English ("in english", "to english"), returns false.
+ */
+export function isKhmerQuestion(question?: string | null): boolean {
+  if (!question) return false;
+  const trimmed = question.trim();
+  if (!trimmed) return false;
+
+  // Explicit request for English overrides Khmer
+  if (/\b(?:in|to|into|respond\s+in|answer\s+in|explain\s+in)\s+english\b/i.test(trimmed)) {
+    return false;
+  }
+
+  // Explicit request for Khmer in Latin characters
+  if (/\b(?:in|to|into)\s+(?:khmer|cambodian)\b|\bkhmer\s+(?:meaning|translation|explanation)\b|\b(?:meaning|translate|explain)\b[\s\S]*\bkhmer\b/i.test(trimmed)) {
+    return true;
+  }
+
+  // Contains Khmer script characters in the user's message
+  return containsKhmer(trimmed);
+}
+
+/**
+ * Detect the primary language of a user question ('km' | 'en').
+ */
+export function detectQueryLanguage(question?: string | null): "km" | "en" {
+  return isKhmerQuestion(question) ? "km" : "en";
+}
+
+/**
  * Linguistic system prompt directives for standard Khmer language.
  */
 export const KHMER_SYSTEM_DIRECTIVES = `
 ========================================
-🇰🇭 STRICT KHMER SCRIPT & LANGUAGE PURITY MANDATE (សេចក្តីណែនាំភាសាខ្មែរ)
+🌐 STRICT LANGUAGE DETECTION & MATCHING MANDATE
 ========================================
-1. SCRIPT PURITY: When replying in Khmer, explaining concepts in Khmer, or translating to Khmer, write EXCLUSIVELY in authentic Khmer script (អក្សរខ្មែរ / Unicode U+1780-U+17FF).
-2. ABSOLUTE ZERO TOLERANCE FOR THAI SCRIPT: STRICTLY NEVER output ANY Thai characters (Unicode U+0E00-U+0E7F) or non-Khmer script. Khmer is a completely distinct language with its own rich vocabulary and grammar. NEVER mix Thai script into Khmer.
-3. KHMER VOCABULARY & GRAMMAR: Use standard, authentic Khmer terminology (e.g., "និយមន័យ" for Definition, "ឧទាហរណ៍" for Example, "សេចក្ដីសង្ខេប" for Summary, "ចំណុចសំខាន់ៗ" for Key Takeaways, "បរិបទ" for Context).
-4. ACCURACY: Ensure proper consonant-vowel combinations and subscript consonants (ជើងអក្សរ e.g., ក្ខ, ខ្ម, ស្ន, ញ្ច) adhere strictly to standard Khmer orthography.
+1. MATCH USER QUERY LANGUAGE: Always detect the language of the user's question and reply in THAT SAME LANGUAGE by default:
+   - If the user asks in English (e.g., "What is...", "Summarize...", "Explain..."), you MUST respond in clear, natural English — even if the attached book title contains Khmer characters — unless the user explicitly asks to translate or explain in Khmer.
+   - If the user asks in Khmer (ភាសាខ្មែរ) or explicitly asks for Khmer ("in Khmer", "translate to Khmer"), you MUST respond in pure, natural standard Khmer (អក្សរខ្មែរ / Unicode U+1780-U+17FF).
+2. ABSOLUTE ZERO TOLERANCE FOR THAI SCRIPT: When writing Khmer, STRICTLY NEVER output ANY Thai characters (Unicode U+0E00-U+0E7F).
+3. KHMER VOCABULARY & GRAMMAR: When replying in Khmer, use authentic Khmer terminology (e.g., "និយមន័យ" for Definition, "ឧទាហរណ៍" for Example, "សេចក្ដីសង្ខេប" for Summary, "ចំណុចសំខាន់ៗ" for Key Takeaways, "បរិបទ" for Context).
 ========================================`;
 

@@ -852,3 +852,14 @@ body.area-select-active *,
   animation: orbit-dot-pulse 1.8s ease-in-out infinite;
 }
 
+/* Native modal dialog scroll containment */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+

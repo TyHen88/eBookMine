@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Header from "@/components/Header";
-import VerticalNav from "@/components/VerticalNav";
 import GroupCard from "@/components/groups/GroupCard";
 import CreateGroupModal from "@/components/groups/CreateGroupModal";
 import JoinGroupModal from "@/components/groups/JoinGroupModal";
@@ -76,56 +75,66 @@ export default function GroupsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen flex flex-col font-sans">
       <Header />
-      <VerticalNav />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 pt-3 sm:pt-6 pb-28 md:pb-12 md:pl-24">
+      <main className="mx-auto w-full max-w-[1380px] flex-1 space-y-5 px-4 sm:px-6 pt-4 sm:pt-6 pb-28 md:pb-14 md:pl-24 md:pr-10 animate-fade-in">
         {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-brand-50/15 to-indigo-50/20 p-3.5 sm:p-5 shadow-xs backdrop-blur-xl dark:border-slate-800/80 dark:from-slate-900/90 dark:via-slate-900/60 dark:to-indigo-950/20 mb-3.5 sm:mb-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
-            <div>
-              <div className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-brand-600 dark:bg-brand-950/60 dark:text-brand-300 border border-brand-200/60 dark:border-brand-900/60 mb-1.5">
-                <UsersIcon size={12} className="text-brand-500" />
-                <span>Collaborative Reading</span>
+        <section className="relative overflow-hidden rounded-3xl border border-brand-400/30 bg-gradient-to-br from-brand-600 via-indigo-600 to-slate-900 p-5 sm:p-6 text-white shadow-xl shadow-brand-600/15 dark:border-brand-500/25">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-emerald-400/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-indigo-400/20 blur-3xl" />
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/25 backdrop-blur-md">
+                  <UsersIcon size={12} className="text-emerald-300" />
+                  <span>Collaborative Study Spaces</span>
+                </span>
+                <span className="rounded-full bg-slate-950/30 px-2.5 py-1 text-[11px] font-bold text-brand-100 ring-1 ring-white/15">
+                  {myGroups.length} My Groups • {publicGroups.length} Public
+                </span>
               </div>
-              <h1 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
-                Reading Groups & Folders
+              <h1 className="font-black tracking-tight text-white [font-size:clamp(1.35rem,1.05rem+1.2vw,2rem)] leading-tight">
+                Reading Groups & Shared Folders
               </h1>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 max-w-xl line-clamp-1 sm:line-clamp-none">
-                Create groups with friends, organize books into shared folders, and read together.
+              <p className="text-xs sm:text-sm text-brand-100/90 max-w-2xl">
+                Create reading groups with friends, organize books into themed folders, and collaborate on study collections.
               </p>
             </div>
 
             {/* Quick Actions */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <button
+                type="button"
                 onClick={() => setIsJoinOpen(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-xs transition-all active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3.5 py-2 text-xs sm:text-sm font-bold text-white ring-1 ring-white/30 backdrop-blur-md transition-all hover:bg-white/25 active:scale-95"
               >
-                <UserPlusIcon size={14} />
+                <UserPlusIcon size={15} />
                 <span>Join with Code</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => setIsCreateOpen(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 text-xs font-bold text-white shadow-xs shadow-brand-500/25 transition-all hover:scale-105 active:scale-95"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-bold text-brand-700 shadow-md transition-all hover:bg-brand-50 hover:-translate-y-0.5 active:scale-95"
               >
-                <PlusIcon size={14} />
+                <PlusIcon size={15} />
                 <span>Create Group</span>
               </button>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Navigation Tabs & Search Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3.5 sm:mb-5">
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/80 self-start">
+        {/* Navigation Tabs & Search Command Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-xs backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/90">
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 self-start">
             <button
+              type="button"
               onClick={() => setActiveTab("my-groups")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "my-groups"
-                  ? "bg-white text-brand-600 shadow-xs dark:bg-slate-800 dark:text-brand-300"
+                  ? "bg-white text-brand-600 shadow-xs dark:bg-slate-900 dark:text-brand-300"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
@@ -134,10 +143,11 @@ export default function GroupsPage() {
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab("discover")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "discover"
-                  ? "bg-white text-brand-600 shadow-xs dark:bg-slate-800 dark:text-brand-300"
+                  ? "bg-white text-brand-600 shadow-xs dark:bg-slate-900 dark:text-brand-300"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
               }`}
             >
@@ -147,16 +157,16 @@ export default function GroupsPage() {
           </div>
 
           {/* Search bar */}
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full sm:w-72">
             <input
               type="text"
-              placeholder="Search groups..."
+              placeholder="Search groups by name or topic..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/80 bg-white/80 pl-8 pr-3 py-1.5 text-xs font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-500 focus:bg-white dark:border-slate-800 dark:bg-slate-900/80 dark:text-slate-100 shadow-xs"
+              className="w-full rounded-xl border border-slate-200/90 bg-slate-50/70 pl-9 pr-3 py-2 text-xs font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-500 focus:bg-white dark:border-slate-700/80 dark:bg-slate-800/60 dark:text-slate-100"
             />
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
-              <SearchIcon size={13} />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <SearchIcon size={14} />
             </span>
           </div>
         </div>

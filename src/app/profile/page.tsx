@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import Header from "@/components/Header";
-import VerticalNav from "@/components/VerticalNav";
 import GroupCard from "@/components/groups/GroupCard";
 import {
   StarIcon,
@@ -83,10 +82,9 @@ export default function ProfilePage() {
 
   if (status === "unauthenticated") {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+      <div className="min-h-screen flex flex-col font-sans">
         <Header />
-        <VerticalNav />
-        <main className="flex-1 max-w-4xl mx-auto px-4 py-20 md:pl-24 text-center">
+        <main className="flex-1 max-w-4xl mx-auto px-4 py-20 md:pl-24 md:pr-10 text-center">
           <div className="rounded-3xl border border-slate-200 bg-white/80 p-12 shadow-xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
             <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-brand-50 text-brand-600 dark:bg-brand-950/60 dark:text-brand-400 mx-auto mb-4">
               <UserIcon size={32} />
@@ -120,40 +118,42 @@ export default function ProfilePage() {
   const inProgress = profileData?.recentProgresses || [];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen flex flex-col font-sans">
       <Header />
-      <VerticalNav />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 pt-3 sm:pt-6 pb-28 md:pb-12 md:pl-24">
+      <main className="flex-1 w-full max-w-[1380px] mx-auto space-y-5 px-4 sm:px-6 pt-4 sm:pt-6 pb-28 md:pb-14 md:pl-24 md:pr-10 animate-fade-in">
         {/* Profile Hero Section */}
-        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-indigo-50/15 to-brand-50/20 p-3.5 sm:p-5 shadow-xs backdrop-blur-xl dark:border-slate-800/80 dark:from-slate-900/90 dark:via-slate-900/60 dark:to-indigo-950/20 mb-3.5 sm:mb-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
+        <section className="relative overflow-hidden rounded-3xl border border-brand-400/30 bg-gradient-to-br from-brand-600 via-indigo-600 to-slate-900 p-5 sm:p-6 text-white shadow-xl shadow-brand-600/15 dark:border-brand-500/25">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-purple-400/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-indigo-400/20 blur-3xl" />
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
             {/* User Info */}
-            <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-4">
               {user?.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={user.image}
                   alt=""
-                  className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl object-cover ring-2 ring-white dark:ring-slate-800 shadow-sm"
+                  className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl object-cover ring-2 ring-white/40 shadow-md"
                 />
               ) : (
-                <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 text-white font-black text-lg sm:text-xl shadow-sm">
+                <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/30 backdrop-blur-md text-white font-black text-xl sm:text-2xl shadow-md">
                   {user?.name?.[0]?.toUpperCase() || "U"}
                 </div>
               )}
 
               <div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h1 className="text-base sm:text-xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white">
                     {user?.name || "Book Reader"}
                   </h1>
-                  <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 border border-brand-200/60">
-                    <CrownIcon size={9} className="text-amber-500" />
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-extrabold text-white ring-1 ring-white/25 backdrop-blur-md">
+                    <CrownIcon size={10} className="text-amber-300" />
                     {user?.role || "READER"}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs sm:text-sm text-brand-100/90 mt-0.5">
                   {user?.email}
                 </p>
               </div>
@@ -161,95 +161,107 @@ export default function ProfilePage() {
 
             {/* Quick Action */}
             <button
+              type="button"
               onClick={() => signOut()}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-xs font-bold text-slate-600 shadow-xs transition-all dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-red-950/40 dark:hover:text-red-400 active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-red-500/80 text-xs font-bold text-white ring-1 ring-white/25 backdrop-blur-md transition-all active:scale-95"
             >
-              <LogOutIcon size={13} />
+              <LogOutIcon size={14} />
               <span>Sign Out</span>
             </button>
           </div>
 
           {/* Stat Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-3.5 pt-3 border-t border-slate-200/60 dark:border-slate-800/60">
-            <div className="rounded-xl border border-slate-100 bg-white/70 p-2.5 sm:p-3 shadow-xs backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/50">
-              <div className="flex items-center gap-1.5 text-amber-500 mb-0.5">
-                <StarIcon size={13} filled />
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Favorites</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/15 relative z-10">
+            <div className="rounded-2xl border border-white/15 bg-slate-950/30 p-3.5 backdrop-blur-md">
+              <div className="flex items-center gap-1.5 text-amber-300 mb-1">
+                <StarIcon size={14} filled />
+                <span className="text-xs font-bold text-brand-100">Favorites</span>
               </div>
-              <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
+              <p className="text-xl sm:text-2xl font-black text-white">
                 {stats.favoritesCount || 0}
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-100 bg-white/70 p-2.5 sm:p-3 shadow-xs backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/50">
-              <div className="flex items-center gap-1.5 text-brand-500 mb-0.5">
-                <BookOpenIcon size={13} />
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Reading</span>
+            <div className="rounded-2xl border border-white/15 bg-slate-950/30 p-3.5 backdrop-blur-md">
+              <div className="flex items-center gap-1.5 text-sky-300 mb-1">
+                <BookOpenIcon size={14} />
+                <span className="text-xs font-bold text-brand-100">Reading</span>
               </div>
-              <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
+              <p className="text-xl sm:text-2xl font-black text-white">
                 {stats.inProgressCount || 0}
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-100 bg-white/70 p-2.5 sm:p-3 shadow-xs backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/50">
-              <div className="flex items-center gap-1.5 text-emerald-500 mb-0.5">
-                <CheckIcon size={13} />
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Completed</span>
+            <div className="rounded-2xl border border-white/15 bg-slate-950/30 p-3.5 backdrop-blur-md">
+              <div className="flex items-center gap-1.5 text-emerald-300 mb-1">
+                <CheckIcon size={14} />
+                <span className="text-xs font-bold text-brand-100">Completed</span>
               </div>
-              <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
+              <p className="text-xl sm:text-2xl font-black text-white">
                 {stats.completedCount || 0}
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-100 bg-white/70 p-2.5 sm:p-3 shadow-xs backdrop-blur-sm dark:border-slate-800/60 dark:bg-slate-900/50">
-              <div className="flex items-center gap-1.5 text-indigo-500 mb-0.5">
-                <UsersIcon size={13} />
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Groups</span>
+            <div className="rounded-2xl border border-white/15 bg-slate-950/30 p-3.5 backdrop-blur-md">
+              <div className="flex items-center gap-1.5 text-purple-300 mb-1">
+                <UsersIcon size={14} />
+                <span className="text-xs font-bold text-brand-100">Groups</span>
               </div>
-              <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100">
+              <p className="text-xl sm:text-2xl font-black text-white">
                 {groups.length || stats.groupsCount || 0}
               </p>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/80 mb-3.5 sm:mb-5 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => setActiveTab("favorites")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              activeTab === "favorites"
-                ? "bg-white text-amber-600 shadow-xs dark:bg-slate-800 dark:text-amber-400"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
-          >
-            <StarIcon size={13} filled={activeTab === "favorites"} />
-            <span>Favorites ({favorites.length})</span>
-          </button>
+        <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white/90 p-2 shadow-xs backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/90 overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/90">
+            <button
+              type="button"
+              onClick={() => setActiveTab("favorites")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === "favorites"
+                  ? "bg-white text-amber-600 shadow-xs dark:bg-slate-900 dark:text-amber-400"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <StarIcon size={13} filled={activeTab === "favorites"} />
+              <span>Favorites ({favorites.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab("in-progress")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              activeTab === "in-progress"
-                ? "bg-white text-brand-600 shadow-xs dark:bg-slate-800 dark:text-brand-300"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
-          >
-            <BookOpenIcon size={13} />
-            <span>In Progress ({inProgress.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("in-progress")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === "in-progress"
+                  ? "bg-white text-brand-600 shadow-xs dark:bg-slate-900 dark:text-brand-300"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <BookOpenIcon size={13} />
+              <span>In Progress ({inProgress.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab("groups")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              activeTab === "groups"
-                ? "bg-white text-indigo-600 shadow-xs dark:bg-slate-800 dark:text-indigo-400"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
+            <button
+              type="button"
+              onClick={() => setActiveTab("groups")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                activeTab === "groups"
+                  ? "bg-white text-indigo-600 shadow-xs dark:bg-slate-900 dark:text-indigo-400"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <UsersIcon size={13} />
+              <span>My Groups ({groups.length})</span>
+            </button>
+          </div>
+          <Link
+            href="/library"
+            className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-brand-600 hover:underline dark:text-brand-400"
           >
-            <UsersIcon size={13} />
-            <span>My Groups ({groups.length})</span>
-          </button>
+            <span>Explore Library →</span>
+          </Link>
         </div>
 
         {/* Tab Content */}

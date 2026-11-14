@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Header from "@/components/Header";
-import VerticalNav from "@/components/VerticalNav";
 import CreateFolderModal from "@/components/groups/CreateFolderModal";
 import AddBookToGroupModal from "@/components/groups/AddBookToGroupModal";
 import InviteMemberModal from "@/components/groups/InviteMemberModal";
@@ -101,10 +100,9 @@ export default function GroupDetailPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
+      <div className="min-h-screen flex flex-col">
         <Header />
-        <VerticalNav />
-        <main className="flex-1 max-w-6xl mx-auto px-4 py-8 md:pl-24 w-full animate-pulse">
+        <main className="flex-1 max-w-[1380px] mx-auto px-4 sm:px-6 py-8 md:pl-24 md:pr-10 w-full animate-pulse">
           <div className="h-40 rounded-3xl bg-slate-200 dark:bg-slate-800 mb-6" />
           <div className="h-10 w-64 rounded-2xl bg-slate-200 dark:bg-slate-800 mb-6" />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -119,10 +117,9 @@ export default function GroupDetailPage({ params }: PageProps) {
 
   if (error || !groupData) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
+      <div className="min-h-screen flex flex-col">
         <Header />
-        <VerticalNav />
-        <main className="flex-1 max-w-4xl mx-auto px-4 py-16 md:pl-24 text-center">
+        <main className="flex-1 max-w-4xl mx-auto px-4 py-16 md:pl-24 md:pr-10 text-center">
           <div className="rounded-3xl border border-red-200 bg-red-50 p-8 dark:border-red-900/50 dark:bg-red-950/50">
             <h2 className="text-lg font-bold text-red-600 dark:text-red-400">
               {error || "Group not found"}
@@ -210,11 +207,10 @@ export default function GroupDetailPage({ params }: PageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen flex flex-col font-sans">
       <Header />
-      <VerticalNav />
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 pt-3 sm:pt-6 pb-28 md:pb-12 md:pl-24">
+      <main className="flex-1 w-full max-w-[1380px] mx-auto px-4 sm:px-6 pt-4 sm:pt-6 pb-28 md:pb-14 md:pl-24 md:pr-10">
         {/* Navigation Breadcrumb & Code */}
         <div className="flex items-center justify-between gap-2 mb-2.5 sm:mb-4">
           <Link

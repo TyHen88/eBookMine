@@ -243,7 +243,7 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
   };
 
   return (
-    <div className="relative flex flex-col min-h-[calc(100vh-140px)] mx-auto max-w-4xl px-2 sm:px-4">
+    <div className="relative flex flex-col min-h-[calc(100dvh-160px)] w-full rounded-3xl border border-slate-200/80 bg-white/90 shadow-xs backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/90 overflow-hidden">
       {/* Book Search & Attachment Modal (Allowed ONLY when navigated from Direct Menu) */}
       {showSearchModal && !isDirectFromBookDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md">
@@ -319,71 +319,127 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
         </div>
       )}
 
-      {/* Header Bar */}
-      <div className="flex flex-col gap-2 py-3 border-b border-slate-200/60 dark:border-slate-800/60 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <SparklesIcon size={18} className="text-brand-600 dark:text-brand-400 shrink-0" />
-          <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 truncate">
-            {selectedBook
-              ? `AI Assistant • ${selectedBook.title}`
-              : "Document Understanding AI Assistant"}
-          </span>
-
-          {/* Locked Pill if came from Book Detail, or Attach Button if came from Direct Menu */}
-          {isDirectFromBookDetail ? (
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-600 dark:bg-slate-800 dark:text-slate-300 shrink-0 border border-slate-200 dark:border-slate-700">
-              🔒 Attached Context
-            </span>
-          ) : (
-            <button
-              onClick={() => setShowSearchModal(true)}
-              className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[10px] font-extrabold text-brand-700 hover:bg-brand-100 dark:bg-brand-950 dark:text-brand-300 shrink-0 border border-brand-200 dark:border-brand-900/60 transition-colors"
-            >
-              {selectedBook ? "🔄 Change Book" : "🔍 Attach Book"}
-            </button>
-          )}
+      {/* Top Workspace Header Banner */}
+      <div className="flex flex-col gap-3 bg-gradient-to-r from-brand-600 via-indigo-600 to-slate-900 px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-amber-300 ring-1 ring-white/25 backdrop-blur-md">
+            <SparklesIcon size={20} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-sm sm:text-base font-black tracking-tight text-white truncate">
+                {selectedBook
+                  ? `AI Study Tutor • ${selectedBook.title}`
+                  : "eBookMine AI Study Tutor"}
+              </h1>
+              {isDirectFromBookDetail ? (
+                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold text-white ring-1 ring-white/25 shrink-0">
+                  Attached Context
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowSearchModal(true)}
+                  className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-0.5 text-[11px] font-bold text-brand-700 shadow-xs transition-all hover:bg-brand-50 shrink-0"
+                >
+                  <BookOpenIcon size={12} />
+                  <span>{selectedBook ? "Change Book" : "Attach Book"}</span>
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-brand-100/90 truncate mt-0.5">
+              {selectedBook
+                ? `Analyzing vector embeddings & chapters for ${selectedBook.author || "selected book"}`
+                : "Ask questions, summarize chapters, and generate practice quizzes from your library"}
+            </p>
+          </div>
         </div>
 
-        {/* Quick Adobe Acrobat AI Assistant Action Toolbar */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        {/* Quick AI Action Toolbar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 shrink-0">
           <button
+            type="button"
             onClick={() => handleSendPrompt(`Summarize key insights of "${selectedBook?.title || "this book"}" with page citations`)}
             disabled={loading}
-            className="rounded-lg bg-brand-50 px-2.5 py-1 text-[10px] font-bold text-brand-700 hover:bg-brand-100 dark:bg-brand-950/60 dark:text-brand-300 shrink-0"
+            className="rounded-xl bg-white/15 px-3 py-1.5 text-[11px] font-bold text-white ring-1 ring-white/25 backdrop-blur-md transition-colors hover:bg-white/25 shrink-0"
           >
-            📌 Summarize Book
+            Summarize Book
           </button>
           <button
+            type="button"
             onClick={() => handleSendPrompt(`Extract the top 5 key takeaways and concepts from "${selectedBook?.title || "this book"}"`)}
             disabled={loading}
-            className="rounded-lg bg-indigo-50 px-2.5 py-1 text-[10px] font-bold text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300 shrink-0"
+            className="rounded-xl bg-white/15 px-3 py-1.5 text-[11px] font-bold text-white ring-1 ring-white/25 backdrop-blur-md transition-colors hover:bg-white/25 shrink-0"
           >
-            🔑 Key Takeaways
+            Key Takeaways
           </button>
           <button
+            type="button"
             onClick={() => handleSendPrompt(`Generate a 5-question study quiz based on "${selectedBook?.title || "this book"}"`)}
             disabled={loading}
-            className="rounded-lg bg-purple-50 px-2.5 py-1 text-[10px] font-bold text-purple-700 hover:bg-purple-100 dark:bg-purple-950/60 dark:text-purple-300 shrink-0"
+            className="rounded-xl bg-white/15 px-3 py-1.5 text-[11px] font-bold text-white ring-1 ring-white/25 backdrop-blur-md transition-colors hover:bg-white/25 shrink-0"
           >
-            ❓ Practice Quiz
+            Practice Quiz
           </button>
         </div>
       </div>
+
       {/* Clean Scrollable Messages Feed */}
-      <div className={`flex-1 overflow-y-auto space-y-4 py-4 ${propBookId ? "pb-4" : "pb-36"}`}>
+      <div className="flex-1 overflow-y-auto space-y-4 px-4 sm:px-6 py-6">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
-            <div className="rounded-full bg-brand-100 p-4 text-brand-600 dark:bg-brand-950 dark:text-brand-400 shadow-md">
-              <SparklesIcon size={28} />
+          <div className="flex flex-col items-center justify-center py-10 sm:py-14 text-center space-y-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-brand-50 text-brand-600 dark:bg-brand-950/80 dark:text-brand-400 shadow-xs ring-1 ring-brand-200/60 dark:ring-brand-800/60">
+              <SparklesIcon size={26} />
             </div>
-            <h3 className="text-sm font-black text-slate-900 dark:text-white">
-              {selectedBook ? `Ready to analyze "${selectedBook.title}"` : "Document Intelligence Ready"}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
-              {isDirectFromBookDetail
-                ? `Context locked for "${selectedBook?.title || "this book"}". Ask questions or click quick tools to analyze.`
-                : "Ask questions, or click 'Attach Book' to select a specific book from your library."}
-            </p>
+            <div className="space-y-1 max-w-md">
+              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
+                {selectedBook ? `Ready to analyze "${selectedBook.title}"` : "Document Intelligence Ready"}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {isDirectFromBookDetail
+                  ? `Context locked for "${selectedBook?.title || "this book"}". Ask a question below or pick a starter prompt.`
+                  : "Attach a book from your library or choose a prompt below to start studying with AI."}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full max-w-2xl pt-2 text-left">
+              <button
+                type="button"
+                onClick={() => handleSendPrompt(`Summarize the main thesis and core arguments of "${selectedBook?.title || "this book"}"`)}
+                className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:bg-white dark:border-slate-800 dark:bg-slate-800/50 dark:hover:border-brand-700"
+              >
+                <span className="block text-xs font-bold text-slate-900 dark:text-white">
+                  Chapter Summary
+                </span>
+                <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Synthesize core thesis & page references
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSendPrompt(`Create 5 active-recall study flashcards from "${selectedBook?.title || "this book"}"`)}
+                className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:bg-white dark:border-slate-800 dark:bg-slate-800/50 dark:hover:border-brand-700"
+              >
+                <span className="block text-xs font-bold text-slate-900 dark:text-white">
+                  Study Flashcards
+                </span>
+                <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Generate Q&A cards for active recall
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSendPrompt(`Explain the most complex concepts in "${selectedBook?.title || "this book"}" in simple terms`)}
+                className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:bg-white dark:border-slate-800 dark:bg-slate-800/50 dark:hover:border-brand-700"
+              >
+                <span className="block text-xs font-bold text-slate-900 dark:text-white">
+                  Explain Simply
+                </span>
+                <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">
+                  Break down key ideas with examples
+                </span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -398,7 +454,7 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
 
         {/* Sleek Animated AI Thinking State */}
         {loading && (
-          <div className="flex items-center gap-2 rounded-2xl bg-white/60 p-3 dark:bg-slate-900/60 w-fit border border-slate-200/50 dark:border-slate-800/50">
+          <div className="flex items-center gap-2 rounded-2xl bg-slate-100/80 p-3 dark:bg-slate-800/80 w-fit border border-slate-200/60 dark:border-slate-700/60">
             <div className="flex items-center gap-1 text-brand-600 dark:text-brand-400">
               <span className="h-2 w-2 rounded-full bg-brand-500 animate-ping" />
               <span className="h-2 w-2 rounded-full bg-indigo-500 animate-ping delay-150" />
@@ -413,14 +469,11 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
         <div ref={chatEndRef} />
       </div>
 
-      {/* INPUT DOCK */}
-      <div className={propBookId
-        ? "sticky bottom-0 z-10 w-full pt-2 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800"
-        : "fixed bottom-[88px] sm:bottom-[96px] left-1/2 z-30 w-full max-w-4xl -translate-x-1/2 px-4"
-      }>
+      {/* Integrated Bottom Input Dock */}
+      <div className="border-t border-slate-200/80 bg-slate-50/80 p-3 sm:p-4 dark:border-slate-800/80 dark:bg-slate-950/60">
         <form
           onSubmit={handleSubmit}
-          className="flex items-center gap-2 rounded-3xl border border-slate-200/90 bg-white/95 p-2 shadow-2xl backdrop-blur-2xl transition-all dark:border-slate-800/90 dark:bg-slate-900/95"
+          className="flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white p-1.5 pl-4 shadow-sm transition-all focus-within:border-brand-500 dark:border-slate-800 dark:bg-slate-900"
         >
           <input
             type="text"
@@ -428,20 +481,21 @@ export default function AiTutorView({ bookId: propBookId }: AiTutorViewProps) {
             onChange={(e) => setInput(e.target.value)}
             placeholder={
               selectedBook
-                ? `Ask Document Assistant about "${selectedBook.title}"...`
-                : "Ask Document Assistant about your books..."
+                ? `Ask AI Tutor about "${selectedBook.title}"...`
+                : "Ask AI Tutor about your books, concepts, or summaries..."
             }
-            className="flex-1 bg-transparent px-4 py-2 text-xs sm:text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white"
+            className="flex-1 bg-transparent py-2 text-xs sm:text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-white"
           />
           <Button
             type="submit"
             size="sm"
             disabled={loading || !input.trim()}
-            className="rounded-2xl px-5 py-2 text-xs font-extrabold shadow-md shadow-brand-500/20"
+            className="rounded-xl px-5 py-2.5 text-xs font-extrabold shadow-xs"
           >
             Ask AI
           </Button>
         </form>
-      </div>    </div>
+      </div>
+    </div>
   );
 }

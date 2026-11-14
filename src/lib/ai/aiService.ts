@@ -17,6 +17,7 @@ import { retrieveRelevantChunks } from "@/lib/rag/retriever";
 import { generateEmbedding } from "./embeddingService";
 import {
   containsKhmer,
+  isKhmerQuestion,
   sanitizeKhmerOutput,
   KHMER_SYSTEM_DIRECTIVES,
 } from "@/lib/khmerHelper";
@@ -32,7 +33,7 @@ export class DefaultAIProvider implements AIProvider {
       basePrompt ||
       (hasAuthor
         ? `You are ${context.author}, the author of "${context.bookTitle}". You respond to questions as if you personally wrote the book — speaking in the first person ("I wrote…", "In my book…", "My intention was…"). Draw from the book's content, themes, and ideas to answer as the author would. Be knowledgeable, articulate, and true to the book's voice and perspective.`
-        : "You are eBookMine AI Assistant — an intelligent book companion that deeply understands the content of the book the reader is studying.");
+        : "You are eMax, the intelligent floating AI reading companion for eBookMine that deeply understands the content of the book the reader is studying.");
 
     ctx += `\n\nCORE RESPONSE QUALITY DIRECTIVES:
 1. ACCURACY & MEANING: Ensure answers are 100% accurate, meaningful, and directly grounded in the text. Do not hallucinate or off-topic chatter.
@@ -167,13 +168,14 @@ ${kmEx1 ? `- **Example Usage**: > "${kmEx1}"` : ""}
 ${targetExp}`;
     }
 
-    const isKhmerContext = containsKhmer(prompt) || containsKhmer(selectedText) || containsKhmer(bookTitle);
-
-    // Extract User Question from prompt
-    const qMatch = prompt.match(/User Question:\s*([\s\S]*?)(?:\n\n\[🇰🇭|$)/i);
+    // Extract User Question from prompt (strips any trailing language mandate tag)
+    const qMatch = prompt.match(/User Question:\s*([\s\S]*?)(?:\n\n\[(?:🇰🇭|🌐)|$)/i);
     const userQuestion = (qMatch ? qMatch[1] : prompt).trim();
 
-    // 2. Vocabulary / Meaning / Definition queries (e.g. "assumption meaning khmer", "what is assumption", "define X", "X meaning in khmer")
+    // Detect language strictly from the user's question (not from bookTitle or old history)
+    const isKhmerContext = isKhmerQuestion(userQuestion);
+
+    // 2. Vocabulary / Meaning / Definition queries (e.g. "what is assumption", "define X", "assumption meaning in khmer")
     const meaningMatch1 = userQuestion.match(/^(?:what\s+is\s+the\s+meaning\s+of|meaning\s+of|what\s+is|what\s+does|define|explain|translate)\s+["']?([^"'\n\r?]+?)["']?(?:\s+mean(?:ing)?)?(?:\s+(?:in|to)\s+(?:khmer|english|ភាសាខ្មែរ))?\??$/i);
     const meaningMatch2 = userQuestion.match(/^["']?([a-zA-Z0-9\s\-]+?)["']?\s+(?:meaning\s+in\s+khmer|meaning\s+khmer|in\s+khmer|meaning|definition|និយមន័យ|មានន័យថាម៉េច|បកប្រែ)\s*\??$/i);
     const meaningMatch3 = userQuestion.match(/(?:តើ\s*)?(?:ពាក្យ\s*)?["']?([a-zA-Z0-9\s\-]+?)["']?\s*(?:មានន័យថាម៉េច|មានន័យដូចម្តេច|ប្រែថាម៉េច|ជាភាសាខ្មែរ)/i);
@@ -187,18 +189,20 @@ ${targetExp}`;
     ).trim();
 
     if (termCandidate && termCandidate.length > 0 && termCandidate.length < 60) {
-      const wordInfo = await this.fetchRichWordData(termCandidate, "km");
+      const targetLang = isKhmerContext ? "km" : "en";
+      const wordInfo = await this.fetchRichWordData(termCandidate, targetLang);
       if (wordInfo && (wordInfo.translatedText || wordInfo.definitions.length > 0 || wordInfo.meanings.length > 0)) {
-        const kmTrans = wordInfo.translatedText || termCandidate;
+        const trans = wordInfo.translatedText || termCandidate;
         const pos = wordInfo.definitions?.[0]?.partOfSpeech || wordInfo.meanings?.[0]?.partOfSpeech || "";
-        const allTerms = wordInfo.definitions?.[0]?.terms?.slice(0, 4)?.join(", ") || kmTrans;
+        const allTerms = wordInfo.definitions?.[0]?.terms?.slice(0, 4)?.join(", ") || trans;
         const engDef = wordInfo.meanings?.[0]?.glosses?.[0]?.definition || "";
         const ex1 = wordInfo.meanings?.[0]?.glosses?.[0]?.example || wordInfo.examples?.[0] || "";
         const ex2 = wordInfo.examples?.[1] || wordInfo.meanings?.[0]?.glosses?.[1]?.example || "";
 
-        return `### 📖 អត្ថន័យ និងនិយមន័យ: **${termCandidate}**
-- **ការបកប្រែជាភាសាខ្មែរ**: **${kmTrans}** ${pos ? `(${pos})` : ""}
-${allTerms && allTerms !== kmTrans ? `- **ពាក្យស្រដៀង / ន័យបន្ថែម**: ${allTerms}` : ""}
+        if (isKhmerContext) {
+          return `### 📖 អត្ថន័យ និងនិយមន័យ: **${termCandidate}**
+- **ការបកប្រែជាភាសាខ្មែរ**: **${trans}** ${pos ? `(${pos})` : ""}
+${allTerms && allTerms !== trans ? `- **ពាក្យស្រដៀង / ន័យបន្ថែម**: ${allTerms}` : ""}
 - **និយមន័យ (Definition)**: ${engDef ? `${engDef}` : `ពាក្យគន្លឹះសំខាន់ដែលត្រូវបានប្រើប្រាស់នៅក្នុងការសិក្សា។`}
 
 ### 💡 ឧទាហរណ៍ជាក់ស្ដែងក្នុងការប្រើប្រាស់ (Example Sentences):
@@ -207,6 +211,19 @@ ${ex2 ? `• *"${ex2}"*` : ""}
 
 ### 📌 បរិបទនៅក្នុងសៀវភៅ ${bookTitle}:
 ពាក្យ **"${termCandidate}"** ត្រូវបានប្រើប្រាស់ដើម្បីបញ្ជាក់ពីគោលការណ៍ និងរចនាសម្ព័ន្ធសំខាន់ៗដែលទាក់ទងនឹង ${pageNum ? `ទំព័រទី ${pageNum}` : "ខ្លឹមសារមេរៀន"} នៃសៀវភៅ **${bookTitle}**${author ? ` ដោយអ្នកនិពន្ធ *${author}*` : ""}។`;
+        }
+
+        return `### 📖 Definition & Meaning: **${termCandidate}**
+- **Part of Speech**: ${pos ? `**${pos}**` : "Key Term"}
+- **Core Definition**: ${engDef || `A key concept and analytical term examined in "${bookTitle}".`}
+${allTerms && allTerms.toLowerCase() !== termCandidate.toLowerCase() ? `- **Synonyms / Related Terms**: ${allTerms}` : ""}
+
+### 💡 Example Sentences:
+${ex1 ? `• *"${ex1}"*` : `• *"${termCandidate} plays a central role in understanding the chapter's framework."*`}
+${ex2 ? `• *"${ex2}"*` : ""}
+
+### 📌 Context in *${bookTitle}*:
+**"${termCandidate}"** clarifies the foundational principles discussed on ${pageNum ? `Page ${pageNum}` : "this section"} of **${bookTitle}**${author ? ` by *${author}*` : ""}.`;
       }
     }
 
@@ -229,9 +246,14 @@ ${ex2 ? `• *"${ex2}"*` : ""}
       const tLang = langMap[transMatch[2].toLowerCase()] || "km";
       try {
         const transRes = await translateText(textToTranslate, tLang);
-        return `### 🌐 លទ្ធផលបកប្រែ (Translation)
+        if (tLang === "km" || isKhmerContext) {
+          return `### 🌐 លទ្ធផលបកប្រែ (Translation)
 - **អត្ថបទដើម**: "${textToTranslate}"
 - **ការបកប្រែ (${transMatch[2]})**: **${transRes.translatedText}**`;
+        }
+        return `### 🌐 Translation Result
+- **Original Text**: "${textToTranslate}"
+- **Translation (${transMatch[2]})**: **${transRes.translatedText}**`;
       } catch {
         /* fallback */
       }
@@ -453,10 +475,14 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
   ): Promise<string> {
     const config = await getAIConfig();
     const apiKey = (config.apiKey || process.env.AI_API_KEY || "").trim();
-    const model = config.model || process.env.AI_MODEL || "google/gemini-2.5-flash";
+    const model =
+      context?.modelOverride ||
+      config.model ||
+      process.env.AI_MODEL ||
+      "google/gemini-2.5-flash";
 
-    // Built-in Local Offline Engine
-    if (provider === "local") {
+    // Built-in Local Offline Engine or explicit Gemma Fast Instant Synthesis fallback
+    if (provider === "local" || (context?.fastMode && !apiKey)) {
       const localResult = await this.generateLocalSynthesis(prompt, context);
       return sanitizeKhmerOutput(localResult);
     }
@@ -527,13 +553,17 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
     }
 
     let res: Response;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), context?.fastMode ? 4500 : 9000);
     try {
       res = await fetch(endpoint, {
         method: "POST",
         headers: fetchHeaders,
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
     } catch (networkErr: any) {
+      clearTimeout(timeoutId);
       if (provider === "ollama") {
         throw new Error(
           "Cannot connect to Local Ollama at http://localhost:11434. Please ensure Ollama is running (`ollama serve`)."
@@ -543,6 +573,7 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
         `Failed to reach AI Provider (${provider}): ${networkErr?.message || "Network connection failed"}.`
       );
     }
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
@@ -590,13 +621,15 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
     }
 
     const config = await getAIConfig();
+    const apiKey = (config.apiKey || process.env.AI_API_KEY || "").trim();
     const primaryProvider = (config.provider || "local").toLowerCase() as SupportedProvider;
 
     const result = await generateWithFailover(
       prompt,
       context,
       (provider, p, ctx) => this.callSpecificProvider(provider, p, ctx),
-      primaryProvider
+      primaryProvider,
+      Boolean(apiKey)
     );
 
     return result.text;
@@ -729,12 +762,12 @@ Respond ONLY with a JSON array of objects matching this exact structure:
       .map((h) => `${h.role}: ${h.content}`)
       .join("\n");
 
-    const isKhmerQuery = containsKhmer(question) || containsKhmer(context?.selectedText) || containsKhmer(context?.bookTitle);
-    const khmerPromptDirective = isKhmerQuery
-      ? `\n\n[🇰🇭 KHMER LANGUAGE MANDATE: The user's query or context is in Khmer (ភាសាខ្មែរ). You MUST respond in pure, natural standard Khmer (អក្សរខ្មែរ). STRICTLY NEVER output any Thai characters (U+0E00-U+0E7F).]`
-      : "";
+    const isKhmerQuery = isKhmerQuestion(question);
+    const languagePromptDirective = isKhmerQuery
+      ? `\n\n[🇰🇭 KHMER LANGUAGE MANDATE: The user's question is in Khmer (ភាសាខ្មែរ) or explicitly requests Khmer. You MUST respond in pure, natural standard Khmer (អក្សរខ្មែរ). STRICTLY NEVER output any Thai characters (U+0E00-U+0E7F).]`
+      : `\n\n[🌐 ENGLISH LANGUAGE MANDATE: The user's question is in English. You MUST respond entirely in clear, natural English — even if the book title or previous conversation contains Khmer — unless the user explicitly asks to translate to Khmer.]`;
 
-    const prompt = `Conversation History:\n${historyText}\n${ragContext}\n\nUser Question: ${question}${khmerPromptDirective}`;
+    const prompt = `Conversation History:\n${historyText}\n${ragContext}\n\nUser Question: ${question}${languagePromptDirective}`;
     return this.callLlm(prompt, context);
   }
 

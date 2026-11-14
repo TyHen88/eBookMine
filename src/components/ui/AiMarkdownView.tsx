@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 
 interface AiMarkdownViewProps {
   content?: string;
-  text?: string; // Support either prop name
+  text?: string;
   onJumpToPage?: (page: number) => void;
   isTyping?: boolean;
   className?: string;
@@ -20,11 +20,12 @@ export function formatInlineText(
 ): React.ReactNode {
   if (!rawText) return null;
 
-  // Clean any loose heading hashes at the start or within inline segments (e.g., "### Title")
+  // Clean any loose heading hashes at the start or within inline segments
   const text = rawText.replace(/#{1,6}\s+/g, "");
 
   // Match: **bold**, *italic*, `code`, [Page 123] or [ទំព័រទី 123] citations
-  const tokenRegex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[(?:Page|ទំព័រទី)\s*\d+[^\]]*\])/gi;
+  const tokenRegex =
+    /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[(?:Page|ទំព័រទី)\s*\d+[^\]]*\])/gi;
   const parts = text.split(tokenRegex);
 
   return parts.map((part, idx) => {
@@ -33,7 +34,10 @@ export function formatInlineText(
     // Bold: **text**
     if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
       return (
-        <strong key={idx} className="font-bold text-slate-900 dark:text-white">
+        <strong
+          key={idx}
+          className="font-bold text-slate-900 dark:text-white"
+        >
           {part.slice(2, -2)}
         </strong>
       );
@@ -53,7 +57,7 @@ export function formatInlineText(
       return (
         <code
           key={idx}
-          className="rounded bg-slate-200/80 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-brand-700 dark:bg-slate-800 dark:text-brand-300"
+          className="rounded-md bg-slate-200/80 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-brand-700 dark:bg-slate-800 dark:text-purple-300"
         >
           {part.slice(1, -1)}
         </code>
@@ -70,7 +74,7 @@ export function formatInlineText(
             key={idx}
             type="button"
             onClick={() => onJumpToPage(pageNum)}
-            className="inline-flex items-center gap-1 rounded-md bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 hover:bg-brand-200 dark:bg-brand-950 dark:text-brand-300 dark:hover:bg-brand-900 transition mx-0.5 shadow-xs active:scale-95 cursor-pointer select-none"
+            className="mx-0.5 inline-flex items-center gap-1 rounded-md bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 shadow-xs transition hover:bg-brand-200 active:scale-95 dark:bg-brand-950 dark:text-brand-300 dark:hover:bg-brand-900 cursor-pointer select-none align-baseline"
             title={`Jump to Page ${pageNum}`}
           >
             <span>📖</span>
@@ -82,7 +86,7 @@ export function formatInlineText(
         return (
           <span
             key={idx}
-            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-brand-100 text-brand-800 dark:bg-brand-950 dark:text-brand-300 mx-0.5"
+            className="mx-0.5 inline-flex items-center gap-0.5 rounded-md bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 dark:text-purple-300 ring-1 ring-purple-500/25 align-baseline"
           >
             📖 Page {pageNum}
           </span>
@@ -95,9 +99,8 @@ export function formatInlineText(
 }
 
 /**
- * Complete, robust AI Markdown renderer supporting headings (# to ######),
- * bullet lists, numbered lists, blockquotes, code blocks, and language separators.
- * Automatically cleans any raw `###` markers.
+ * Clean, strictly left-aligned AI Markdown renderer supporting headings (# to ######),
+ * GitHub alerts (> [!TIP], > [!NOTE]), bullet lists, numbered lists, blockquotes, and code blocks.
  */
 export default function AiMarkdownView({
   content,
@@ -111,14 +114,15 @@ export default function AiMarkdownView({
   const renderedBlocks = useMemo(() => {
     if (!sourceText) return null;
 
-    // Split custom language separators if present (e.g. from dual-language AI prompts)
-    const normalizedText = sourceText.replace(/===SPLIT_LANG_EXPLANATION===/g, "\n\n---\n\n");
+    const normalizedText = sourceText.replace(
+      /===SPLIT_LANG_EXPLANATION===/g,
+      "\n\n---\n\n"
+    );
     const rawLines = normalizedText.split("\n");
 
     const elements: React.ReactNode[] = [];
     let inCodeBlock = false;
     let codeBuffer: string[] = [];
-    let codeLanguage = "";
 
     for (let i = 0; i < rawLines.length; i++) {
       const line = rawLines[i];
@@ -130,17 +134,15 @@ export default function AiMarkdownView({
           elements.push(
             <pre
               key={`code-${i}`}
-              className="my-2 rounded-xl bg-slate-900 p-3 text-[11px] font-mono text-slate-100 overflow-x-auto border border-slate-800"
+              className="my-2 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-3 text-left font-mono text-[11px] leading-relaxed text-slate-100"
             >
               <code>{codeBuffer.join("\n")}</code>
             </pre>
           );
           codeBuffer = [];
           inCodeBlock = false;
-          codeLanguage = "";
         } else {
           inCodeBlock = true;
-          codeLanguage = trimmed.slice(3).trim();
         }
         continue;
       }
@@ -150,9 +152,14 @@ export default function AiMarkdownView({
         continue;
       }
 
+      // Skip raw GitHub Alert tags like `> [!TIP]` or `> [!NOTE]` so they don't render ugly literal brackets
+      if (/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.test(trimmed)) {
+        continue;
+      }
+
       // Empty Lines
       if (!trimmed) {
-        elements.push(<div key={`spacer-${i}`} className="h-1.5" />);
+        elements.push(<div key={`spacer-${i}`} className="h-1" />);
         continue;
       }
 
@@ -161,7 +168,7 @@ export default function AiMarkdownView({
         elements.push(
           <hr
             key={`hr-${i}`}
-            className="my-2.5 border-slate-200 dark:border-slate-800"
+            className="my-2 border-slate-200/70 dark:border-slate-800/80"
           />
         );
         continue;
@@ -173,86 +180,77 @@ export default function AiMarkdownView({
         const level = headingMatch[1].length;
         const headingText = headingMatch[2].trim();
 
-        if (level === 1) {
-          elements.push(
-            <h3
-              key={`h1-${i}`}
-              className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white mt-3 mb-1 tracking-tight"
-            >
-              {formatInlineText(headingText, onJumpToPage)}
-            </h3>
-          );
-        } else if (level === 2) {
+        if (level <= 2) {
           elements.push(
             <h4
               key={`h2-${i}`}
-              className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-2.5 mb-1"
+              className="mt-2 mb-1 text-left text-xs sm:text-sm font-extrabold leading-snug tracking-tight text-slate-900 dark:text-white first:mt-0"
             >
               {formatInlineText(headingText, onJumpToPage)}
             </h4>
           );
-        } else if (level === 3) {
+        } else {
           elements.push(
             <h5
               key={`h3-${i}`}
-              className="text-xs font-bold text-brand-700 dark:text-brand-400 mt-2 mb-0.5 flex items-center gap-1"
+              className="mt-2 mb-1 block text-left text-xs font-extrabold leading-snug text-brand-700 dark:text-purple-300 first:mt-0"
             >
               {formatInlineText(headingText, onJumpToPage)}
             </h5>
-          );
-        } else {
-          elements.push(
-            <h6
-              key={`h4-${i}`}
-              className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mt-1.5 mb-0.5"
-            >
-              {formatInlineText(headingText, onJumpToPage)}
-            </h6>
           );
         }
         continue;
       }
 
-      // 2. Numbered list items: "1. ### Heading", "1. Item text"
+      // 2. Numbered list items: "1. Item text"
       const orderedMatch = trimmed.match(/^(\d+[\.\)])\s*(?:#{1,6}\s*)?(.*)$/);
       if (orderedMatch) {
         const numPrefix = orderedMatch[1];
         const itemContent = orderedMatch[2];
         elements.push(
-          <div key={`ol-${i}`} className="flex items-start gap-1.5 pl-0.5 my-1 text-xs leading-relaxed">
-            <span className="font-bold text-brand-600 dark:text-brand-400 shrink-0 select-none">
+          <div
+            key={`ol-${i}`}
+            className="my-1 grid grid-cols-[18px_1fr] items-baseline gap-1.5 text-left text-xs leading-relaxed"
+          >
+            <span className="select-none font-extrabold text-brand-600 dark:text-purple-400">
               {numPrefix}
             </span>
-            <span className="text-slate-800 dark:text-slate-200 flex-1">
+            <div className="min-w-0 break-words text-slate-800 dark:text-slate-200">
               {formatInlineText(itemContent, onJumpToPage)}
-            </span>
+            </div>
           </div>
         );
         continue;
       }
 
-      // 3. Bullet list items: "• ### Heading", "- Item text", "* Item text"
+      // 3. Bullet list items: "• Item text", "- Item text", "* Item text"
       const bulletMatch = trimmed.match(/^([-*•+])\s*(?:#{1,6}\s*)?(.*)$/);
       if (bulletMatch) {
         const itemContent = bulletMatch[2];
         elements.push(
-          <div key={`ul-${i}`} className="flex items-start gap-1.5 pl-0.5 my-1 text-xs leading-relaxed">
-            <span className="font-bold text-brand-500 shrink-0 select-none">•</span>
-            <span className="text-slate-800 dark:text-slate-200 flex-1">
-              {formatInlineText(itemContent, onJumpToPage)}
+          <div
+            key={`ul-${i}`}
+            className="my-1 grid grid-cols-[12px_1fr] items-baseline gap-1.5 text-left text-xs leading-relaxed"
+          >
+            <span className="select-none font-bold text-brand-500 dark:text-purple-400">
+              •
             </span>
+            <div className="min-w-0 break-words text-slate-800 dark:text-slate-200">
+              {formatInlineText(itemContent, onJumpToPage)}
+            </div>
           </div>
         );
         continue;
       }
 
-      // 4. Blockquotes: "> Quote text", "> ### Quote heading"
+      // 4. Blockquotes: "> Quote text"
       if (trimmed.startsWith(">")) {
         const quoteContent = trimmed.replace(/^>\s*(?:#{1,6}\s*)?/, "");
+        if (!quoteContent) continue;
         elements.push(
           <blockquote
             key={`quote-${i}`}
-            className="border-l-2 border-brand-500 pl-2.5 my-1.5 italic text-slate-700 dark:text-slate-300 text-xs bg-brand-50/30 dark:bg-brand-950/20 py-1 rounded-r-md"
+            className="my-1.5 rounded-r-lg border-l-2 border-purple-500 bg-purple-500/10 py-1.5 pl-2.5 pr-2 text-left text-xs italic leading-relaxed text-slate-700 dark:text-slate-300"
           >
             {formatInlineText(quoteContent, onJumpToPage)}
           </blockquote>
@@ -260,20 +258,22 @@ export default function AiMarkdownView({
         continue;
       }
 
-      // 5. Standard Paragraph (with any stray ### cleaned)
+      // 5. Standard Paragraph
       elements.push(
-        <p key={`p-${i}`} className="text-xs leading-relaxed text-slate-800 dark:text-slate-200 my-0.5">
+        <p
+          key={`p-${i}`}
+          className="my-1 text-left text-xs leading-relaxed break-words text-slate-800 dark:text-slate-200"
+        >
           {formatInlineText(line, onJumpToPage)}
         </p>
       );
     }
 
-    // Flush remaining open code block if any
     if (inCodeBlock && codeBuffer.length > 0) {
       elements.push(
         <pre
           key="code-end"
-          className="my-2 rounded-xl bg-slate-900 p-3 text-[11px] font-mono text-slate-100 overflow-x-auto border border-slate-800"
+          className="my-2 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-3 text-left font-mono text-[11px] leading-relaxed text-slate-100"
         >
           <code>{codeBuffer.join("\n")}</code>
         </pre>
@@ -284,10 +284,12 @@ export default function AiMarkdownView({
   }, [sourceText, onJumpToPage]);
 
   return (
-    <div className={`space-y-1 select-text font-khmer noto-sans-khmer ${className}`}>
+    <div
+      className={`w-full text-left select-text font-khmer noto-sans-khmer ${className}`}
+    >
       {renderedBlocks}
       {isTyping && (
-        <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-brand-500 animate-pulse rounded-xs align-middle" />
+        <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse rounded-xs bg-purple-400 align-middle" />
       )}
     </div>
   );

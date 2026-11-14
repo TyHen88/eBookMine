@@ -137,8 +137,15 @@ export function resetCircuit(provider?: SupportedProvider): void {
 /**
  * Builds the ordered fallback chain for a given primary provider.
  */
-export function buildProviderChain(primaryProvider: SupportedProvider): SupportedProvider[] {
+export function buildProviderChain(
+  primaryProvider: SupportedProvider,
+  hasApiKey: boolean = true
+): SupportedProvider[] {
   const normalizedPrimary = primaryProvider || "local";
+  if (!hasApiKey) {
+    // When no external API key is configured, skip unconfigured cloud providers so response is instant
+    return normalizedPrimary === "ollama" ? ["ollama", "local"] : ["local"];
+  }
   const fallbacks = ALL_PROVIDERS.filter((p) => p !== normalizedPrimary);
   return [normalizedPrimary, ...fallbacks];
 }
@@ -150,9 +157,10 @@ export async function generateWithFailover(
   prompt: string,
   context: BookContext | undefined,
   caller: ProviderCaller,
-  primaryProvider: SupportedProvider = "local"
+  primaryProvider: SupportedProvider = "local",
+  hasApiKey: boolean = true
 ): Promise<FailoverResult> {
-  const chain = buildProviderChain(primaryProvider);
+  const chain = buildProviderChain(primaryProvider, hasApiKey);
   const attemptedProviders: SupportedProvider[] = [];
   let lastError: any = null;
 

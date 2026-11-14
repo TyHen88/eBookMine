@@ -4,6 +4,7 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 import ScrollToTop from "@/components/ScrollToTop";
 import VerticalNav from "@/components/VerticalNav";
+import FloatingAiBot from "@/components/FloatingAiBot";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const kantumruy = Kantumruy_Pro({
@@ -72,6 +73,7 @@ export default function RootLayout({
         <Providers>
           <VerticalNav />
           {children}
+          <FloatingAiBot />
         </Providers>
         <ScrollToTop />
       </body>

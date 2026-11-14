@@ -156,103 +156,177 @@ export default function Library() {
     }).catch(() => {});
   };
 
+  const shelfCounts = useMemo(() => {
+    let reading = 0;
+    let unread = 0;
+    let completed = 0;
+    let favorites = 0;
+    books.forEach((b) => {
+      const pct =
+        b.pageCount && b.lastPage > 1
+          ? Math.min(100, Math.round((b.lastPage / b.pageCount) * 100))
+          : 0;
+      const isCompleted = pct >= 98;
+      const isReading = pct > 0 && !isCompleted;
+      if (isCompleted) completed++;
+      else if (isReading) reading++;
+      else unread++;
+      if (b.favorite) favorites++;
+    });
+    return {
+      all: books.length,
+      reading,
+      unread,
+      completed,
+      favorites,
+    };
+  }, [books]);
+
   return (
-    <div className="mx-auto max-w-6xl space-y-3.5 sm:space-y-5 px-3 sm:px-6 pt-3 sm:pt-5 pb-32 md:pb-12">
-      {/* Library Title Banner */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-            Personal Library
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Your personal reading space • Read, understand, and remember.
-          </p>
-        </div>
-      </div>
+    <main className="mx-auto w-full max-w-[1380px] space-y-5 px-4 sm:px-6 pt-4 sm:pt-6 pb-28 md:pb-14 md:pl-24 md:pr-10 animate-fade-in">
+      {/* Personal Library Hero & Continue Reading Banner */}
+      <section className="relative overflow-hidden rounded-3xl border border-brand-400/30 bg-gradient-to-br from-brand-600 via-indigo-600 to-slate-900 p-5 sm:p-6 text-white shadow-xl shadow-brand-600/15 dark:border-brand-500/25">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-brand-300/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-indigo-400/20 blur-3xl" />
 
-      {/* Continue Reading Hero Banner (Compact & Mobile-Optimized) */}
-      {topContinue ? (
-        <div className="group relative overflow-hidden rounded-2xl border border-brand-400/40 bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 p-2.5 sm:p-3.5 text-white shadow-md shadow-brand-500/15">
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <BookThumbnailImg
-                bookId={topContinue.book.id}
-                cover={topContinue.book.cover}
-                title={topContinue.book.title}
-                className="h-14 w-10 sm:h-16 sm:w-11 shrink-0 rounded-lg shadow-sm ring-1 ring-white/30"
-              />
+        <div className="relative z-10 grid grid-cols-1 gap-5 lg:grid-cols-12 lg:items-center">
+          <div className="lg:col-span-7 space-y-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/25 backdrop-blur-md">
+                <BookOpenIcon size={12} className="text-amber-300" />
+                <span>Personal eBook Collection</span>
+              </span>
+              <span className="rounded-full bg-slate-950/30 px-2.5 py-1 text-[11px] font-bold text-brand-100 ring-1 ring-white/15">
+                {books.length} {books.length === 1 ? "Book" : "Books"}
+              </span>
+            </div>
 
-              <div className="min-w-0 flex-1 space-y-0.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-extrabold text-white backdrop-blur-md">
-                    <BookOpenIcon size={10} /> Continue Reading
+            <h1 className="font-black tracking-tight text-white [font-size:clamp(1.35rem,1.05rem+1.2vw,2rem)] leading-tight">
+              Personal Library
+            </h1>
+            <p className="max-w-xl text-xs sm:text-sm text-brand-100/90">
+              Browse your personal reading collection, filter by shelf or language, and study with AI insights.
+            </p>
+          </div>
+
+          {/* Right Column: Continue Reading Spotlight or Quick Library Summary */}
+          <div className="lg:col-span-5">
+            {topContinue ? (
+              <div className="rounded-2xl border border-white/20 bg-slate-950/35 p-3.5 backdrop-blur-xl shadow-lg">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    Continue Reading
                   </span>
-                  <span className="text-[10px] font-bold text-brand-100">
+                  <span className="rounded-md bg-white/15 px-2 py-0.5 text-[10px] font-extrabold text-white">
                     {topContinue.progress.progressPercentage}%
                   </span>
                 </div>
 
-                <h2 className="line-clamp-1 text-xs sm:text-sm font-bold text-white leading-snug">
-                  {topContinue.book.title}
-                </h2>
-
-                <div className="flex items-center gap-1.5 text-[10px] text-brand-100">
-                  <span className="truncate max-w-[120px] sm:max-w-none">{topContinue.book.author || "Unknown"}</span>
-                  <span>•</span>
-                  <span className="font-semibold text-white">
-                    Page {topContinue.progress.currentPage} / {topContinue.progress.totalPages}
+                <div className="flex items-center gap-3">
+                  <BookThumbnailImg
+                    bookId={topContinue.book.id}
+                    cover={topContinue.book.cover}
+                    title={topContinue.book.title}
+                    className="h-16 w-11 sm:h-18 sm:w-13 shrink-0 rounded-lg shadow-sm ring-1 ring-white/30"
+                  />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <h2 className="line-clamp-1 text-xs sm:text-sm font-bold text-white">
+                      {topContinue.book.title}
+                    </h2>
+                    <div className="flex items-center gap-1.5 text-[11px] text-brand-100">
+                      <span className="truncate">
+                        {topContinue.book.author || "Unknown"}
+                      </span>
+                      <span>•</span>
+                      <span className="font-semibold text-white shrink-0">
+                        Page {topContinue.progress.currentPage} /{" "}
+                        {topContinue.progress.totalPages}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Link
+                        href={`/read/${topContinue.book.id}`}
+                        onMouseEnter={() =>
+                          prefetchPdf(`/api/books/${topContinue.book.id}/file`)
+                        }
+                        onTouchStart={() =>
+                          prefetchPdf(`/api/books/${topContinue.book.id}/file`)
+                        }
+                        className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1 text-[11px] font-bold text-brand-700 shadow-xs transition-all hover:bg-brand-50 active:scale-95"
+                      >
+                        <BookOpenIcon size={12} /> Continue
+                      </Link>
+                      <Link
+                        href={`/book/${topContinue.book.id}`}
+                        className="inline-flex items-center gap-1 rounded-xl bg-white/15 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-md transition-all hover:bg-white/25"
+                      >
+                        <SparklesIcon size={12} /> Ask AI
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/15 bg-slate-950/30 p-3.5 backdrop-blur-xl text-center">
+                <div className="rounded-xl bg-white/10 p-2">
+                  <span className="block text-base sm:text-lg font-black text-white">
+                    {shelfCounts.reading}
+                  </span>
+                  <span className="text-[10px] font-semibold text-brand-100">
+                    Reading
+                  </span>
+                </div>
+                <div className="rounded-xl bg-white/10 p-2">
+                  <span className="block text-base sm:text-lg font-black text-white">
+                    {shelfCounts.completed}
+                  </span>
+                  <span className="text-[10px] font-semibold text-brand-100">
+                    Completed
+                  </span>
+                </div>
+                <div className="rounded-xl bg-white/10 p-2">
+                  <span className="block text-base sm:text-lg font-black text-white">
+                    {shelfCounts.favorites}
+                  </span>
+                  <span className="text-[10px] font-semibold text-brand-100">
+                    Favorites
                   </span>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0 justify-end">
-              <Link
-                href={`/read/${topContinue.book.id}`}
-                onMouseEnter={() => prefetchPdf(`/api/books/${topContinue.book.id}/file`)}
-                onTouchStart={() => prefetchPdf(`/api/books/${topContinue.book.id}/file`)}
-                className="flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-brand-700 shadow-xs transition-all hover:bg-brand-50 hover:scale-105 active:scale-95"
-              >
-                <BookOpenIcon size={13} /> Continue
-              </Link>
-              <Link
-                href={`/book/${topContinue.book.id}`}
-                className="flex items-center gap-1 rounded-xl bg-white/15 px-2.5 py-1.5 text-xs font-bold text-white backdrop-blur-md transition-all hover:bg-white/25"
-              >
-                <SparklesIcon size={13} /> Ask AI
-              </Link>
-            </div>
+            )}
           </div>
         </div>
-      ) : (
-        /* Empty State for New Users */
-        <div className="rounded-2xl sm:rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 p-6 sm:p-8 text-center dark:border-slate-800 dark:bg-slate-900/40">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400">
-            <BookOpenIcon size={24} />
-          </div>
-          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Start your learning journey</h3>
-          <p className="mx-auto mt-0.5 max-w-sm text-xs text-slate-500 dark:text-slate-400">
-            Choose a book from your library and eBookMine will help you read, understand, and remember it.
-          </p>
-        </div>
-      )}
+      </section>
 
-      {/* Filter Tabs & Search Toolbar */}
-      <div className="space-y-2.5 sm:space-y-3">
-        {/* Shelf Tabs & View Mode Segmented Pill */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200/80 pb-2.5 dark:border-slate-800/80">
+      {/* Unified Filter Tabs & Search Command Bar */}
+      <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-3.5 sm:p-4 shadow-xs backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/90 space-y-3">
+        {/* Top Row: Shelf Tabs & View Mode Segmented Pill */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 pb-3 dark:border-slate-800/80">
           <div className="flex items-center gap-1 overflow-x-auto [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-w-0 flex-1">
-            {(["all", "reading", "unread", "completed", "favorites"] as ShelfTab[]).map((t) => (
+            {(
+              ["all", "reading", "unread", "completed", "favorites"] as ShelfTab[]
+            ).map((t) => (
               <button
                 key={t}
+                type="button"
                 onClick={() => setActiveTab(t)}
-                className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
                   activeTab === t
                     ? "bg-brand-600 text-white shadow-xs shadow-brand-500/20"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/70"
                 }`}
               >
-                {TAB_LABELS[t]}
+                <span>{TAB_LABELS[t]}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-extrabold ${
+                    activeTab === t
+                      ? "bg-white/20 text-white"
+                      : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                  }`}
+                >
+                  {shelfCounts[t]}
+                </span>
               </button>
             ))}
           </div>
@@ -260,10 +334,11 @@ export default function Library() {
           {/* Segmented View Switcher (Grid / List) */}
           <div className="flex items-center rounded-xl bg-slate-100/90 p-1 dark:bg-slate-800/90 shrink-0">
             <button
+              type="button"
               onClick={() => setView("grid")}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
                 view === "grid"
-                  ? "bg-white text-brand-600 shadow-sm dark:bg-slate-900 dark:text-brand-400"
+                  ? "bg-white text-brand-600 shadow-xs dark:bg-slate-900 dark:text-brand-400"
                   : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
               title="Grid View"
@@ -272,10 +347,11 @@ export default function Library() {
               <span className="hidden sm:inline">Grid</span>
             </button>
             <button
+              type="button"
               onClick={() => setView("list")}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
                 view === "list"
-                  ? "bg-white text-brand-600 shadow-sm dark:bg-slate-900 dark:text-brand-400"
+                  ? "bg-white text-brand-600 shadow-xs dark:bg-slate-900 dark:text-brand-400"
                   : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               }`}
               title="List View"
@@ -286,7 +362,7 @@ export default function Library() {
           </div>
         </div>
 
-        {/* Search Input & Inline Filter Dropdowns */}
+        {/* Middle Row: Search Input & Inline Filter Dropdowns */}
         <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
           <div className="relative min-w-0 flex-1">
             <SearchInput
@@ -298,16 +374,24 @@ export default function Library() {
 
           <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
             <div className="w-full md:w-44">
-              <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <Select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
                 <option value="">All Categories</option>
                 {categoriesList.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
               </Select>
             </div>
 
             <div className="w-full md:w-48">
-              <Select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}>
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+              >
                 <option value="recent">Recently Added</option>
                 <option value="progress">Highest Progress</option>
                 <option value="title">Title (A-Z)</option>
@@ -317,45 +401,55 @@ export default function Library() {
           </div>
         </div>
 
-        {/* Language Filter Chips */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mr-1">
-            Language:
+        {/* Bottom Row: Language Filter Chips */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/70">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mr-1">
+              Language:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedLang("all")}
+              className={`rounded-xl px-3 py-1 text-xs font-bold transition-all ${
+                selectedLang === "all"
+                  ? "bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900"
+                  : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              All ({languageCounts.all})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedLang("en")}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold transition-all ${
+                selectedLang === "en"
+                  ? "bg-brand-600 text-white shadow-xs shadow-brand-500/25"
+                  : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              <span>🇬🇧</span>
+              <span>English ({languageCounts.en})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedLang("km")}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold transition-all ${
+                selectedLang === "km"
+                  ? "bg-emerald-600 text-white shadow-xs shadow-emerald-500/25"
+                  : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              <span>🇰🇭</span>
+              <span>ភាសាខ្មែរ / Khmer ({languageCounts.km})</span>
+            </button>
+          </div>
+
+          <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+            Showing {filteredAndSorted.length} matching{" "}
+            {filteredAndSorted.length === 1 ? "book" : "books"}
           </span>
-          <button
-            onClick={() => setSelectedLang("all")}
-            className={`rounded-xl px-3 py-1 text-xs font-bold transition-all ${
-              selectedLang === "all"
-                ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
-                : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
-            }`}
-          >
-            All ({languageCounts.all})
-          </button>
-          <button
-            onClick={() => setSelectedLang("en")}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold transition-all ${
-              selectedLang === "en"
-                ? "bg-brand-600 text-white shadow-md shadow-brand-500/25"
-                : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
-            }`}
-          >
-            <span>🇬🇧</span>
-            <span>English ({languageCounts.en})</span>
-          </button>
-          <button
-            onClick={() => setSelectedLang("km")}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold transition-all ${
-              selectedLang === "km"
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                : "bg-slate-100/90 text-slate-600 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
-            }`}
-          >
-            <span>🇰🇭</span>
-            <span>ភាសាខ្មែរ / Khmer ({languageCounts.km})</span>
-          </button>
         </div>
-      </div>
+      </section>
 
       {/* Book Grid / List */}
       {loading ? (
@@ -423,6 +517,6 @@ export default function Library() {
           }}
         />
       )}
-    </div>
+    </main>
   );
 }

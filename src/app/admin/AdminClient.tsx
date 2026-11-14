@@ -33,28 +33,37 @@ interface AdminClientProps {
 
 const PROVIDER_MODELS: Record<string, Array<{ value: string; label: string }>> = {
   local: [
-    { value: "local-synthesizer", label: "Local Built-in Synthesizer (Offline & Free)" },
+    { value: "local-synthesizer", label: "Local Built-in Synthesizer (Zero Latency, Offline)" },
     { value: "local-rag", label: "Local Semantic RAG Engine (Offline & Free)" },
   ],
   openrouter: [
-    { value: "google/gemini-2.5-flash", label: "Google Gemini 2.5 Flash" },
+    { value: "google/gemini-2.5-flash-lite", label: "Google Gemini 2.5 Flash-Lite (Ultra-Fast, Recommended)" },
+    { value: "google/gemini-2.5-flash", label: "Google Gemini 2.5 Flash (Fast & High Quality)" },
+    { value: "google/gemini-2.0-flash-001", label: "Google Gemini 2.0 Flash (Fast)" },
+    { value: "google/gemma-3-27b-it:free", label: "Google Gemma 3 27B IT (Fast & Free)" },
+    { value: "google/gemma-2-9b-it:free", label: "Google Gemma 2 9B IT (Ultra-Fast & Free)" },
+    { value: "openai/gpt-4o-mini", label: "OpenAI GPT-4o Mini (Fast)" },
+    { value: "anthropic/claude-3.5-haiku", label: "Anthropic Claude 3.5 Haiku (Fast)" },
     { value: "google/gemini-1.5-pro", label: "Google Gemini 1.5 Pro" },
     { value: "openai/gpt-4o", label: "OpenAI GPT-4o" },
-    { value: "openai/gpt-4o-mini", label: "OpenAI GPT-4o Mini" },
     { value: "anthropic/claude-3.5-sonnet", label: "Anthropic Claude 3.5 Sonnet" },
     { value: "deepseek/deepseek-chat", label: "DeepSeek Chat V3" },
   ],
   google: [
-    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash Direct" },
+    { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite Direct (Ultra-Fast, Recommended)" },
+    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash Direct (Fast & High Quality)" },
+    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash Direct (Fast)" },
+    { value: "gemma-3-27b-it", label: "Google Gemma 3 27B IT Direct" },
     { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro Direct" },
     { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash Direct" },
   ],
   openai: [
+    { value: "gpt-4o-mini", label: "GPT-4o Mini Direct (Fast, Recommended)" },
     { value: "gpt-4o", label: "GPT-4o Direct" },
-    { value: "gpt-4o-mini", label: "GPT-4o Mini Direct" },
     { value: "gpt-4-turbo", label: "GPT-4 Turbo Direct" },
   ],
   anthropic: [
+    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku Direct (Fast, Recommended)" },
     { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet Direct" },
     { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku Direct" },
   ],
@@ -63,9 +72,10 @@ const PROVIDER_MODELS: Record<string, Array<{ value: string; label: string }>> =
     { value: "deepseek-coder", label: "DeepSeek Coder Direct" },
   ],
   ollama: [
-    { value: "llama3.2", label: "Llama 3.2 (Local Ollama)" },
+    { value: "gemma2:2b", label: "Gemma 2 2B (Ultra-Fast Local Ollama)" },
+    { value: "llama3.2", label: "Llama 3.2 3B (Fast Local Ollama)" },
+    { value: "gemma2", label: "Gemma 2 9B (Local Ollama)" },
     { value: "mistral", label: "Mistral 7B (Local Ollama)" },
-    { value: "gemma2", label: "Gemma 2 (Local Ollama)" },
     { value: "phi3", label: "Phi 3 (Local Ollama)" },
   ],
 };
@@ -690,17 +700,17 @@ export default function AdminClient({
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 px-4 md:pl-24 py-3.5 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/90">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/90">
+        <div className="mx-auto flex w-full max-w-[1380px] items-center justify-between px-4 py-3 sm:px-6 md:pl-24 md:pr-10">
           <div className="flex items-center gap-3">
             <Link href="/" className={buttonClass({ variant: "ghost", size: "icon-sm" })}>
               <ArrowLeftIcon size={18} />
             </Link>
             <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <span className="rounded-lg bg-brand-600 px-2 py-0.5 text-xs font-black text-white shadow">
+              <span className="rounded-lg bg-gradient-to-r from-brand-600 to-indigo-600 px-2.5 py-0.5 text-[11px] font-black text-white shadow-xs">
                 ADMIN
               </span>
-              eBookMine Control Center
+              <span>eBookMine Control Center</span>
             </h1>
           </div>
 
@@ -714,9 +724,10 @@ export default function AdminClient({
         </div>
       </header>
 
-      {/* Navigation Tabs */}
-      <div className="border-b border-slate-200 bg-white px-4 md:pl-24 dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto pt-2 no-scrollbar scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      {/* Main Body Content */}
+      <main className="mx-auto w-full max-w-[1380px] px-4 sm:px-6 pt-4 sm:pt-6 pb-28 md:pb-14 md:pl-24 md:pr-10 space-y-5">
+        {/* Segmented Admin Navigation Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/90 p-1.5 shadow-xs backdrop-blur-xl dark:border-slate-800/90 dark:bg-slate-900/90 no-scrollbar scrollbar-none">
           {(
             [
               { id: "books", label: `Manage Books (${bookCounts.totalBooks.toLocaleString()})` },
@@ -728,21 +739,18 @@ export default function AdminClient({
           ).map((t) => (
             <button
               key={t.id}
+              type="button"
               onClick={() => setActiveTab(t.id as any)}
-              className={`border-b-2 px-4 py-2.5 text-xs font-bold whitespace-nowrap transition-colors ${
+              className={`rounded-xl px-4 py-2 text-xs font-bold whitespace-nowrap transition-all ${
                 activeTab === t.id
-                  ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
-                  : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  ? "bg-brand-600 text-white shadow-xs shadow-brand-500/20"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
               }`}
             >
               {t.label}
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Main Body Content */}
-      <main className="mx-auto max-w-7xl p-4 sm:p-6 md:pl-24 space-y-6 pb-28">
         {/* ==================== TAB 1: MANAGE BOOKS ==================== */}
         {activeTab === "books" && (
           <div className="space-y-4">

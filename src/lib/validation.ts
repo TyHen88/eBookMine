@@ -29,6 +29,8 @@ export const aiChatSchema = z.object({
   prompt: z.string().optional(),
   bookTitle: z.string().optional(),
   author: z.string().optional(),
+  model: z.string().optional(),
+  fastMode: z.boolean().optional(),
   chatHistory: z.array(z.any()).optional(),
 });
 

@@ -330,35 +330,38 @@ export default function GoogleTranslateModal({
     >
 
       {/* Top Header Bar */}
-      <div className={`flex items-center justify-between px-3.5 py-2.5 border-b ${borderDivider}`}>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center p-1.5 rounded-xl bg-brand-500/10 dark:bg-brand-400/10">
-            <GoogleTranslateLogo size={20} />
-          </div>
+      {!isEmbed && (
+        <div className={`flex items-center justify-between px-3.5 py-2.5 border-b ${borderDivider}`}>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm sm:text-base font-bold tracking-tight whitespace-nowrap">eBookMine Translate</h3>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Neural AI
-            </span>
+            <div className="flex items-center justify-center p-1.5 rounded-xl bg-brand-500/10 dark:bg-brand-400/10">
+              <GoogleTranslateLogo size={20} />
+            </div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-bold tracking-tight whitespace-nowrap">eBookMine Translate</h3>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Neural AI
+              </span>
+            </div>
           </div>
-        </div>
 
-        {onClose && !isEmbed && (
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-            title="Close modal"
-          >
-            <XIcon size={18} />
-          </button>
-        )}
-      </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              title="Close modal"
+            >
+              <XIcon size={18} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Main Workspace */}
-      <div className={isEmbed ? "py-2 flex-1 space-y-4" : "p-3.5 flex-1 overflow-y-auto space-y-3"}>
-        {/* Top Card: Original Text */}
-        <div className={`rounded-2xl ${isEmbed ? "border border-slate-200/90 dark:border-slate-800/90 shadow-sm bg-white dark:bg-slate-900" : `border ${bgPanel}`} p-4 flex flex-col justify-between min-h-[150px] transition-all`}>
+      <div className={isEmbed ? "flex-1 space-y-4" : "p-3.5 flex-1 overflow-y-auto space-y-3"}>
+        <div className={isEmbed ? "grid grid-cols-1 lg:grid-cols-11 gap-3.5 items-stretch" : "space-y-3"}>
+        {/* Top / Left Card: Original Text */}
+        <div className={`rounded-3xl ${isEmbed ? "lg:col-span-5 border border-slate-200/90 dark:border-slate-800/90 shadow-xs bg-white dark:bg-slate-900/90 min-h-[240px]" : `rounded-2xl border ${bgPanel} min-h-[150px]`} p-4 sm:p-5 flex flex-col justify-between transition-all`}>
 
           <div>
             {/* Header: Quick Tabs on Left, Language Dropdown Aligned to Right */}
@@ -474,13 +477,13 @@ export default function GoogleTranslateModal({
         </div>
 
         {/* Middle: Centered Switch Icon Button Divider */}
-        <div className="flex items-center justify-center py-1 relative">
-          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+        <div className={`flex items-center justify-center py-1 relative ${isEmbed ? "lg:col-span-1" : ""}`}>
+          <div className={`absolute inset-0 flex items-center ${isEmbed ? "lg:hidden" : ""}`} aria-hidden="true">
             <div className={`w-full border-t ${borderDivider}`} />
           </div>
           <button
             onClick={handleSwapLanguages}
-            className="relative z-10 flex items-center justify-center h-9 w-9 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-md hover:scale-110 active:scale-95 text-brand-600 dark:text-brand-400 transition-all duration-300 ring-4 ring-white dark:ring-slate-950"
+            className="relative z-10 flex items-center justify-center h-10 w-10 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-brand-50 dark:hover:bg-slate-800 shadow-md hover:scale-110 active:scale-95 text-brand-600 dark:text-brand-400 transition-all duration-300 ring-4 ring-slate-50 dark:ring-slate-950"
             title="Swap Languages"
           >
             <div className="flex items-center justify-center" style={{ transform: `rotate(${swapRotate}deg)`, transition: "transform 0.4s ease" }}>
@@ -489,8 +492,8 @@ export default function GoogleTranslateModal({
           </button>
         </div>
 
-        {/* Bottom Card: Translation */}
-        <div className={`rounded-2xl ${isEmbed ? "border border-brand-500/20 dark:border-brand-900/30 shadow-sm bg-brand-50/30 dark:bg-slate-900" : `border ${bgTargetPanel}`} p-4 flex flex-col justify-between min-h-[150px] transition-all`}>
+        {/* Bottom / Right Card: Translation */}
+        <div className={`rounded-3xl ${isEmbed ? "lg:col-span-5 border border-brand-500/25 dark:border-brand-800/40 shadow-xs bg-brand-50/25 dark:bg-slate-900/90 min-h-[240px]" : `rounded-2xl border ${bgTargetPanel} min-h-[150px]`} p-4 sm:p-5 flex flex-col justify-between transition-all`}>
 
           <div>
             {/* Header: Quick Tabs on Left, Target Select Aligned Right */}
@@ -600,6 +603,7 @@ export default function GoogleTranslateModal({
               <span>{loadingAi ? "Analyzing..." : "Explain with AI"}</span>
             </button>
           </div>
+        </div>
         </div>
 
         {/* AI Explanation Section (Separated 2-Language Card Design) */}
