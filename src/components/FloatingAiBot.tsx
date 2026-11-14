@@ -1175,7 +1175,6 @@ export default function FloatingAiBot() {
           bookTitle: selectedBook?.title,
           author: selectedBook?.author,
           message: text.trim(),
-          model: DEFAULT_GEMINI_MODEL,
           fastMode: true,
         }),
       });

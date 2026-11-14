@@ -17,9 +17,9 @@ export interface AIConfigData {
 }
 
 const DEFAULT_CONFIG: AIConfigData = {
-  provider: process.env.AI_PROVIDER || "openrouter",
-  model: process.env.AI_MODEL || "google/gemini-2.5-flash-lite",
-  apiKey: process.env.AI_API_KEY || "",
+  provider: process.env.AI_PROVIDER || "ollama",
+  model: process.env.AI_MODEL || "gpt-oss:20b",
+  apiKey: process.env.AI_API_KEY || process.env.OLLAMA_API_KEY || "",
   systemPrompt:
     "You are eMax, the intelligent floating AI reading companion for eBookMine. Answer questions rapidly, accurately, and concisely using structured Markdown, vector chunks, and book context.",
   chunkSize: 500,

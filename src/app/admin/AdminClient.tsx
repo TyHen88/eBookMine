@@ -72,11 +72,17 @@ const PROVIDER_MODELS: Record<string, Array<{ value: string; label: string }>> =
     { value: "deepseek-coder", label: "DeepSeek Coder Direct" },
   ],
   ollama: [
-    { value: "gemma2:2b", label: "Gemma 2 2B (Ultra-Fast Local Ollama)" },
-    { value: "llama3.2", label: "Llama 3.2 3B (Fast Local Ollama)" },
-    { value: "gemma2", label: "Gemma 2 9B (Local Ollama)" },
-    { value: "mistral", label: "Mistral 7B (Local Ollama)" },
-    { value: "phi3", label: "Phi 3 (Local Ollama)" },
+    { value: "gpt-oss:20b", label: "GPT-OSS 20B (Ollama Cloud — Fast & Free Tier)" },
+    { value: "gpt-oss:20b-cloud", label: "GPT-OSS 20B Cloud (Ollama Cloud — Free Tier)" },
+    { value: "gpt-oss:120b", label: "GPT-OSS 120B (Ollama Cloud — Free Tier)" },
+    { value: "gpt-oss:120b-cloud", label: "GPT-OSS 120B Cloud (Ollama Cloud)" },
+    { value: "gemma3:27b-cloud", label: "Google Gemma 3 27B Cloud (Ollama Cloud — Free)" },
+    { value: "gemma4:31b", label: "Google Gemma 4 31B (Ollama Cloud — Free)" },
+    { value: "deepseek-v3.1:671b-cloud", label: "DeepSeek V3.1 671B Cloud (Ollama Cloud — Free)" },
+    { value: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash (Ollama Cloud — Ultra-Fast)" },
+    { value: "qwen3-coder:480b-cloud", label: "Qwen 3 Coder 480B Cloud (Ollama Cloud)" },
+    { value: "gemma2:2b", label: "Gemma 2 2B (Fast Ollama)" },
+    { value: "llama3.2", label: "Llama 3.2 3B (Fast Ollama)" },
   ],
 };
 
@@ -1309,7 +1315,7 @@ export default function AdminClient({
                     className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs font-bold outline-none focus:border-brand-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   >
                     <option value="local">Local Built-in (100% Offline & Free)</option>
-                    <option value="ollama">Local Ollama (Self-Hosted)</option>
+                    <option value="ollama">Ollama Cloud (https://ollama.com/api/chat)</option>
                     <option value="openrouter">OpenRouter API</option>
                     <option value="google">Google Gemini AI Direct</option>
                     <option value="openai">OpenAI Direct</option>
@@ -1340,7 +1346,7 @@ export default function AdminClient({
               <div>
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    API Key {aiProviderName === "local" ? "(Not required for Local Built-in)" : aiProviderName === "ollama" ? "(Optional for Local Ollama)" : ""}
+                    API Key {aiProviderName === "local" ? "(Not required for Local Built-in)" : aiProviderName === "ollama" ? "(Ollama Cloud API Key — https://ollama.com/settings/keys)" : ""}
                   </label>
                   {aiProviderName !== "local" && (
                     <button
@@ -1361,7 +1367,7 @@ export default function AdminClient({
                     aiProviderName === "local"
                       ? "No API key required — Local Built-in engine works offline and free"
                       : aiProviderName === "ollama"
-                      ? "Optional (Leave blank if running Ollama locally on port 11434)"
+                      ? "Paste your Ollama Cloud API Key (https://ollama.com/api/chat)..."
                       : "Paste API key here..."
                   }
                   className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-mono text-xs font-bold outline-none focus:border-brand-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"

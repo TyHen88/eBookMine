@@ -481,8 +481,10 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
       process.env.AI_MODEL ||
       "google/gemini-2.5-flash";
 
-    // Built-in Local Offline Engine or explicit Gemma Fast Instant Synthesis fallback
-    if (provider === "local" || (context?.fastMode && !apiKey)) {
+    const ollamaApiKey = (apiKey || process.env.OLLAMA_API_KEY || "").trim();
+
+    // Built-in Local Offline Engine or explicit Fast Instant Synthesis fallback when no key is available
+    if (provider === "local" || (context?.fastMode && !apiKey && (provider !== "ollama" || !ollamaApiKey))) {
       const localResult = await this.generateLocalSynthesis(prompt, context);
       return sanitizeKhmerOutput(localResult);
     }
@@ -543,11 +545,17 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
         ],
       };
     } else if (provider === "ollama") {
-      endpoint = "http://localhost:11434/api/generate";
-      delete fetchHeaders["Authorization"];
+      endpoint = process.env.OLLAMA_API_URL || "https://ollama.com/api/chat";
+      fetchHeaders = {
+        "Content-Type": "application/json",
+        ...(ollamaApiKey ? { Authorization: `Bearer ${ollamaApiKey}` } : {}),
+      };
       requestBody = {
-        model,
-        prompt: this.buildSystemPrompt(config.systemPrompt, context) + "\n\n" + prompt,
+        model: model || "gpt-oss:20b",
+        messages: [
+          { role: "system", content: this.buildSystemPrompt(config.systemPrompt, context) },
+          { role: "user", content: prompt },
+        ],
         stream: false,
       };
     }
@@ -566,7 +574,7 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
       clearTimeout(timeoutId);
       if (provider === "ollama") {
         throw new Error(
-          "Cannot connect to Local Ollama at http://localhost:11434. Please ensure Ollama is running (`ollama serve`)."
+          `Cannot connect to Ollama Cloud at ${endpoint}. Please check your network or Ollama API Key.`
         );
       }
       throw new Error(
@@ -597,7 +605,13 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
       const text = data.content?.[0]?.text;
       if (text) rawResult = text;
     } else if (provider === "ollama") {
-      if (data.response) rawResult = data.response;
+      if (data.message?.content) {
+        rawResult = data.message.content;
+      } else if (data.choices?.[0]?.message?.content) {
+        rawResult = data.choices[0].message.content;
+      } else if (data.response) {
+        rawResult = data.response;
+      }
     } else {
       const reply = data.choices?.[0]?.message?.content;
       if (reply) rawResult = reply;
