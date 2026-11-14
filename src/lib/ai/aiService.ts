@@ -545,13 +545,40 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
         ],
       };
     } else if (provider === "ollama") {
+      const OLLAMA_CLOUD_MODELS = new Set([
+        "gpt-oss:20b",
+        "gpt-oss:120b",
+        "gemma4:31b",
+        "deepseek-v4.1-flash",
+        "deepseek-v4.1-flash:1017",
+        "deepseek-v4-pro:0813",
+        "glm-5.3-flash",
+        "glm-5.3",
+        "glm-5.2",
+        "mimo-v2.6-flash",
+        "mimo-v2.6-pro",
+        "minimax-m3.1-flash",
+        "minimax-m3",
+        "kimi-k3",
+        "kimi-k3.1-pro",
+        "kimi-k2.7-code",
+        "kimi-k2.6",
+        "mistral-large-4",
+        "inkling-2-small",
+        "nemotron-3-ultra",
+        "nemotron-3-super",
+        "clef:27b",
+        "beam",
+        "muse-spark-open",
+      ]);
+      const ollamaModel = model && OLLAMA_CLOUD_MODELS.has(model) ? model : "gpt-oss:20b";
       endpoint = process.env.OLLAMA_API_URL || "https://ollama.com/api/chat";
       fetchHeaders = {
         "Content-Type": "application/json",
         ...(ollamaApiKey ? { Authorization: `Bearer ${ollamaApiKey}` } : {}),
       };
       requestBody = {
-        model: model || "gpt-oss:20b",
+        model: ollamaModel,
         messages: [
           { role: "system", content: this.buildSystemPrompt(config.systemPrompt, context) },
           { role: "user", content: prompt },
@@ -586,7 +613,7 @@ ${author ? `As the author *${author}*, here is how this addresses your question:
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       const errDetail =
-        errData.error?.message ||
+        (typeof errData.error === "string" ? errData.error : errData.error?.message) ||
         errData.message ||
         (res.status === 401
           ? "HTTP 401 Unauthorized — Invalid API Key. Check API Key in Admin Panel."

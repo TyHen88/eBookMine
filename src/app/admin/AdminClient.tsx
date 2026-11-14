@@ -73,16 +73,15 @@ const PROVIDER_MODELS: Record<string, Array<{ value: string; label: string }>> =
   ],
   ollama: [
     { value: "gpt-oss:20b", label: "GPT-OSS 20B (Ollama Cloud — Fast & Free Tier)" },
-    { value: "gpt-oss:20b-cloud", label: "GPT-OSS 20B Cloud (Ollama Cloud — Free Tier)" },
     { value: "gpt-oss:120b", label: "GPT-OSS 120B (Ollama Cloud — Free Tier)" },
-    { value: "gpt-oss:120b-cloud", label: "GPT-OSS 120B Cloud (Ollama Cloud)" },
-    { value: "gemma3:27b-cloud", label: "Google Gemma 3 27B Cloud (Ollama Cloud — Free)" },
-    { value: "gemma4:31b", label: "Google Gemma 4 31B (Ollama Cloud — Free)" },
-    { value: "deepseek-v3.1:671b-cloud", label: "DeepSeek V3.1 671B Cloud (Ollama Cloud — Free)" },
+    { value: "gemma4:31b", label: "Google Gemma 4 31B (Ollama Cloud — Free Tier)" },
     { value: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash (Ollama Cloud — Ultra-Fast)" },
-    { value: "qwen3-coder:480b-cloud", label: "Qwen 3 Coder 480B Cloud (Ollama Cloud)" },
-    { value: "gemma2:2b", label: "Gemma 2 2B (Fast Ollama)" },
-    { value: "llama3.2", label: "Llama 3.2 3B (Fast Ollama)" },
+    { value: "glm-5.3-flash", label: "GLM 5.3 Flash (Ollama Cloud — Ultra-Fast)" },
+    { value: "mimo-v2.6-flash", label: "MiMo V2.6 Flash (Ollama Cloud — Fast)" },
+    { value: "minimax-m3.1-flash", label: "MiniMax M3.1 Flash (Ollama Cloud — Fast)" },
+    { value: "kimi-k3", label: "Kimi K3 (Ollama Cloud)" },
+    { value: "mistral-large-4", label: "Mistral Large 4 (Ollama Cloud)" },
+    { value: "inkling-2-small", label: "Inkling 2 Small (Ollama Cloud)" },
   ],
 };
 
@@ -228,7 +227,12 @@ export default function AdminClient({
         if (d.config) {
           const prov = d.config.provider || "openrouter";
           setAiProviderName(prov);
-          setSelectedAiModel(d.config.model || "google/gemini-2.5-flash");
+          const providerModels = PROVIDER_MODELS[prov] || PROVIDER_MODELS.openrouter;
+          const savedModel = d.config.model || "";
+          const isValidForProvider = providerModels.some((m) => m.value === savedModel);
+          setSelectedAiModel(
+            isValidForProvider ? savedModel : providerModels[0]?.value || "gpt-oss:20b"
+          );
           setAiApiKey(d.config.apiKey || "");
           setSystemPrompt(d.config.systemPrompt || "");
           setChunkSize(d.config.chunkSize || 500);

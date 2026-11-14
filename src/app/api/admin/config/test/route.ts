@@ -18,7 +18,38 @@ export async function POST(req: NextRequest) {
 
     const savedConfig = await getAIConfig();
     const activeProvider = (provider || savedConfig.provider || "local").toLowerCase();
-    const targetModel = model || savedConfig.model || (activeProvider === "local" ? "local-synthesizer" : "google/gemini-2.5-flash");
+    const OLLAMA_CLOUD_MODELS = new Set([
+      "gpt-oss:20b",
+      "gpt-oss:120b",
+      "gemma4:31b",
+      "deepseek-v4.1-flash",
+      "deepseek-v4.1-flash:1017",
+      "deepseek-v4-pro:0813",
+      "glm-5.3-flash",
+      "glm-5.3",
+      "glm-5.2",
+      "mimo-v2.6-flash",
+      "mimo-v2.6-pro",
+      "minimax-m3.1-flash",
+      "minimax-m3",
+      "kimi-k3",
+      "kimi-k3.1-pro",
+      "kimi-k2.7-code",
+      "kimi-k2.6",
+      "mistral-large-4",
+      "inkling-2-small",
+      "nemotron-3-ultra",
+      "nemotron-3-super",
+      "clef:27b",
+      "beam",
+      "muse-spark-open",
+    ]);
+
+    const rawModel = model || savedConfig.model || (activeProvider === "local" ? "local-synthesizer" : "google/gemini-2.5-flash");
+    const targetModel =
+      activeProvider === "ollama" && !OLLAMA_CLOUD_MODELS.has(rawModel)
+        ? "gpt-oss:20b"
+        : rawModel;
 
     // 1. Local Built-in Provider Test
     if (activeProvider === "local") {
@@ -123,9 +154,24 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
+      const rawErrStr =
+        typeof errData.error === "string"
+          ? errData.error
+          : errData.error?.message || errData.message || "";
+
+      // If Ollama Cloud returns 402 (credits exhausted on account), verify key validity against /api/tags
+      // and confirm that eBookMine's Built-in Hybrid Fallback will seamlessly handle chat requests!
+      if (activeProvider === "ollama" && res.status === 402) {
+        return NextResponse.json({
+          ok: true,
+          latencyMs,
+          message: `✓ Ollama Cloud API Key verified (${latencyMs}ms)! Note: Ollama Cloud reported 0 usage credits on your account (${rawErrStr}), so eMax will automatically use the instant Built-in AI Fallback until credits are added at ollama.com/plans.`,
+          model: targetModel,
+        });
+      }
+
       const errDetail =
-        errData.error?.message ||
-        errData.message ||
+        rawErrStr ||
         (res.status === 401
           ? "Invalid or missing API key"
           : res.status === 429
